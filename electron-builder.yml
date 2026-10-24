@@ -1,4 +1,5 @@
-# Empacotamento do app (Windows/NSIS) e publicação nos GitHub Releases, lidos pelo auto-update.
+# Empacotamento do app (Windows/NSIS). `publish` diz ao auto-update onde procurar versões novas;
+# quem cria o Release é o workflow .github/workflows/release.yml.
 appId: com.guialvesgalvao.rpa-bling
 productName: RPA Bling
 directories:
@@ -23,5 +24,3 @@ publish:
   provider: github
   owner: guialvesgalvao
   repo: rpa
-  # Publica direto (não como rascunho): o auto-update só enxerga Releases publicados.
-  releaseType: release

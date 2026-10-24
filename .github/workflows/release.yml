@@ -32,6 +32,12 @@ jobs:
       - run: npm run format:check
       - run: npm test
       - run: npm run app:build
-      - run: npx electron-builder --win --publish always
+      - run: npx electron-builder --win --publish never
+      # Um único passo cria o Release com os 3 arquivos; o upload paralelo do electron-builder
+      # chegou a criar dois Releases para a mesma tag.
+      - name: Publica o Release
+        shell: bash
+        run: |
+          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --generate-notes             release/RPA-Bling-Setup-*.exe release/RPA-Bling-Setup-*.exe.blockmap release/latest.yml
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

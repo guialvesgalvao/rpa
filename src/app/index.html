@@ -1,0 +1,483 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'"
+    />
+    <title>ABA Embalagens — Documentos</title>
+    <style>
+      /* Identidade visual da ABA Embalagens (referência: abaembalagens.com.br). */
+      :root {
+        --aba-red: #b62b38;
+        --aba-red-dark: #962330;
+        --aba-green: #4d9801;
+        --aba-green-dark: #3e7a01;
+        --bg: #f4f5f6;
+        --card: #fff;
+        --text: #212529;
+        --muted: #6c757d;
+        --border: #d6d6d6;
+        --ok-bg: #e8f3dc;
+        --err-bg: #f8e1e3;
+        --run: #1d5fbf;
+        --run-bg: #e1ebf8;
+        --idle-bg: #eceef0;
+        font-family: 'Segoe UI', system-ui, sans-serif;
+        color: var(--text);
+        background: var(--bg);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        background: var(--bg);
+      }
+
+      /* Cabeçalho com a logo. O arquivo da logo tem fundo branco (sem transparência),
+         então o cabeçalho é branco com borda vermelha; as cores seguem o site. */
+      header {
+        background: #fff;
+        color: var(--aba-red);
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        padding: 10px 28px;
+        border-bottom: 4px solid var(--aba-red);
+      }
+      header img {
+        height: 68px;
+        width: auto;
+        display: block;
+      }
+      header .titulo {
+        margin-left: auto;
+        text-align: right;
+      }
+      header h1 {
+        margin: 0;
+        font-size: 20px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.02em;
+      }
+      header p {
+        margin: 2px 0 0;
+        font-size: 13px;
+        color: var(--muted);
+      }
+
+      /* Faixa verde de navegação: aqui mostra os passos. */
+      nav {
+        background: var(--aba-green);
+        color: #fff;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px 22px;
+        padding: 10px 28px;
+        font-size: 13px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.01em;
+      }
+      nav span b {
+        display: inline-grid;
+        place-items: center;
+        width: 20px;
+        height: 20px;
+        margin-right: 6px;
+        border-radius: 50%;
+        background: #fff;
+        color: var(--aba-green);
+        font-size: 12px;
+      }
+
+      main {
+        flex: 1;
+        width: 100%;
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 24px 28px;
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        padding: 18px 20px;
+        margin-bottom: 16px;
+      }
+      .card > label,
+      .card > h2 {
+        display: block;
+        margin-top: 0;
+        font-size: 13px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.02em;
+        margin-bottom: 8px;
+        padding-left: 10px;
+        border-left: 3px solid var(--aba-red);
+      }
+      textarea,
+      input[type='text'],
+      input[type='number'] {
+        width: 100%;
+        font: inherit;
+        padding: 9px 12px;
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        background: #fff;
+        color: var(--text);
+      }
+      textarea:focus,
+      input[type='text']:focus,
+      input[type='number']:focus {
+        outline: none;
+        border-color: var(--aba-green);
+        box-shadow: 0 0 0 3px rgba(77, 152, 1, 0.18);
+      }
+      textarea {
+        height: 130px;
+        resize: vertical;
+        font-family: Consolas, monospace;
+      }
+      textarea:disabled,
+      input:disabled {
+        background: #f1f2f3;
+      }
+      .hint {
+        color: var(--muted);
+        font-size: 13px;
+        margin-top: 8px;
+        min-height: 1.2em;
+      }
+      .hint.warn {
+        color: var(--aba-red);
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+      }
+      .row input {
+        flex: 1;
+      }
+
+      /* Intervalo De/Até e confirmação da seleção. */
+      .intervalo {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        margin-top: 12px;
+        font-size: 14px;
+      }
+      .intervalo > span {
+        font-weight: 700;
+      }
+      .intervalo input {
+        width: 120px;
+      }
+      .intervalo button {
+        margin-left: auto;
+      }
+
+      /* Lista de confirmação: um bloco por pedido, documentos recuados. */
+      .aviso {
+        background: var(--err-bg);
+        color: var(--aba-red);
+        font-weight: 600;
+        font-size: 13px;
+        padding: 8px 12px;
+        border-radius: 4px;
+        margin-bottom: 10px;
+      }
+      .pedidos {
+        display: grid;
+        gap: 6px;
+        max-height: 340px;
+        overflow-y: auto;
+      }
+      #selecao.desatualizada .pedidos {
+        opacity: 0.55;
+      }
+      .pedido {
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        padding: 8px 12px;
+      }
+      .pedido.desmarcado {
+        background: #f8f9fa;
+      }
+      .pedido.desmarcado .pedido-docs {
+        opacity: 0.6;
+      }
+      .check {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 14px;
+        cursor: pointer;
+      }
+      .check.pedido-check {
+        font-weight: 700;
+      }
+      .check input {
+        width: 16px;
+        height: 16px;
+        margin: 0;
+        accent-color: var(--aba-green);
+      }
+      .check:has(input:disabled) {
+        cursor: default;
+      }
+      .check.indisponivel {
+        color: var(--muted);
+      }
+      .em-breve {
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        background: var(--idle-bg);
+        color: var(--muted);
+        border-radius: 999px;
+        padding: 1px 7px;
+      }
+      .pedido-docs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px 20px;
+        margin: 6px 0 0 24px;
+      }
+
+      button {
+        font: inherit;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.02em;
+        font-size: 13px;
+        padding: 10px 18px;
+        border-radius: 4px;
+        cursor: pointer;
+        border: 1px solid var(--aba-red);
+        background: #fff;
+        color: var(--aba-red);
+      }
+      button:hover:not(:disabled) {
+        background: var(--aba-red);
+        color: #fff;
+      }
+      button.primary {
+        background: var(--aba-green);
+        border-color: var(--aba-green);
+        color: #fff;
+        padding: 12px 26px;
+        font-size: 14px;
+      }
+      button.primary:hover:not(:disabled) {
+        background: var(--aba-green-dark);
+        border-color: var(--aba-green-dark);
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: default;
+      }
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+        margin-bottom: 8px;
+      }
+      #resumo {
+        margin-left: auto;
+        color: var(--muted);
+        font-weight: 600;
+      }
+      #erro-geral {
+        color: var(--aba-red);
+        font-weight: 600;
+        min-height: 1.2em;
+        margin-bottom: 8px;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 9px 10px;
+        border-bottom: 1px solid var(--border);
+        vertical-align: middle;
+      }
+      tbody tr:last-child td {
+        border-bottom: 0;
+      }
+      th {
+        font-size: 12px;
+        color: var(--muted);
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+      td:first-child {
+        font-weight: 700;
+      }
+      tbody tr.grupo:not(:first-child) td {
+        border-top: 2px solid var(--border);
+      }
+      .arquivo {
+        word-break: break-all;
+      }
+      .erro-msg {
+        color: var(--aba-red);
+        font-weight: 600;
+      }
+
+      /* Passo a passo: só aparece quando o documento termina em erro. */
+      details.passos {
+        margin-top: 6px;
+      }
+      details.passos summary {
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      details.passos ol {
+        list-style: none;
+        margin: 6px 0 0;
+        padding: 0;
+        font-size: 13px;
+      }
+      details.passos li {
+        padding: 2px 0;
+      }
+      .passo .marca {
+        display: inline-block;
+        width: 18px;
+        font-weight: 700;
+      }
+      .passo.ok .marca {
+        color: var(--aba-green-dark);
+      }
+      .passo.erro {
+        color: var(--aba-red);
+      }
+      .passo-erro {
+        margin-left: 18px;
+        color: var(--muted);
+      }
+      .status {
+        display: inline-block;
+        padding: 3px 10px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 700;
+        white-space: nowrap;
+      }
+      .status.pendente {
+        background: var(--idle-bg);
+        color: var(--muted);
+      }
+      .status.processando {
+        background: var(--run-bg);
+        color: var(--run);
+      }
+      .status.ok {
+        background: var(--ok-bg);
+        color: var(--aba-green-dark);
+      }
+      .status.erro {
+        background: var(--err-bg);
+        color: var(--aba-red);
+      }
+
+      footer {
+        background: var(--aba-red);
+        color: #fff;
+        font-size: 12px;
+        text-align: center;
+        padding: 8px;
+        opacity: 0.95;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <img src="assets/logo-aba.png" alt="ABA Embalagens" />
+      <div class="titulo">
+        <h1>Documentos</h1>
+        <p>Pedidos de venda · Bling</p>
+      </div>
+    </header>
+    <nav>
+      <span><b>1</b>Informe os pedidos</span>
+      <span><b>2</b>Confira a seleção</span>
+      <span><b>3</b>Gere os documentos</span>
+    </nav>
+
+    <main>
+      <div class="card">
+        <label for="numeros">Números dos pedidos</label>
+        <textarea id="numeros" placeholder="Um por linha. Ex.:&#10;1&#10;2&#10;3"></textarea>
+        <div class="intervalo">
+          <span>Intervalo:</span>
+          <label for="de">De</label>
+          <input id="de" type="number" min="1" step="1" />
+          <label for="ate">Até</label>
+          <input id="ate" type="number" min="1" step="1" />
+          <button id="confirmar" type="button" disabled>Confirmar seleção</button>
+        </div>
+        <div id="contagem" class="hint"></div>
+      </div>
+
+      <div class="card" id="selecao" hidden>
+        <h2>Confira a seleção</h2>
+        <div id="aviso" class="aviso" hidden>Seleção desatualizada — confirme novamente</div>
+        <div id="pedidos" class="pedidos"></div>
+        <div id="resumo-selecao" class="hint"></div>
+      </div>
+
+      <div class="card">
+        <label for="pasta">Salvar documentos em</label>
+        <div class="row">
+          <input id="pasta" type="text" />
+          <button id="escolher" type="button">Escolher…</button>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="gerar" class="primary" type="button" disabled>Gerar documentos</button>
+        <button id="abrir" type="button">Abrir pasta</button>
+        <span id="resumo"></span>
+      </div>
+      <div id="erro-geral"></div>
+
+      <div class="card" id="resultado" hidden>
+        <table>
+          <thead>
+            <tr>
+              <th>Pedido</th>
+              <th>Documento</th>
+              <th>Status</th>
+              <th>Detalhe</th>
+            </tr>
+          </thead>
+          <tbody id="itens"></tbody>
+        </table>
+      </div>
+    </main>
+
+    <footer>ABA Embalagens · Robô de documentos (POC)</footer>
+
+    <script src="../../dist/app/renderer.js"></script>
+  </body>
+</html>

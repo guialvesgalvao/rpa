@@ -1,7 +1,7 @@
 {
   "name": "rpa",
   "productName": "RPA Bling",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Automações RPA com Node, TypeScript e Playwright",
   "author": "guialvesgalvao",

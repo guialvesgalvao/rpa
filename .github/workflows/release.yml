@@ -1,0 +1,37 @@
+# Publica o instalador nos GitHub Releases ao receber uma tag vX.Y.Z (criada por `npm version`).
+# Os apps instalados leem o latest.yml desse Release e se atualizam.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - name: Tag confere com a versão do package.json
+        shell: bash
+        run: |
+          versao="v$(node -p "require('./package.json').version")"
+          if [ "$versao" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME diferente da versão do package.json ($versao)"
+            exit 1
+          fi
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm test
+      - run: npm run app:build
+      - run: npx electron-builder --win --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

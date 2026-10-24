@@ -1,4 +1,5 @@
-// Compila o app Electron (src/app) para dist/app.
+// Compila o app Electron (src/app) para dist/app, junto com o HTML e os assets.
+import { cp } from 'node:fs/promises';
 import { build } from 'esbuild';
 
 const common = { bundle: true, sourcemap: true, logLevel: 'info' };
@@ -29,4 +30,8 @@ await Promise.all([
     platform: 'browser',
     format: 'iife',
   }),
+]);
+await Promise.all([
+  cp('src/app/index.html', 'dist/app/index.html'),
+  cp('src/app/assets', 'dist/app/assets', { recursive: true }),
 ]);

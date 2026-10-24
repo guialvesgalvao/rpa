@@ -66,7 +66,11 @@ export async function openVendas(page: Page, config: Config, logger: Logger): Pr
   await page.goto(VENDAS_URL, { waitUntil: 'domcontentloaded' });
   if (isBlingLogin(new URL(page.url()))) {
     const { user, password } = config.bling;
-    if (!user || !password) throw new Error('Defina BLING_USER e BLING_PASSWORD no .env.');
+    if (!user || !password) {
+      throw new Error(
+        'Usuário e senha do Bling não definidos: preencha em Configurações (app) ou BLING_USER e BLING_PASSWORD no .env (CLI).',
+      );
+    }
     logger.info('Sessão do Bling ausente, entrando com o usuário-robô');
     await loginWithPassword(page, csrf, user, password);
     logger.info('Login no Bling concluído');

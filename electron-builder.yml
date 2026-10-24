@@ -1,0 +1,27 @@
+# Empacotamento do app (Windows/NSIS) e publicação nos GitHub Releases, lidos pelo auto-update.
+appId: com.guialvesgalvao.rpa-bling
+productName: RPA Bling
+directories:
+  output: release
+  buildResources: build
+files:
+  - dist/app/**
+  - '!dist/app/**/*.map'
+  - package.json
+# O Playwright lê arquivos próprios do disco; fora do asar por segurança.
+asarUnpack:
+  - node_modules/playwright-core/**
+win:
+  target: nsis
+  icon: build/icon.ico
+# Instala por usuário (%LOCALAPPDATA%\Programs), sem pedir administrador; atualiza em silêncio.
+nsis:
+  oneClick: true
+  perMachine: false
+  artifactName: RPA-Bling-Setup-${version}.${ext}
+publish:
+  provider: github
+  owner: guialvesgalvao
+  repo: rpa
+  # Publica direto (não como rascunho): o auto-update só enxerga Releases publicados.
+  releaseType: release

@@ -9,6 +9,11 @@ const api: RpaApi = {
   gerar: (selecao, destDir) => ipcRenderer.invoke(CHANNELS.gerar, selecao, destDir),
   onProgresso: (callback) =>
     void ipcRenderer.on(CHANNELS.progresso, (_event, item: DocResult) => callback(item)),
+  obterConfig: () => ipcRenderer.invoke(CHANNELS.obterConfig),
+  salvarConfig: (entrada) => ipcRenderer.invoke(CHANNELS.salvarConfig, entrada),
+  onAtualizacao: (callback) =>
+    void ipcRenderer.on(CHANNELS.atualizacao, (_event, versao: string) => callback(versao)),
+  instalarAtualizacao: () => ipcRenderer.invoke(CHANNELS.instalarAtualizacao),
 };
 
 contextBridge.exposeInMainWorld('rpa', api);

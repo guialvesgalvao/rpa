@@ -1,0 +1,4 @@
+# LF no repositório e no checkout (inclusive no runner Windows), como o Prettier espera.
+* text=auto eol=lf
+*.png binary
+*.ico binary

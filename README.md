@@ -36,7 +36,7 @@ Se o Chromium reclamar de bibliotecas do sistema: `sudo npx playwright install-d
 | `BLING_PASSWORD`     | —                                                       | Senha do usuário-robô                             |
 | `BLING_BOLETOS_DIR`  | `data/boletos`                                          | Pasta padrão dos boletos em PDF                   |
 
-`BLING_USER`/`BLING_PASSWORD` são obrigatórios para os processos do Bling: o robô entra pelo formulário de usuário/senha, depois que a tela de login carrega o token de segurança (CSRF).
+`BLING_USER`/`BLING_PASSWORD` são obrigatórios para os processos do Bling na CLI: o robô entra pelo formulário de usuário/senha, depois que a tela de login carrega o token de segurança (CSRF). No app, usuário, senha, pasta padrão e caminho do Chrome também podem ser definidos em **Configurações** e valem sobre o `.env` (ver [Configurações do app](#configurações-do-app)).
 
 No WSL, caminhos do Windows (`C:\Users\...`) são convertidos automaticamente para `/mnt/c/Users/...`; rodando nativo no Windows, são usados como estão.
 
@@ -58,7 +58,7 @@ Na CLI do Bling, `--docs=` escolhe os documentos (separados por vírgula: `bolet
 ### App de documentos do Bling (POC)
 
 ```bash
-npm run app        # compila src/app e abre a janela
+npm run app        # compila src/app (dist/app) e abre a janela
 ```
 
 1. **Informe os pedidos:** cole os números (um por linha, ou separados por vírgula/espaço) e/ou preencha o **Intervalo De/Até** (inclusivo, crescente ou decrescente, até 200 pedidos). A lista final é a união sem repetidos: primeiro o texto, depois o intervalo.
@@ -75,6 +75,35 @@ Como funciona a nota fiscal (**emite NF-e de verdade**, com efeito fiscal se a c
 
 - Logs: terminal + `logs/<processo>_<data>.log` (JSON).
 - Em erro no navegador: screenshot e trace em `artifacts/`. Abra o trace com `npx playwright show-trace artifacts/trace_*.zip`.
+
+### Configurações do app
+
+O botão **Configurações** (no cabeçalho) guarda o usuário e a senha do Bling, a pasta padrão dos documentos e, se precisar, o caminho do Chrome. Sem usuário ou senha, a tela abre sozinha ao iniciar. Os valores ficam em `data/settings.json` (em dev, na raiz do projeto; no app instalado, em `%APPDATA%\RPA Bling\data`). A senha é cifrada pelo Windows (DPAPI, via `safeStorage` do Electron) e só pode ser lida pelo mesmo usuário na mesma máquina. Senha em branco mantém a atual.
+
+Ordem de prioridade: Configurações > `.env` > padrões. Se o Chrome não estiver no caminho configurado, o robô tenta `%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe` (instalação por usuário).
+
+## Instalar o app em outra máquina
+
+Requisitos: Windows 10/11 e Google Chrome instalado. Não precisa de Node nem de Git.
+
+1. Baixe `RPA-Bling-Setup-<versão>.exe` do [último Release](https://github.com/guialvesgalvao/rpa/releases/latest) e execute. A instalação é por usuário (`%LOCALAPPDATA%\Programs\RPA Bling`) e não pede administrador.
+2. O instalador não é assinado, então o Windows mostra "O Windows protegeu o computador": clique em **Mais informações → Executar assim mesmo** (só na primeira instalação).
+3. Abra **RPA Bling** pelo Menu Iniciar e preencha as **Configurações**.
+
+No app instalado, perfil do Chrome, logs (`logs/`) e falhas (`artifacts/`) ficam em `%APPDATA%\RPA Bling`, e a pasta padrão dos documentos é `Documentos\RPA Bling`.
+
+**Atualizações:** ao abrir (e a cada 4 horas), o app procura uma versão nova nos Releases e a baixa em segundo plano. Quando termina, aparece a faixa "Nova versão X baixada" com **Reiniciar e atualizar**, que fica bloqueado enquanto há uma geração em andamento. Se o app só for fechado, a atualização é instalada ao sair.
+
+## Lançar uma nova versão
+
+Na `main`, com as mudanças já commitadas:
+
+```bash
+npm version patch          # ou minor/major: altera package.json e cria a tag vX.Y.Z
+git push --follow-tags     # envia o commit e a tag
+```
+
+A tag dispara o workflow `.github/workflows/release.yml`: validações (typecheck, lint, format, testes), build e publicação do instalador no GitHub Release (`Setup.exe`, `latest.yml`, `.blockmap`). O workflow falha se a tag não bater com a versão do `package.json`. Para gerar o instalador só localmente, sem publicar: `npm run dist` (saída em `release/`).
 
 ## Criando um novo processo
 

@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { chromium, type BrowserContext, type Page } from 'playwright';
 
@@ -10,6 +11,31 @@ export type BrowserSession = { page: Page; context: BrowserContext };
 const CLOSE_TIMEOUT_MS = 10_000;
 
 const contextOptions = { acceptDownloads: true, locale: 'pt-BR' } as const;
+
+/**
+ * Caminho do Chrome a usar: o configurado ou, se ele não existir, a instalação por usuário
+ * (`%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe`). Falha com mensagem amigável se
+ * nenhum existir.
+ */
+export function localizarChrome(
+  configurado: string,
+  env: NodeJS.ProcessEnv = process.env,
+  existe: (caminho: string) => boolean = existsSync,
+): string {
+  const candidatos = [configurado];
+  if (env.LOCALAPPDATA) {
+    candidatos.push(
+      path.win32.join(env.LOCALAPPDATA, 'Google', 'Chrome', 'Application', 'chrome.exe'),
+    );
+  }
+  const encontrado = candidatos.find((caminho) => existe(caminho));
+  if (!encontrado) {
+    throw new Error(
+      `Google Chrome não encontrado em "${configurado}". Instale o Chrome ou indique o caminho nas Configurações.`,
+    );
+  }
+  return encontrado;
+}
 
 /**
  * Abre o contexto do navegador conforme `config.browserChannel`:
@@ -26,7 +52,7 @@ async function openContext(
     const context = await chromium.launchPersistentContext(profileDir, {
       ...launchOptions,
       ...contextOptions,
-      executablePath: config.chromePath,
+      executablePath: localizarChrome(config.chromePath),
     });
     return { context, close: () => context.close() };
   }

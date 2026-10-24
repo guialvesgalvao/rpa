@@ -1,8 +1,15 @@
 {
   "name": "rpa",
+  "productName": "RPA Bling",
   "version": "0.1.0",
   "private": true,
   "description": "Automações RPA com Node, TypeScript e Playwright",
+  "author": "guialvesgalvao",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/guialvesgalvao/rpa.git"
+  },
+  "main": "dist/app/main.mjs",
   "type": "module",
   "engines": {
     "node": ">=22"
@@ -10,7 +17,8 @@
   "scripts": {
     "process": "tsx src/cli.ts",
     "app:build": "node scripts/build-app.mjs",
-    "app": "npm run app:build && electron dist/app/main.mjs",
+    "app": "npm run app:build && electron .",
+    "dist": "npm run app:build && electron-builder --win --publish never",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -22,6 +30,7 @@
   },
   "dependencies": {
     "dotenv": "^18.0.6",
+    "electron-updater": "^6.8.11",
     "pdf-lib": "^1.17.1",
     "pino": "^10.4.0",
     "pino-pretty": "^13.2.0",
@@ -32,6 +41,7 @@
     "@eslint/js": "^10.0.1",
     "@types/node": "^26.6.4",
     "electron": "^44.7.0",
+    "electron-builder": "^26.18.0",
     "esbuild": "^0.28.2",
     "eslint": "^10.12.0",
     "eslint-config-prettier": "^10.1.8",

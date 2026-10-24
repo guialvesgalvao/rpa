@@ -8,7 +8,7 @@ import {
   selecaoParaGerar,
   TODOS_DOCS,
 } from '../processes/bling/selecao.js';
-import type { DocResult, PedidoSelecao, RpaApi } from './api.js';
+import type { ConfigTela, DocResult, PedidoSelecao, RpaApi } from './api.js';
 
 declare global {
   interface Window {
@@ -41,6 +41,22 @@ const resumo = $('resumo');
 const erroGeral = $('erro-geral');
 const resultado = $('resultado');
 const itens = $('itens');
+const abrirConfig = $<HTMLButtonElement>('abrir-config');
+const dialogConfig = $<HTMLDialogElement>('config');
+const formConfig = $<HTMLFormElement>('config-form');
+const cfgUsuario = $<HTMLInputElement>('cfg-usuario');
+const cfgSenha = $<HTMLInputElement>('cfg-senha');
+const cfgSenhaHint = $('cfg-senha-hint');
+const cfgPasta = $<HTMLInputElement>('cfg-pasta');
+const cfgEscolher = $<HTMLButtonElement>('cfg-escolher');
+const cfgChrome = $<HTMLInputElement>('cfg-chrome');
+const cfgErro = $('cfg-erro');
+const cfgSalvar = $<HTMLButtonElement>('cfg-salvar');
+const cfgCancelar = $<HTMLButtonElement>('cfg-cancelar');
+const atualizacao = $('atualizacao');
+const atualizacaoTexto = $('atualizacao-texto');
+const reiniciar = $<HTMLButtonElement>('reiniciar');
+const versao = $('versao');
 
 let running = false;
 /** Vem de `defaults()`; enquanto estiver vazio, a seleção não pode ser confirmada. */
@@ -49,6 +65,8 @@ let docsDisponiveis: DocTipo[] = [];
 let escolhas = new Map<string, EscolhaPedido>();
 /** O texto ou o intervalo mudou depois da última confirmação. */
 let desatualizada = false;
+/** Pasta padrão das Configurações; "Salvar documentos em" a acompanha enquanto não for alterado. */
+let pastaPadrao = '';
 
 type ControlesPedido = {
   bloco: HTMLElement;
@@ -76,7 +94,9 @@ function atualizarContagem() {
 
 /** Habilita ou trava cada controle conforme a execução, a seleção e a pasta. */
 function atualizarControles() {
-  for (const el of [numeros, de, ate, pasta, escolher]) el.disabled = running;
+  for (const el of [numeros, de, ate, pasta, escolher, abrirConfig, reiniciar]) {
+    el.disabled = running;
+  }
   confirmar.disabled = running || docsDisponiveis.length === 0;
   aviso.hidden = !desatualizada;
   selecaoCard.classList.toggle('desatualizada', desatualizada);
@@ -173,6 +193,9 @@ function onEntradaAlterada() {
   atualizarControles();
 }
 
+// O Electron prefixa a mensagem com "Error invoking remote method '...': Error: ".
+const mensagemErro = (error: unknown) => (error as Error).message.replace(/^.*?Error: /, '');
+
 const nomeArquivo = (arquivo: string) => arquivo.split(/[\\/]/).pop() ?? '';
 
 function div(className: string, texto: string) {
@@ -251,6 +274,18 @@ function setRunning(value: boolean) {
 }
 
 window.rpa.onProgresso(renderItem);
+window.rpa.onAtualizacao((nova) => {
+  atualizacaoTexto.textContent = `Nova versão ${nova} baixada.`;
+  atualizacao.hidden = false;
+});
+reiniciar.addEventListener('click', async () => {
+  erroGeral.textContent = '';
+  try {
+    await window.rpa.instalarAtualizacao();
+  } catch (error) {
+    erroGeral.textContent = mensagemErro(error);
+  }
+});
 
 for (const el of [numeros, de, ate]) el.addEventListener('input', onEntradaAlterada);
 for (const el of [de, ate]) {
@@ -289,16 +324,66 @@ gerar.addEventListener('click', async () => {
     resumo.textContent = `${ok} de ${results.length} documento(s) gerado(s).`;
   } catch (error) {
     resumo.textContent = '';
-    // O Electron prefixa a mensagem com "Error invoking remote method '...': Error: ".
-    erroGeral.textContent = (error as Error).message.replace(/^.*?Error: /, '');
+    erroGeral.textContent = mensagemErro(error);
   } finally {
     setRunning(false);
   }
 });
 
-void window.rpa.defaults().then((defaults) => {
+function preencherConfig(config: ConfigTela) {
+  cfgUsuario.value = config.blingUser;
+  cfgSenha.value = '';
+  cfgSenhaHint.textContent = config.temSenha
+    ? 'Senha salva. Deixe vazio para mantê-la.'
+    : 'Nenhuma senha salva.';
+  cfgPasta.value = config.destDir;
+  cfgChrome.value = config.chromePath;
+  cfgChrome.placeholder = config.chromePadrao;
+  cfgErro.textContent = '';
+}
+
+async function abrirConfiguracoes(config?: ConfigTela) {
+  preencherConfig(config ?? (await window.rpa.obterConfig()));
+  dialogConfig.showModal();
+}
+
+abrirConfig.addEventListener('click', () => void abrirConfiguracoes());
+cfgCancelar.addEventListener('click', () => dialogConfig.close());
+cfgEscolher.addEventListener('click', async () => {
+  const escolhida = await window.rpa.escolherPasta(cfgPasta.value);
+  if (escolhida) cfgPasta.value = escolhida;
+});
+
+formConfig.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  cfgSalvar.disabled = true;
+  cfgErro.textContent = '';
+  try {
+    const config = await window.rpa.salvarConfig({
+      blingUser: cfgUsuario.value,
+      blingPassword: cfgSenha.value,
+      destDir: cfgPasta.value,
+      chromePath: cfgChrome.value,
+    });
+    if (!pasta.value.trim() || pasta.value === pastaPadrao) pasta.value = config.destDir;
+    pastaPadrao = config.destDir;
+    dialogConfig.close();
+    atualizarControles();
+  } catch (error) {
+    cfgErro.textContent = mensagemErro(error);
+  } finally {
+    cfgSalvar.disabled = false;
+  }
+});
+
+void window.rpa.defaults().then(async (defaults) => {
   pasta.value = defaults.destDir;
+  pastaPadrao = defaults.destDir;
+  versao.textContent = ` · v${defaults.versao}`;
   docsDisponiveis = defaults.docsDisponiveis;
   atualizarContagem();
   atualizarControles();
+  // Primeiro uso: sem usuário/senha do Bling, abre as Configurações.
+  const config = await window.rpa.obterConfig();
+  if (!config.blingUser || !config.temSenha) await abrirConfiguracoes(config);
 });

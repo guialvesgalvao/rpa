@@ -4,12 +4,13 @@ import { z } from 'zod';
 
 import { toWslPath } from '../utils/fs.js';
 
+// Caminhos relativos são resolvidos depois, contra o `baseDir` de `loadConfig`.
 const dir = (fallback: string) =>
   z
     .string()
     .trim()
     .optional()
-    .transform((value) => path.resolve(value ? toWslPath(value) : fallback));
+    .transform((value) => (value ? toWslPath(value) : fallback));
 
 const bool = z
   .enum(['true', 'false', '1', '0'])
@@ -63,25 +64,38 @@ export type Config = {
   };
 };
 
-export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
+/**
+ * Lê a configuração do ambiente (`.env`). Caminhos relativos (inclusive os padrões `data/...`,
+ * `logs` e `artifacts`) são resolvidos contra `baseDir`: o diretório de trabalho na CLI e a pasta
+ * de dados do usuário no app instalado.
+ */
+export function loadConfig(
+  env: NodeJS.ProcessEnv = process.env,
+  baseDir: string = process.cwd(),
+): Config {
   const parsed = schema.safeParse(env);
   if (!parsed.success) {
     throw new Error(`Configuração inválida no .env:\n${z.prettifyError(parsed.error)}`);
   }
   const e = parsed.data;
+  const at = (dir: string) => path.resolve(baseDir, dir);
   return {
-    inputDir: e.RPA_INPUT_DIR,
-    outputDir: e.RPA_OUTPUT_DIR,
-    downloadDir: e.RPA_DOWNLOAD_DIR,
-    artifactsDir: path.resolve('artifacts'),
-    logsDir: path.resolve('logs'),
+    inputDir: at(e.RPA_INPUT_DIR),
+    outputDir: at(e.RPA_OUTPUT_DIR),
+    downloadDir: at(e.RPA_DOWNLOAD_DIR),
+    artifactsDir: at('artifacts'),
+    logsDir: at('logs'),
     browserChannel: e.BROWSER_CHANNEL,
-    profileDir: e.CHROME_PROFILE_DIR,
+    profileDir: at(e.CHROME_PROFILE_DIR),
     chromePath: e.CHROME_PATH,
     headless: e.HEADLESS,
     slowMo: e.SLOW_MO,
     timeoutMs: e.TIMEOUT_MS,
     logLevel: e.LOG_LEVEL,
-    bling: { user: e.BLING_USER, password: e.BLING_PASSWORD, boletosDir: e.BLING_BOLETOS_DIR },
+    bling: {
+      user: e.BLING_USER,
+      password: e.BLING_PASSWORD,
+      boletosDir: at(e.BLING_BOLETOS_DIR),
+    },
   };
 }

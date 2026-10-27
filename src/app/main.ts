@@ -155,11 +155,11 @@ function verificarAtualizacoes(window: BrowserWindow) {
 
 function createWindow() {
   const window = new BrowserWindow({
-    width: 860,
+    width: 1080,
     height: 800,
-    minWidth: 620,
+    minWidth: 820,
     minHeight: 560,
-    title: 'ABA Embalagens — Documentos',
+    title: 'ABA Embalagens — Automações',
     icon: path.join(here, 'assets', 'logo-aba.png'),
     backgroundColor: '#f4f5f6',
     autoHideMenuBar: true,

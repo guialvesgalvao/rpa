@@ -6,7 +6,7 @@
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'"
     />
-    <title>ABA Embalagens — Documentos</title>
+    <title>ABA Embalagens — Automações</title>
     <style>
       /* Identidade visual da ABA Embalagens (referência: abaembalagens.com.br). */
       :root {
@@ -72,8 +72,42 @@
         color: var(--muted);
       }
 
-      /* Faixa verde de navegação: aqui mostra os passos. */
-      nav {
+      /* Menu lateral de automações; o conteúdo da aba ativa fica à direita. */
+      .app {
+        flex: 1;
+        display: grid;
+        grid-template-columns: 200px minmax(0, 1fr);
+      }
+      aside.menu {
+        background: #fff;
+        border-right: 1px solid var(--border);
+        padding: 16px 0;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      aside.menu button {
+        width: 100%;
+        text-align: left;
+        border: 0;
+        border-left: 4px solid transparent;
+        border-radius: 0;
+        background: transparent;
+        color: var(--text);
+        padding: 12px 20px;
+      }
+      aside.menu button:hover:not(:disabled) {
+        background: var(--bg);
+        color: var(--aba-red);
+      }
+      aside.menu button[aria-current='page'] {
+        border-left-color: var(--aba-red);
+        background: var(--bg);
+        color: var(--aba-red);
+      }
+
+      /* Faixa verde de navegação: aqui mostra os passos da Fatura. */
+      .etapas {
         background: var(--aba-green);
         color: #fff;
         display: flex;
@@ -85,7 +119,7 @@
         text-transform: uppercase;
         letter-spacing: 0.01em;
       }
-      nav span b {
+      .etapas span b {
         display: inline-grid;
         place-items: center;
         width: 20px;
@@ -98,8 +132,9 @@
       }
 
       main {
-        flex: 1;
-        width: 100%;
+        min-width: 0;
+      }
+      .pagina {
         max-width: 900px;
         margin: 0 auto;
         padding: 24px 28px;
@@ -307,7 +342,7 @@
         margin-bottom: 8px;
       }
 
-      /* Faixa de nova versão baixada. */
+      /* Aviso de nova versão baixada, no topo do diálogo de Configurações. */
       .atualizacao {
         display: flex;
         align-items: center;
@@ -316,7 +351,6 @@
         border: 1px solid var(--aba-green);
         border-radius: 4px;
         padding: 10px 14px;
-        margin-bottom: 16px;
         font-weight: 600;
       }
       .atualizacao button {
@@ -468,76 +502,102 @@
     <header>
       <img src="assets/logo-aba.png" alt="ABA Embalagens" />
       <div class="titulo">
-        <h1>Documentos</h1>
-        <p>Pedidos de venda · Bling</p>
+        <h1>Automações</h1>
+        <p>ABA Embalagens · Bling</p>
       </div>
       <button id="abrir-config" type="button">Configurações</button>
     </header>
-    <nav>
-      <span><b>1</b>Informe os pedidos</span>
-      <span><b>2</b>Confira a seleção</span>
-      <span><b>3</b>Gere os documentos</span>
-    </nav>
 
-    <main>
-      <div id="atualizacao" class="atualizacao" hidden>
-        <span id="atualizacao-texto"></span>
-        <button id="reiniciar" type="button">Reiniciar e atualizar</button>
-      </div>
-      <div class="card">
-        <label for="numeros">Números dos pedidos</label>
-        <textarea id="numeros" placeholder="Um por linha. Ex.:&#10;1&#10;2&#10;3"></textarea>
-        <div class="intervalo">
-          <span>Intervalo:</span>
-          <label for="de">De</label>
-          <input id="de" type="number" min="1" step="1" />
-          <label for="ate">Até</label>
-          <input id="ate" type="number" min="1" step="1" />
-          <button id="confirmar" type="button" disabled>Confirmar seleção</button>
-        </div>
-        <div id="contagem" class="hint"></div>
-      </div>
+    <div class="app">
+      <aside class="menu" id="menu" aria-label="Automações"></aside>
 
-      <div class="card" id="selecao" hidden>
-        <h2>Confira a seleção</h2>
-        <div id="aviso" class="aviso" hidden>Seleção desatualizada — confirme novamente</div>
-        <div id="pedidos" class="pedidos"></div>
-        <div id="resumo-selecao" class="hint"></div>
-      </div>
+      <main>
+        <section data-aba="artes" hidden>
+          <div class="pagina">
+            <div class="card">
+              <h2>Artes</h2>
+              <div class="hint">Em breve — processo ainda não desenvolvido.</div>
+            </div>
+          </div>
+        </section>
 
-      <div class="card">
-        <label for="pasta">Salvar documentos em</label>
-        <div class="row">
-          <input id="pasta" type="text" />
-          <button id="escolher" type="button">Escolher…</button>
-        </div>
-      </div>
+        <section data-aba="fatura" hidden>
+          <div class="etapas">
+            <span><b>1</b>Informe os pedidos</span>
+            <span><b>2</b>Confira a seleção</span>
+            <span><b>3</b>Gere os documentos</span>
+          </div>
+          <div class="pagina">
+            <div class="card">
+              <label for="numeros">Números dos pedidos</label>
+              <textarea id="numeros" placeholder="Um por linha. Ex.:&#10;1&#10;2&#10;3"></textarea>
+              <div class="intervalo">
+                <span>Intervalo:</span>
+                <label for="de">De</label>
+                <input id="de" type="number" min="1" step="1" />
+                <label for="ate">Até</label>
+                <input id="ate" type="number" min="1" step="1" />
+                <button id="confirmar" type="button" disabled>Confirmar seleção</button>
+              </div>
+              <div id="contagem" class="hint"></div>
+            </div>
 
-      <div class="actions">
-        <button id="gerar" class="primary" type="button" disabled>Gerar documentos</button>
-        <button id="abrir" type="button">Abrir pasta</button>
-        <span id="resumo"></span>
-      </div>
-      <div id="erro-geral"></div>
+            <div class="card" id="selecao" hidden>
+              <h2>Confira a seleção</h2>
+              <div id="aviso" class="aviso" hidden>Seleção desatualizada — confirme novamente</div>
+              <div id="pedidos" class="pedidos"></div>
+              <div id="resumo-selecao" class="hint"></div>
+            </div>
 
-      <div class="card" id="resultado" hidden>
-        <table>
-          <thead>
-            <tr>
-              <th>Pedido</th>
-              <th>Documento</th>
-              <th>Status</th>
-              <th>Detalhe</th>
-            </tr>
-          </thead>
-          <tbody id="itens"></tbody>
-        </table>
-      </div>
-    </main>
+            <div class="card">
+              <label for="pasta">Salvar documentos em</label>
+              <div class="row">
+                <input id="pasta" type="text" />
+                <button id="escolher" type="button">Escolher…</button>
+              </div>
+            </div>
+
+            <div class="actions">
+              <button id="gerar" class="primary" type="button" disabled>Gerar documentos</button>
+              <button id="abrir" type="button">Abrir pasta</button>
+              <span id="resumo"></span>
+            </div>
+            <div id="erro-geral"></div>
+
+            <div class="card" id="resultado" hidden>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Pedido</th>
+                    <th>Documento</th>
+                    <th>Status</th>
+                    <th>Detalhe</th>
+                  </tr>
+                </thead>
+                <tbody id="itens"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section data-aba="op" hidden>
+          <div class="pagina">
+            <div class="card">
+              <h2>OP</h2>
+              <div class="hint">Em breve — processo ainda não desenvolvido.</div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
 
     <dialog id="config">
       <form id="config-form" method="dialog">
         <h2>Configurações</h2>
+        <div id="atualizacao" class="atualizacao" hidden>
+          <span id="atualizacao-texto"></span>
+          <button id="reiniciar" type="button">Reiniciar e atualizar</button>
+        </div>
         <div class="campo">
           <label for="cfg-usuario">Usuário do Bling</label>
           <input id="cfg-usuario" type="text" autocomplete="off" />

@@ -9,6 +9,7 @@ import {
   TODOS_DOCS,
 } from '../processes/bling/selecao.js';
 import type { ConfigTela, DocResult, PedidoSelecao, RpaApi } from './api.js';
+import { abaInicial, type Automacao, AUTOMACOES, ordenarMenu } from './menu.js';
 
 declare global {
   interface Window {
@@ -57,6 +58,7 @@ const atualizacao = $('atualizacao');
 const atualizacaoTexto = $('atualizacao-texto');
 const reiniciar = $<HTMLButtonElement>('reiniciar');
 const versao = $('versao');
+const menu = $('menu');
 
 let running = false;
 /** Vem de `defaults()`; enquanto estiver vazio, a seleção não pode ser confirmada. */
@@ -273,17 +275,39 @@ function setRunning(value: boolean) {
   atualizarControles();
 }
 
+/** Mostra só a seção da aba `id`. As outras ficam escondidas, sem perder o estado. */
+function selecionarAba(id: Automacao['id']) {
+  for (const secao of document.querySelectorAll<HTMLElement>('section[data-aba]')) {
+    secao.hidden = secao.dataset.aba !== id;
+  }
+  for (const botao of menu.querySelectorAll<HTMLButtonElement>('button')) {
+    if (botao.dataset.aba === id) botao.setAttribute('aria-current', 'page');
+    else botao.removeAttribute('aria-current');
+  }
+}
+
+// O menu fica clicável mesmo com uma geração em andamento: trocar de aba não a interrompe.
+for (const automacao of ordenarMenu(AUTOMACOES)) {
+  const botao = document.createElement('button');
+  botao.type = 'button';
+  botao.textContent = automacao.rotulo;
+  botao.dataset.aba = automacao.id;
+  botao.addEventListener('click', () => selecionarAba(automacao.id));
+  menu.append(botao);
+}
+selecionarAba(abaInicial(AUTOMACOES).id);
+
 window.rpa.onProgresso(renderItem);
 window.rpa.onAtualizacao((nova) => {
   atualizacaoTexto.textContent = `Nova versão ${nova} baixada.`;
   atualizacao.hidden = false;
 });
 reiniciar.addEventListener('click', async () => {
-  erroGeral.textContent = '';
+  cfgErro.textContent = '';
   try {
     await window.rpa.instalarAtualizacao();
   } catch (error) {
-    erroGeral.textContent = mensagemErro(error);
+    cfgErro.textContent = mensagemErro(error);
   }
 });
 

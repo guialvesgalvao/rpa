@@ -9,7 +9,7 @@ RPA do Bling em Node/TypeScript/Playwright, com CLI (`src/cli.ts`) e app Electro
 - `npm run typecheck`
 - `npm run lint`
 - `npx prettier --check src tests` — o `npm run format:check` roda em `.` e pega os planos locais de `docs/plans/`, então falha localmente; prefira caminhos explícitos.
-- `npm test`
+- `npm test` — precisa do Chromium do Playwright (`npm run browsers:install`), usado pelo teste de integração do PDF do recibo.
 - `npm run app`
 
 ## Fluxo de branches

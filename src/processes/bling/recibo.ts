@@ -6,6 +6,7 @@ import { ensureDir } from '../../utils/fs.js';
 import type { ContextoDoc, SaidaDoc } from './documentos.js';
 import {
   abrirNovaGuia,
+  type AjustePdf,
   buscarPedido,
   clicarNoMenu,
   interceptarImpressao,
@@ -17,6 +18,14 @@ const MENU_ITEM = 'Imprimir';
 const ORDEM = 'Inserção';
 /** A guia do recibo é HTML (`relatorios/venda.impressao.php`), não PDF (achado da Task 2). */
 const GUIA_RECIBO = 'venda.impressao.php';
+
+/**
+ * O recibo é um bloco de 700px de largura fixa, sem margem automática, e o PDF sai sem margens:
+ * sem o ajuste, ele fica encostado à esquerda da folha A4. Centraliza só esse bloco.
+ */
+export const AJUSTE_RECIBO: AjustePdf = {
+  css: '#slot_venda > div { margin-left: auto !important; margin-right: auto !important; }',
+};
 
 /**
  * Busca o pedido na listagem de vendas (já aberta), aciona "⋮ → Imprimir" com Ordem: Inserção e
@@ -56,7 +65,7 @@ export async function gerarRecibo({
     );
     const aberta = guia;
     const pdf = await rastro.etapa('Gerei o PDF', () =>
-      pdfDaGuiaImpressa(aberta, GUIA_RECIBO, 'recibo'),
+      pdfDaGuiaImpressa(aberta, GUIA_RECIBO, 'recibo', AJUSTE_RECIBO),
     );
     const destino = await caminhoLivre(
       await ensureDir(destDir),

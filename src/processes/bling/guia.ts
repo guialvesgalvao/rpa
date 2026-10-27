@@ -126,14 +126,35 @@ export function interceptarImpressao(page: Page) {
   }, PRINT_SOLICITADO);
 }
 
+/** Ajuste da conversão de uma guia em PDF. Sem ajuste, o PDF sai como A4 sem margens. */
+export type AjustePdf = {
+  /** CSS injetado na guia antes de gerar o PDF. */
+  css?: string;
+};
+
+/** Salva a página (já pronta) como PDF A4, aplicando o `ajuste`, e confere que saiu um PDF. */
+export async function salvarComoPdf(
+  pagina: Page,
+  documento: string,
+  ajuste: AjustePdf = {},
+): Promise<Buffer> {
+  if (ajuste.css) await pagina.addStyleTag({ content: ajuste.css });
+  const bytes = await pagina.pdf({ format: 'A4', printBackground: true });
+  if (bytes.subarray(0, 4).toString('latin1') !== '%PDF') {
+    throw new Error(`O Chrome não gerou um PDF do ${documento}`);
+  }
+  return bytes;
+}
+
 /**
  * Espera a guia de impressão aberta com `interceptarImpressao` pedir a impressão, confere que é
- * a página esperada (`urlEsperada`) e com conteúdo, e a salva como PDF A4.
+ * a página esperada (`urlEsperada`) e com conteúdo, e a salva como PDF A4 (ver `salvarComoPdf`).
  */
 export async function pdfDaGuiaImpressa(
   guia: Page,
   urlEsperada: string,
   documento: string,
+  ajuste?: AjustePdf,
 ): Promise<Buffer> {
   // 'load' sozinho não basta: a guia nasce em about:blank e o PDF sairia em branco.
   await guia.waitForFunction((marca) => Reflect.get(window, marca) === true, PRINT_SOLICITADO, {
@@ -145,11 +166,7 @@ export async function pdfDaGuiaImpressa(
   if (!(await guia.locator('body').innerText()).trim()) {
     throw new Error(`A guia do ${documento} abriu sem conteúdo`);
   }
-  const bytes = await guia.pdf({ format: 'A4', printBackground: true });
-  if (bytes.subarray(0, 4).toString('latin1') !== '%PDF') {
-    throw new Error(`O Chrome não gerou um PDF do ${documento}`);
-  }
-  return bytes;
+  return salvarComoPdf(guia, documento, ajuste);
 }
 
 /**

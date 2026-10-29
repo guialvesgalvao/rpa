@@ -417,3 +417,94 @@ footer {
     align-items: center;
   }
 }
+
+/* Artes: lista de clientes, página do cliente e formulário de cadastro. */
+.lista {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+}
+.lista li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid var(--border);
+}
+.lista li > span:first-child {
+  padding: 12px 0;
+}
+.lista li a {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  padding: 12px 0;
+  color: var(--text);
+  text-decoration: none;
+}
+.lista li a:hover strong {
+  color: var(--cor-primaria);
+}
+.lista .hint {
+  margin: 0;
+}
+.sucesso {
+  background: var(--ok-bg);
+  color: var(--cor-destaque-escura);
+  font-weight: 600;
+  font-size: 13px;
+  padding: 8px 12px;
+  border-radius: 4px;
+}
+.botao {
+  display: inline-block;
+  text-decoration: none;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  border-radius: 4px;
+}
+.botao.primary {
+  background: var(--cor-destaque);
+  color: #fff;
+  padding: 12px 26px;
+  font-size: 14px;
+}
+.botao.primary:hover {
+  background: var(--cor-destaque-escura);
+}
+.formulario {
+  display: grid;
+  gap: 16px;
+}
+.formulario fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+.formulario legend {
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 6px;
+  padding: 0;
+}
+.formulario select {
+  width: 100%;
+  font: inherit;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: #fff;
+}
+.opcao {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+.erro-campo {
+  color: var(--cor-primaria);
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 4px;
+}

@@ -1,18 +1,18 @@
 import type { Metadata } from 'next';
 
+import { ListaClientes } from '../../../componentes/ListaClientes';
+
 export const metadata: Metadata = {
   title: 'Artes · Plataforma RPA',
 };
 
-// O cadastro de artes entra no plano D.
-export default function Artes() {
+export default async function Artes({ params }: PageProps<'/[empresa]/artes'>) {
+  const { empresa } = await params;
   return (
     <div className="pagina">
       <div className="card">
-        <h2>Artes</h2>
-        <div className="hint">
-          <span className="em-breve">Em breve</span> Cadastro de artes ainda não disponível.
-        </div>
+        <h2>Clientes</h2>
+        <ListaClientes empresa={empresa} />
       </div>
     </div>
   );

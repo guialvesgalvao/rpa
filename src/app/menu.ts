@@ -1,3 +1,5 @@
+import type { Perfil } from './plataforma/contratos.js';
+
 /** Automação do menu lateral do app. Cada uma tem a sua seção `section[data-aba=id]`. */
 export type Automacao = { id: 'fatura' | 'op' | 'artes'; rotulo: string };
 
@@ -7,6 +9,11 @@ export const AUTOMACOES: Automacao[] = [
   { id: 'op', rotulo: 'OP' },
   { id: 'artes', rotulo: 'Artes' },
 ];
+
+/** Abas liberadas para o perfil: o admin vê todas; a arte finalista, só Artes. */
+export function abasDoPerfil(perfil: Perfil): Automacao[] {
+  return perfil === 'admin' ? [...AUTOMACOES] : AUTOMACOES.filter(({ id }) => id === 'artes');
+}
 
 /** Cópia em ordem alfabética (pt-BR), sem distinguir maiúsculas nem acentos. */
 export function ordenarMenu<T extends { rotulo: string }>(itens: readonly T[]): T[] {

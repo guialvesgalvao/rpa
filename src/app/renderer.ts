@@ -8,8 +8,17 @@ import {
   selecaoParaGerar,
   TODOS_DOCS,
 } from '../processes/bling/selecao.js';
-import type { ConfigTela, DocResult, PedidoSelecao, RpaApi } from './api.js';
-import { abaInicial, type Automacao, AUTOMACOES, ordenarMenu } from './menu.js';
+import type {
+  ConfigTela,
+  DocResult,
+  EmpresaAtualTela,
+  PedidoSelecao,
+  RpaApi,
+  SessaoTela,
+} from './api.js';
+import { podeTrocarEmpresa, tituloJanela } from './empresa.js';
+import type { Perfil } from './plataforma/contratos.js';
+import { abaInicial, abasDoPerfil, type Automacao, ordenarMenu } from './menu.js';
 
 declare global {
   interface Window {
@@ -59,8 +68,34 @@ const atualizacaoTexto = $('atualizacao-texto');
 const reiniciar = $<HTMLButtonElement>('reiniciar');
 const versao = $('versao');
 const menu = $('menu');
+const carregando = $('carregando');
+const telaLogin = $('login');
+const formLogin = $<HTMLFormElement>('login-form');
+const loginEmail = $<HTMLInputElement>('login-email');
+const loginSenha = $<HTMLInputElement>('login-senha');
+const loginErro = $('login-erro');
+const loginEntrar = $<HTMLButtonElement>('login-entrar');
+const topo = $('topo');
+const areaApp = $('app');
+const faixaOffline = $('offline');
+const artesOffline = $('artes-offline');
+const usuarioEl = $('usuario');
+const usuarioNome = $('usuario-nome');
+const sair = $<HTMLButtonElement>('sair');
+const cfgCampos = $('cfg-campos');
+const logo = $<HTMLImageElement>('logo');
+const empresaSubtitulo = $('empresa-subtitulo');
+const rodapeEmpresa = $('rodape-empresa');
+const empresaBtn = $<HTMLButtonElement>('empresa');
+const empresaNome = $('empresa-nome');
+const empresaSeta = $('empresa-seta');
+const dialogEmpresas = $<HTMLDialogElement>('empresas');
+const empresasLista = $('empresas-lista');
+const empresasCancelar = $<HTMLButtonElement>('empresas-cancelar');
 
 let running = false;
+/** Quantas empresas o usuário logado tem; o seletor só abre com mais de uma. */
+let totalEmpresas = 0;
 /** Vem de `defaults()`; enquanto estiver vazio, a seleção não pode ser confirmada. */
 let docsDisponiveis: DocTipo[] = [];
 /** Escolhas da lista de confirmação, na ordem dos pedidos. */
@@ -96,9 +131,10 @@ function atualizarContagem() {
 
 /** Habilita ou trava cada controle conforme a execução, a seleção e a pasta. */
 function atualizarControles() {
-  for (const el of [numeros, de, ate, pasta, escolher, abrirConfig, reiniciar]) {
+  for (const el of [numeros, de, ate, pasta, escolher, abrirConfig, reiniciar, sair]) {
     el.disabled = running;
   }
+  empresaBtn.disabled = !podeTrocarEmpresa(running, totalEmpresas);
   confirmar.disabled = running || docsDisponiveis.length === 0;
   aviso.hidden = !desatualizada;
   selecaoCard.classList.toggle('desatualizada', desatualizada);
@@ -286,16 +322,21 @@ function selecionarAba(id: Automacao['id']) {
   }
 }
 
-// O menu fica clicável mesmo com uma geração em andamento: trocar de aba não a interrompe.
-for (const automacao of ordenarMenu(AUTOMACOES)) {
-  const botao = document.createElement('button');
-  botao.type = 'button';
-  botao.textContent = automacao.rotulo;
-  botao.dataset.aba = automacao.id;
-  botao.addEventListener('click', () => selecionarAba(automacao.id));
-  menu.append(botao);
+/** Monta o menu com as abas do perfil e abre na primeira delas. */
+function montarMenu(perfil: Perfil) {
+  const abas = abasDoPerfil(perfil);
+  for (const botao of menu.querySelectorAll('button[data-aba]')) botao.remove();
+  // O menu fica clicável mesmo com uma geração em andamento: trocar de aba não a interrompe.
+  for (const automacao of ordenarMenu(abas)) {
+    const botao = document.createElement('button');
+    botao.type = 'button';
+    botao.textContent = automacao.rotulo;
+    botao.dataset.aba = automacao.id;
+    botao.addEventListener('click', () => selecionarAba(automacao.id));
+    usuarioEl.before(botao);
+  }
+  selecionarAba(abaInicial(abas).id);
 }
-selecionarAba(abaInicial(AUTOMACOES).id);
 
 window.rpa.onProgresso(renderItem);
 window.rpa.onAtualizacao((nova) => {
@@ -400,14 +441,158 @@ formConfig.addEventListener('submit', async (event) => {
   }
 });
 
-void window.rpa.defaults().then(async (defaults) => {
+/** Configurações e padrões do admin; só depois de entrar, pois dependem do perfil. */
+async function carregarAdmin() {
+  const defaults = await window.rpa.defaults();
   pasta.value = defaults.destDir;
   pastaPadrao = defaults.destDir;
-  versao.textContent = ` · v${defaults.versao}`;
   docsDisponiveis = defaults.docsDisponiveis;
   atualizarContagem();
   atualizarControles();
-  // Primeiro uso: sem usuário/senha do Bling, abre as Configurações.
+  // Empresa sem usuário, senha ou pasta do Bling: abre as Configurações (não bloqueia; a execução valida).
   const config = await window.rpa.obterConfig();
-  if (!config.blingUser || !config.temSenha) await abrirConfiguracoes(config);
+  if (config.falta) await abrirConfiguracoes(config);
+}
+
+/** Nada de pedidos ou resultados do usuário ou da empresa anterior na tela da próxima. */
+function limparFatura() {
+  docsDisponiveis = [];
+  for (const el of [numeros, de, ate, pasta]) el.value = '';
+  escolhas = new Map();
+  desatualizada = false;
+  selecaoCard.hidden = true;
+  resultado.hidden = true;
+  resumo.textContent = '';
+  erroGeral.textContent = '';
+}
+
+/** Aplica nome, logo, tema e título da empresa em uso; sem empresa, volta ao visual padrão. */
+function aplicarEmpresa(empresa: EmpresaAtualTela | undefined, total: number) {
+  const raiz = document.documentElement;
+  totalEmpresas = total;
+  if (empresa) {
+    raiz.dataset.empresa = empresa.slug;
+    raiz.style.setProperty('--aba-red', empresa.tema.primaria);
+    raiz.style.setProperty('--aba-red-dark', empresa.tema.primariaEscura);
+    raiz.style.setProperty('--aba-green', empresa.tema.destaque);
+    raiz.style.setProperty('--aba-green-dark', empresa.tema.destaqueEscura);
+  } else {
+    delete raiz.dataset.empresa;
+    for (const nome of ['--aba-red', '--aba-red-dark', '--aba-green', '--aba-green-dark']) {
+      raiz.style.removeProperty(nome);
+    }
+  }
+  logo.hidden = !empresa?.logo;
+  if (empresa?.logo) {
+    logo.src = empresa.logo;
+    logo.alt = empresa.nome;
+  }
+  empresaSubtitulo.textContent = empresa ? `${empresa.nome} · Bling` : '';
+  rodapeEmpresa.textContent = empresa?.nome ?? 'Automações';
+  empresaNome.textContent = empresa?.nome ?? 'Sem empresa';
+  empresaSeta.hidden = totalEmpresas < 2;
+  document.title = tituloJanela(empresa?.nome);
+}
+
+/** E-mail e perfil da sessão que a tela já montou; evita refazer o menu a cada aviso igual. */
+let montadoPara: string | undefined;
+/** Usuário, perfil e empresa para os quais a tela já carregou o Bling; trocar a empresa recarrega. */
+let empresaMontada: string | undefined;
+
+/** Alterna entre login e app, e ajusta menu, faixa offline e Configurações ao perfil. */
+function aplicarSessao(sessao: SessaoTela) {
+  carregando.hidden = true;
+  const logado = sessao.situacao !== 'deslogado';
+  telaLogin.hidden = logado;
+  topo.hidden = !logado;
+  areaApp.hidden = !logado;
+  if (!logado) {
+    montadoPara = undefined;
+    empresaMontada = undefined;
+    aplicarEmpresa(undefined, 0);
+    dialogEmpresas.close();
+    limparFatura();
+    atualizarContagem();
+    dialogConfig.close();
+    loginSenha.value = '';
+    loginEmail.focus();
+    return;
+  }
+
+  const offline = sessao.situacao === 'offline';
+  faixaOffline.hidden = !offline;
+  artesOffline.hidden = !offline;
+  const admin = sessao.perfil === 'admin';
+  cfgCampos.hidden = !admin;
+  cfgSalvar.hidden = !admin;
+  usuarioNome.textContent = sessao.nome;
+
+  aplicarEmpresa(sessao.empresa, sessao.empresas.length);
+  atualizarControles();
+
+  const chaveSessao = `${sessao.email}:${sessao.perfil}`;
+  if (montadoPara !== chaveSessao) {
+    montadoPara = chaveSessao;
+    montarMenu(sessao.perfil);
+  }
+  const chaveEmpresa = `${chaveSessao}:${sessao.empresa?.slug ?? ''}`;
+  if (empresaMontada === chaveEmpresa) return;
+  empresaMontada = chaveEmpresa;
+  limparFatura();
+  atualizarContagem();
+  // Arte finalista nunca vê o modal do Bling.
+  if (admin) void carregarAdmin().catch((error) => (cfgErro.textContent = mensagemErro(error)));
+}
+
+formLogin.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  loginEntrar.disabled = true;
+  loginErro.textContent = '';
+  try {
+    aplicarSessao(await window.rpa.entrar(loginEmail.value, loginSenha.value));
+  } catch (error) {
+    loginErro.textContent = mensagemErro(error);
+  } finally {
+    loginEntrar.disabled = false;
+  }
 });
+
+empresaBtn.addEventListener('click', () => {
+  if (!podeTrocarEmpresa(running, totalEmpresas)) return;
+  void window.rpa.sessaoEstado().then((sessao) => {
+    if (sessao.situacao === 'deslogado') return;
+    empresasLista.replaceChildren(
+      ...sessao.empresas.map((empresa) => {
+        const botao = document.createElement('button');
+        botao.type = 'button';
+        botao.textContent = empresa.nome;
+        botao.setAttribute('aria-current', String(empresa.slug === sessao.empresa?.slug));
+        botao.addEventListener('click', async () => {
+          try {
+            aplicarSessao(await window.rpa.trocarEmpresa(empresa.slug));
+            dialogEmpresas.close();
+          } catch (error) {
+            erroGeral.textContent = mensagemErro(error);
+            dialogEmpresas.close();
+          }
+        });
+        return botao;
+      }),
+    );
+    dialogEmpresas.showModal();
+  });
+});
+empresasCancelar.addEventListener('click', () => dialogEmpresas.close());
+
+sair.addEventListener('click', async () => {
+  try {
+    await window.rpa.sair();
+    aplicarSessao({ situacao: 'deslogado' });
+  } catch (error) {
+    erroGeral.textContent = mensagemErro(error);
+  }
+});
+
+window.rpa.onSessaoMudou(aplicarSessao);
+void window.rpa.defaults().then((defaults) => (versao.textContent = ` · v${defaults.versao}`));
+void window.rpa.sessaoEstado().then(aplicarSessao);

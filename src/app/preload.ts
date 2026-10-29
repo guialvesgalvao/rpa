@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
-import { CHANNELS, type DocResult, type RpaApi } from './api.js';
+import { CHANNELS, type DocResult, type RpaApi, type SessaoTela } from './api.js';
 
 const api: RpaApi = {
   defaults: () => ipcRenderer.invoke(CHANNELS.defaults),
@@ -14,6 +14,12 @@ const api: RpaApi = {
   onAtualizacao: (callback) =>
     void ipcRenderer.on(CHANNELS.atualizacao, (_event, versao: string) => callback(versao)),
   instalarAtualizacao: () => ipcRenderer.invoke(CHANNELS.instalarAtualizacao),
+  sessaoEstado: () => ipcRenderer.invoke(CHANNELS.sessaoEstado),
+  entrar: (email, senha) => ipcRenderer.invoke(CHANNELS.sessaoEntrar, { email, senha }),
+  sair: () => ipcRenderer.invoke(CHANNELS.sessaoSair),
+  trocarEmpresa: (slug) => ipcRenderer.invoke(CHANNELS.empresaTrocar, slug),
+  onSessaoMudou: (callback) =>
+    void ipcRenderer.on(CHANNELS.sessaoMudou, (_event, sessao: SessaoTela) => callback(sessao)),
 };
 
 contextBridge.exposeInMainWorld('rpa', api);

@@ -36,7 +36,7 @@ Se o Chromium reclamar de bibliotecas do sistema: `sudo npx playwright install-d
 | `BLING_PASSWORD`     | —                                                       | Senha do usuário-robô                             |
 | `BLING_BOLETOS_DIR`  | `data/boletos`                                          | Pasta padrão dos boletos em PDF                   |
 
-`BLING_USER`/`BLING_PASSWORD` são obrigatórios para os processos do Bling na CLI: o robô entra pelo formulário de usuário/senha, depois que a tela de login carrega o token de segurança (CSRF). No app, usuário, senha, pasta padrão e caminho do Chrome também podem ser definidos em **Configurações** e valem sobre o `.env` (ver [Configurações do app](#configurações-do-app)).
+`BLING_USER`/`BLING_PASSWORD` são obrigatórios para os processos do Bling na CLI: o robô entra pelo formulário de usuário/senha, depois que a tela de login carrega o token de segurança (CSRF). No app, o usuário, a senha e a pasta do Bling são definidos em **Configurações**, por usuário e empresa, e não herdam o `.env` (ver [Configurações do app](#configurações-do-app)).
 
 No WSL, caminhos do Windows (`C:\Users\...`) são convertidos automaticamente para `/mnt/c/Users/...`; rodando nativo no Windows, são usados como estão.
 
@@ -76,11 +76,22 @@ Como funciona a nota fiscal (**emite NF-e de verdade**, com efeito fiscal se a c
 - Logs: terminal + `logs/<processo>_<data>.log` (JSON).
 - Em erro no navegador: screenshot e trace em `artifacts/`. Abra o trace com `npx playwright show-trace artifacts/trace_*.zip`.
 
+### Login, perfis e empresas
+
+O app abre na tela de **Entrar** (e-mail e senha da plataforma). A sessão fica salva até o **Sair** (rodapé do menu): fechar e reabrir não pede a senha de novo. Sem conexão com o servidor, o app abre com o perfil salvo: as automações seguem liberadas e Artes fica indisponível.
+
+- **admin:** vê Artes, Fatura e OP e configura o Bling.
+- **arte finalista:** vê só Artes, sem Configurações do Bling.
+
+O topo do menu mostra a empresa em uso (ABA Embalagens, Roma…). Com mais de uma, clique nele para trocar; a troca fica bloqueada durante uma execução. Tema, logo e título da janela acompanham a empresa, e a última escolhida volta ao reabrir. Empresa sem logo cadastrada (hoje a Roma) mostra só o nome.
+
 ### Configurações do app
 
-O botão **Configurações** (no cabeçalho) guarda o usuário e a senha do Bling, a pasta padrão dos documentos e, se precisar, o caminho do Chrome. Sem usuário ou senha, a tela abre sozinha ao iniciar. Os valores ficam em `data/settings.json` (em dev, na raiz do projeto; no app instalado, em `%APPDATA%\RPA Bling\data`). A senha é cifrada pelo Windows (DPAPI, via `safeStorage` do Electron) e só pode ser lida pelo mesmo usuário na mesma máquina. Senha em branco mantém a atual.
+O botão **Configurações** (no cabeçalho, só para o admin) guarda **por usuário e por empresa** o usuário e a senha do Bling e a pasta padrão dos documentos; o caminho do Chrome (opcional) vale para o usuário. Se a empresa em uso não tem usuário, senha ou pasta, a tela abre sozinha ao entrar ou ao trocar para ela (não bloqueia; a execução da Fatura valida de novo). Os valores ficam em `data/settings.json` (em dev, na raiz do projeto; no app instalado, em `%APPDATA%\RPA Bling\data`). A senha é cifrada pelo Windows (DPAPI, via `safeStorage` do Electron) e só pode ser lida pelo mesmo usuário na mesma máquina. Senha em branco mantém a atual, mas é obrigatória no primeiro salvamento de cada empresa.
 
-Ordem de prioridade: Configurações > `.env` > padrões. Se o Chrome não estiver no caminho configurado, o robô tenta `%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe` (instalação por usuário).
+Cada usuário e empresa tem o seu perfil do Chrome (`data/chrome/<usuário>/<empresa>`), para a sessão do Bling de uma empresa nunca ser reaproveitada na outra. O arquivo de configurações do formato antigo (sem dono) não é lido nem apagado: cada admin preenche de novo, por empresa.
+
+Ordem de prioridade: Configurações > `.env` > padrões; as credenciais do Bling vêm só das Configurações da empresa, nunca do `.env`. Se o Chrome não estiver no caminho configurado, o robô tenta `%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe` (instalação por usuário).
 
 ## Instalar o app em outra máquina
 
@@ -88,7 +99,7 @@ Requisitos: Windows 10/11 e Google Chrome instalado. Não precisa de Node nem de
 
 1. Baixe `RPA-Bling-Setup-<versão>.exe` do [último Release](https://github.com/guialvesgalvao/rpa/releases/latest) e execute. A instalação é por usuário (`%LOCALAPPDATA%\Programs\RPA Bling`) e não pede administrador.
 2. O instalador não é assinado, então o Windows mostra "O Windows protegeu o computador": clique em **Mais informações → Executar assim mesmo** (só na primeira instalação).
-3. Abra **RPA Bling** pelo Menu Iniciar e preencha as **Configurações**.
+3. Abra **RPA Bling** pelo Menu Iniciar, entre com a sua conta e, se for admin, preencha as **Configurações** de cada empresa.
 
 No app instalado, perfil do Chrome, logs (`logs/`) e falhas (`artifacts/`) ficam em `%APPDATA%\RPA Bling`, e a pasta padrão dos documentos é `Documentos\RPA Bling`.
 

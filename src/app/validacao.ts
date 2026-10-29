@@ -24,3 +24,24 @@ export function validarSelecao(input: unknown): PedidoSelecao[] {
   if (!selecao.length) throw new Error('Selecione ao menos um pedido com um documento.');
   return selecao;
 }
+
+const slugSchema = z.string().trim().min(1).max(100);
+
+/** Valida o slug da empresa que chega da janela pelo IPC; a checagem contra o perfil é do main. */
+export function validarSlug(input: unknown): string {
+  const parsed = slugSchema.safeParse(input);
+  if (!parsed.success) throw new Error('Empresa inválida.');
+  return parsed.data;
+}
+
+const loginSchema = z.object({
+  email: z.string().trim().min(1).max(200),
+  senha: z.string().min(1).max(200),
+});
+
+/** Valida o login que chega da janela pelo IPC (e-mail e senha de até 200 caracteres). */
+export function validarLogin(input: unknown): { email: string; senha: string } {
+  const parsed = loginSchema.safeParse(input);
+  if (!parsed.success) throw new Error('Informe o e-mail e a senha.');
+  return parsed.data;
+}

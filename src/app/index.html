@@ -6,9 +6,10 @@
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'"
     />
-    <title>ABA Embalagens — Automações</title>
+    <title>Automações</title>
     <style>
-      /* Identidade visual da ABA Embalagens (referência: abaembalagens.com.br). */
+      /* Identidade visual: os padrões são os da ABA Embalagens (abaembalagens.com.br); o app troca as
+         quatro cores pelo tema da empresa em uso (`data-empresa` na raiz). */
       :root {
         --aba-red: #b62b38;
         --aba-red-dark: #962330;
@@ -70,6 +71,89 @@
         margin: 2px 0 0;
         font-size: 13px;
         color: var(--muted);
+      }
+
+      [hidden] {
+        display: none !important;
+      }
+
+      /* Tela de login: aparece no lugar do app enquanto não há sessão. */
+      .login {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+      }
+      .login form {
+        width: 100%;
+        max-width: 360px;
+        display: grid;
+        gap: 14px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 24px;
+      }
+      .login h2 {
+        margin: 0;
+        font-size: 16px;
+        text-transform: uppercase;
+        color: var(--aba-red);
+      }
+      .login input {
+        width: 100%;
+      }
+
+      .offline {
+        background: #fff3cd;
+        color: #7a5b00;
+        font-size: 13px;
+        font-weight: 600;
+        padding: 8px 28px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      /* Rodapé do menu: quem está logado e o Sair. */
+      aside.menu .usuario {
+        margin-top: auto;
+        padding: 14px 20px 0;
+        border-top: 1px solid var(--border);
+        font-size: 13px;
+      }
+      aside.menu .usuario .nome {
+        font-weight: 700;
+        word-break: break-word;
+      }
+      aside.menu .usuario button {
+        margin-top: 8px;
+        border-left: 0;
+        padding: 6px 12px;
+        text-align: center;
+        width: auto;
+      }
+
+      /* Seletor de empresa, no topo do menu. */
+      aside.menu button.empresa-atual {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        font-weight: 800;
+        text-transform: uppercase;
+        border-bottom: 1px solid var(--border);
+        margin-bottom: 8px;
+      }
+      aside.menu button.empresa-atual:disabled {
+        cursor: default;
+        opacity: 1;
+      }
+      .empresas-lista {
+        display: grid;
+        gap: 8px;
+      }
+      .empresas-lista button[aria-current='true'] {
+        border-color: var(--aba-red);
+        color: var(--aba-red);
       }
 
       /* Menu lateral de automações; o conteúdo da aba ativa fica à direita. */
@@ -499,23 +583,55 @@
     </style>
   </head>
   <body>
-    <header>
-      <img src="assets/logo-aba.png" alt="ABA Embalagens" />
+    <div id="carregando" class="login">Carregando…</div>
+
+    <div id="login" class="login" hidden>
+      <form id="login-form">
+        <h2>Entrar</h2>
+        <div class="campo">
+          <label for="login-email">E-mail</label>
+          <input id="login-email" type="text" autocomplete="username" maxlength="200" />
+        </div>
+        <div class="campo">
+          <label for="login-senha">Senha</label>
+          <input id="login-senha" type="password" autocomplete="current-password" maxlength="200" />
+        </div>
+        <div id="login-erro" class="hint warn" role="alert"></div>
+        <button id="login-entrar" class="primary" type="submit">Entrar</button>
+      </form>
+    </div>
+
+    <header id="topo" hidden>
+      <img id="logo" src="assets/logo-aba.png" alt="" hidden />
       <div class="titulo">
         <h1>Automações</h1>
-        <p>ABA Embalagens · Bling</p>
+        <p id="empresa-subtitulo"></p>
       </div>
       <button id="abrir-config" type="button">Configurações</button>
     </header>
 
-    <div class="app">
-      <aside class="menu" id="menu" aria-label="Automações"></aside>
+    <div id="offline" class="offline" hidden>
+      Sem conexão com o servidor. O app segue com o perfil salvo; Artes fica indisponível.
+    </div>
+
+    <div class="app" id="app" hidden>
+      <aside class="menu" id="menu" aria-label="Automações">
+        <button id="empresa" type="button" class="empresa-atual">
+          <span id="empresa-nome"></span>
+          <span id="empresa-seta" aria-hidden="true">▾</span>
+        </button>
+        <div class="usuario" id="usuario">
+          <div class="nome" id="usuario-nome"></div>
+          <button id="sair" type="button">Sair</button>
+        </div>
+      </aside>
 
       <main>
         <section data-aba="artes" hidden>
           <div class="pagina">
             <div class="card">
               <h2>Artes</h2>
+              <div id="artes-offline" class="hint warn" hidden>Sem conexão com o servidor.</div>
               <div class="hint">Em breve — processo ainda não desenvolvido.</div>
             </div>
           </div>
@@ -598,26 +714,28 @@
           <span id="atualizacao-texto"></span>
           <button id="reiniciar" type="button">Reiniciar e atualizar</button>
         </div>
-        <div class="campo">
-          <label for="cfg-usuario">Usuário do Bling</label>
-          <input id="cfg-usuario" type="text" autocomplete="off" />
-        </div>
-        <div class="campo">
-          <label for="cfg-senha">Senha do Bling</label>
-          <input id="cfg-senha" type="password" autocomplete="new-password" />
-          <div id="cfg-senha-hint" class="hint"></div>
-        </div>
-        <div class="campo">
-          <label for="cfg-pasta">Pasta padrão dos documentos</label>
-          <div class="row">
-            <input id="cfg-pasta" type="text" />
-            <button id="cfg-escolher" type="button">Escolher…</button>
+        <div id="cfg-campos">
+          <div class="campo">
+            <label for="cfg-usuario">Usuário do Bling</label>
+            <input id="cfg-usuario" type="text" autocomplete="off" />
           </div>
-        </div>
-        <div class="campo">
-          <label for="cfg-chrome">Caminho do Google Chrome (opcional)</label>
-          <input id="cfg-chrome" type="text" />
-          <div class="hint">Deixe vazio para usar o padrão.</div>
+          <div class="campo">
+            <label for="cfg-senha">Senha do Bling</label>
+            <input id="cfg-senha" type="password" autocomplete="new-password" />
+            <div id="cfg-senha-hint" class="hint"></div>
+          </div>
+          <div class="campo">
+            <label for="cfg-pasta">Pasta padrão dos documentos</label>
+            <div class="row">
+              <input id="cfg-pasta" type="text" />
+              <button id="cfg-escolher" type="button">Escolher…</button>
+            </div>
+          </div>
+          <div class="campo">
+            <label for="cfg-chrome">Caminho do Google Chrome (opcional)</label>
+            <input id="cfg-chrome" type="text" />
+            <div class="hint">Deixe vazio para usar o padrão.</div>
+          </div>
         </div>
         <div id="cfg-erro" class="hint warn"></div>
         <div class="actions">
@@ -627,7 +745,19 @@
       </form>
     </dialog>
 
-    <footer>ABA Embalagens · Robô de documentos (POC)<span id="versao"></span></footer>
+    <dialog id="empresas">
+      <form method="dialog">
+        <h2>Trocar de empresa</h2>
+        <div id="empresas-lista" class="empresas-lista"></div>
+        <div class="actions">
+          <button id="empresas-cancelar" type="button">Cancelar</button>
+        </div>
+      </form>
+    </dialog>
+
+    <footer>
+      <span id="rodape-empresa"></span> · Robô de documentos (POC)<span id="versao"></span>
+    </footer>
 
     <script src="renderer.js"></script>
   </body>

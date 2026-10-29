@@ -1,8 +1,15 @@
 // Compila o app Electron (src/app) para dist/app, junto com o HTML e os assets.
 import { cp } from 'node:fs/promises';
+import process from 'node:process';
 import { build } from 'esbuild';
 
 const common = { bundle: true, sourcemap: true, logLevel: 'info' };
+
+// URL da API da plataforma, embutida no processo principal. O release (GitHub Actions) exige a variável;
+// em desenvolvimento, sem ela, vale a API local.
+const apiUrl =
+  process.env.RPA_API_URL || (process.env.GITHUB_ACTIONS ? '' : 'http://localhost:3001');
+if (!apiUrl) throw new Error('RPA_API_URL é obrigatória no build de release.');
 
 await Promise.all([
   // Processo principal: dependências ficam em node_modules (Playwright, pino etc.).
@@ -13,6 +20,7 @@ await Promise.all([
     platform: 'node',
     format: 'esm',
     packages: 'external',
+    define: { __RPA_API_URL__: JSON.stringify(apiUrl) },
   }),
   // Preload com sandbox precisa ser CommonJS.
   build({

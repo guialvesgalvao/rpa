@@ -18,9 +18,11 @@ export function criarBancoTeste() {
   return criarBanco(urlBancoTeste());
 }
 
-// Limpa os dados entre arquivos de teste. `empresas` fica: vem da migração.
+// Limpa os dados entre arquivos de teste. `empresas`, `cores` e `maquinas` ficam: vêm de migrações.
 export async function limparTabelas(db: Banco): Promise<void> {
-  await db.execute(sql`TRUNCATE usuarios, usuario_empresas, sessoes CASCADE`);
+  await db.execute(
+    sql`TRUNCATE arte_maquinas, artes, arquivos, clientes, produtos, usuarios, usuario_empresas, sessoes CASCADE`,
+  );
 }
 
 // Código SQLSTATE do erro do Postgres (o Drizzle o embrulha em `cause`).

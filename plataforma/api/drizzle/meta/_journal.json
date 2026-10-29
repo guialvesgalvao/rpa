@@ -15,6 +15,34 @@
       "when": 1793203340922,
       "tag": "0001_empresas",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793290016769,
+      "tag": "0002_artes_funcoes",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793290051683,
+      "tag": "0003_artes_tabelas",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793290061305,
+      "tag": "0004_artes_indices",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793290062281,
+      "tag": "0005_artes_cores_maquinas",
+      "breakpoints": true
     }
   ]
 }

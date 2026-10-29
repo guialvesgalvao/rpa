@@ -8,7 +8,7 @@ API (Fastify 5) e site (Next.js 16) da plataforma RPA, com os contratos zod comp
 - `web/` (`@plataforma/web`) — site Next.js (App Router). As cores da empresa vêm de `TEMAS` e são aplicadas por `[data-empresa]` (`src/tema.ts`, `src/app/globals.css`). Sessão e proxy da API em `src/servidor/` (`sessao.ts` funções puras, `api.ts` cliente da API, `acesso.ts` renovação), `src/proxy.ts` e `src/app/api/`.
 - `api/` (`@plataforma/api`) — `src/app.ts` (`criarApp`), `src/servidor.ts` (`listen`) e `src/config.ts` (ambiente validado com zod).
 - `api/src/db/` — esquema Drizzle (`esquema.ts`), conexão (`cliente.ts`) e migrador (`migrar.ts`). As migrações SQL versionadas ficam em `api/drizzle/`.
-- `api/src/auth/senha.ts` (hash `scrypt`), `api/src/usuarios/servico.ts` (regras de usuários) e `api/src/cli/usuarios.ts` (CLI `usuarios`).
+- `api/src/auth/senha.ts` (hash `scrypt`), `api/src/usuarios/servico.ts` (regras de usuários) e `api/src/cli/usuarios.ts` (CLI `usuarios`). `api/src/cli/semear-dev.ts` popula o banco local com dados fictícios.
 - `api/src/auth/` (`tokens.ts` JWT, `sessoes.ts` renovação rotativa, `limite.ts` tentativas de login), `api/src/plugins/autenticacao.ts` (`exigirUsuario`, `exigirEmpresa`, `exigirPerfil`) e `api/src/rotas/auth.ts`.
 
 ## Requisitos
@@ -123,6 +123,34 @@ Produção: o `railway run` injeta as variáveis do serviço Postgres (incluindo
 ```bash
 railway run --service Postgres -- npm --prefix plataforma -w @plataforma/api run usuarios -- criar --email voce@exemplo.com --nome "Seu nome" --perfil admin --empresas aba,roma
 ```
+
+## Artes: clientes, produtos e cadastro manual
+
+Clientes e produtos **não têm cadastro pela API**: entram por INSERT direto no banco (o `semear-dev` só serve para desenvolvimento local). As regras de formato ficam no próprio banco; o INSERT falha se algo estiver errado.
+
+**CNPJ com 14 dígitos, sem pontuação** (`11222333000181`, não `11.222.333/0001-81`), com os dígitos verificadores corretos (`cnpj_valido`), único por empresa. `nome_exibicao` (fantasia ou, se vazia, razão social) e `busca` (sem acento, minúsculas) são colunas geradas: não entram no INSERT.
+
+```sql
+-- empresa_id: SELECT id FROM empresas WHERE slug = 'aba';
+INSERT INTO clientes (empresa_id, razao_social, nome_fantasia, cnpj)
+VALUES ('<empresa_id>', 'Padaria Exemplo Ltda', 'Padaria Exemplo', '11222333000181');
+-- sem nome fantasia: omita a coluna (ou NULL); texto vazio é recusado
+
+INSERT INTO produtos (empresa_id, nome)
+VALUES ('<empresa_id>', 'Caixa de Pizza');
+-- o nome é único por empresa, sem diferenciar maiúsculas nem acentos
+```
+
+Cores (`4x0`, `4x4`) e máquinas (`Favorit`, `Rekord`) são globais e vêm de migração. A arte nunca fica sem arquivo (PDF ou imagem), e o produto precisa ser da mesma empresa do cliente.
+
+Dados fictícios para desenvolvimento (recusa qualquer banco que não seja `localhost` ou `127.0.0.1`; lê só `DATABASE_URL`; é idempotente):
+
+```bash
+npm --prefix plataforma -w @plataforma/api run db:migrar:dev
+npm --prefix plataforma -w @plataforma/api run semear-dev
+```
+
+Cria os usuários `admin.dev@exemplo.com` e `finalista.dev@exemplo.com` (senha `senha-dev-1234`, nas duas empresas), 60 clientes e 8 produtos por empresa e algumas artes com arquivos sintéticos.
 
 ## Ambiente
 

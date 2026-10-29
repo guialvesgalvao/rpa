@@ -8,6 +8,7 @@ API da plataforma RPA (Fastify 5) e contratos zod compartilhados com o site e o 
 - `api/` (`@plataforma/api`) — `src/app.ts` (`criarApp`), `src/servidor.ts` (`listen`) e `src/config.ts` (ambiente validado com zod).
 - `api/src/db/` — esquema Drizzle (`esquema.ts`), conexão (`cliente.ts`) e migrador (`migrar.ts`). As migrações SQL versionadas ficam em `api/drizzle/`.
 - `api/src/auth/senha.ts` (hash `scrypt`), `api/src/usuarios/servico.ts` (regras de usuários) e `api/src/cli/usuarios.ts` (CLI `usuarios`).
+- `api/src/auth/` (`tokens.ts` JWT, `sessoes.ts` renovação rotativa, `limite.ts` tentativas de login), `api/src/plugins/autenticacao.ts` (`exigirUsuario`, `exigirEmpresa`, `exigirPerfil`) e `api/src/rotas/auth.ts`.
 
 ## Requisitos
 
@@ -25,11 +26,28 @@ npm --prefix plataforma run lint
 npm --prefix plataforma run format:check
 npm --prefix plataforma test                     # precisa do Postgres local (abaixo)
 npm --prefix plataforma run build                # api/dist/{servidor,migrar}.mjs (contratos embutidos)
-npm --prefix plataforma -w @plataforma/api run dev    # tsx watch
+npm --prefix plataforma -w @plataforma/api run dev    # tsx watch; lê plataforma/.env se existir
 npm --prefix plataforma -w @plataforma/api start      # servidor compilado
 ```
 
 Saúde: `GET /v1/saude` → `{"status":"ok"}`.
+
+## Autenticação
+
+Contratos em `contratos/src/auth.ts`. Erros sempre como `{ "erro": { "codigo", "mensagem" } }`.
+
+| Rota                    | Corpo                      | Resposta                                                                    |
+| ----------------------- | -------------------------- | --------------------------------------------------------------------------- |
+| `POST /v1/auth/entrar`  | `{ email, senha, origem }` | `{ acesso, renovacao, expiraEm, eu }`; 401 genérico; 403 `sem_empresa`      |
+| `POST /v1/auth/renovar` | `{ renovacao }`            | `{ acesso, renovacao, expiraEm }`; 401 `sessao_invalida`                    |
+| `POST /v1/auth/sair`    | `{ renovacao }`            | 204 (idempotente)                                                           |
+| `GET /v1/eu`            | `Authorization: Bearer …`  | `{ id, nome, email, perfil, empresas }` lido do banco; 401 sem token válido |
+
+- Acesso: JWT HS256 de 15 min (`sub`, `perfil`, `empresas`), assinado com `JWT_SEGREDO`. Um 401 `token_expirado` pede renovação.
+- Renovação: token opaco de 32 bytes, guardado só como SHA-256 e trocado a cada uso. Reapresentar o token anterior até 60 s depois da troca é tratado como corrida (troca de novo); depois disso, como roubo (a sessão é revogada).
+- Sessão `web` expira após 30 dias sem renovar; `desktop` só termina com `sair`, desativação do usuário ou revogação.
+- Login: 5 tentativas por e-mail a cada 15 min (em memória; zera no deploy). A mensagem é sempre "E-mail ou senha inválidos.", inclusive quando bloqueado.
+- Rotas protegidas: `preHandler: [app.autenticacao.exigirUsuario, app.autenticacao.exigirEmpresa('empresa')]` (slug do parâmetro no token) e `exigirPerfil('admin')`.
 
 ## Banco local
 
@@ -95,7 +113,8 @@ railway run --service Postgres -- npm --prefix plataforma -w @plataforma/api run
 | -------------------- | --------------------------------------------- | ----------------------------------------------- |
 | `PORT`               | `3001`                                        | porta HTTP                                      |
 | `HOST`               | `::`                                          | interface (todas, IPv4 e IPv6)                  |
-| `DATABASE_URL`       | —                                             | banco da API e do `db:migrar`                   |
+| `DATABASE_URL`       | —                                             | banco da API e do `db:migrar` (obrigatória)     |
+| `JWT_SEGREDO`        | —                                             | chave do JWT, ao menos 32 bytes (obrigatória)   |
 | `DATABASE_URL_TESTE` | `postgres://rpa:rpa@localhost:5433/rpa_teste` | banco dos testes (precisa terminar em `_teste`) |
 
-Modelo em `.env.example`. Em produção, as variáveis ficam no painel do Railway; scripts locais contra produção recebem as credenciais via `railway run`. Nunca coloque credenciais no repositório.
+Modelo em `.env.example`. Gere o `JWT_SEGREDO` com `node -e "console.log(require('node:crypto').randomBytes(48).toString('base64url'))"`; trocá-lo invalida os tokens de acesso emitidos (as sessões continuam e renovam). Os testes não leem o ambiente: injetam um segredo fictício em `criarApp`. Em produção, as variáveis ficam no painel do Railway; scripts locais contra produção recebem as credenciais via `railway run`. Nunca coloque credenciais no repositório.

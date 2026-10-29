@@ -153,6 +153,64 @@ export async function desativar(db: Banco, email: string): Promise<void> {
   });
 }
 
+export type Credenciais = { id: string; senhaHash: string; ativo: boolean };
+
+export type PerfilUsuario = {
+  id: string;
+  nome: string;
+  email: string;
+  perfil: Perfil;
+  ativo: boolean;
+  empresas: { slug: string; nome: string }[];
+};
+
+// Para o login: o e-mail já chega normalizado pelo contrato.
+export async function buscarCredenciais(
+  db: Banco,
+  email: string,
+): Promise<Credenciais | undefined> {
+  const [usuario] = await db
+    .select({ id: usuarios.id, senhaHash: usuarios.senhaHash, ativo: usuarios.ativo })
+    .from(usuarios)
+    .where(eq(usuarios.email, email));
+  return usuario;
+}
+
+export async function usuarioAtivo(db: Banco, id: string): Promise<boolean> {
+  const [usuario] = await db
+    .select({ ativo: usuarios.ativo })
+    .from(usuarios)
+    .where(eq(usuarios.id, id));
+  return usuario?.ativo ?? false;
+}
+
+// Dados e empresas atuais do usuário, lidos do banco (não do token).
+export async function buscarPerfil(db: Banco, id: string): Promise<PerfilUsuario | undefined> {
+  const linhas = await db
+    .select({
+      id: usuarios.id,
+      nome: usuarios.nome,
+      email: usuarios.email,
+      perfil: usuarios.perfil,
+      ativo: usuarios.ativo,
+      empresaSlug: empresas.slug,
+      empresaNome: empresas.nome,
+    })
+    .from(usuarios)
+    .leftJoin(usuarioEmpresas, eq(usuarioEmpresas.usuarioId, usuarios.id))
+    .leftJoin(empresas, eq(empresas.id, usuarioEmpresas.empresaId))
+    .where(eq(usuarios.id, id))
+    .orderBy(asc(empresas.slug));
+
+  const [primeira] = linhas;
+  if (!primeira) return undefined;
+  const { nome, email, perfil, ativo } = primeira;
+  const vinculadas = linhas.flatMap(({ empresaSlug, empresaNome }) =>
+    empresaSlug && empresaNome ? [{ slug: empresaSlug, nome: empresaNome }] : [],
+  );
+  return { id, nome, email, perfil, ativo, empresas: vinculadas };
+}
+
 // Nunca devolve o hash da senha.
 export async function listar(db: Banco, id?: string): Promise<UsuarioListado[]> {
   const linhas = await db

@@ -1,9 +1,12 @@
 name: CI
 
+# A plataforma tem CI próprio (plataforma-ci.yml). Os contratos entram aqui porque o app os importa.
 on:
   pull_request:
+    paths: ['**', '!plataforma/**', 'plataforma/contratos/**']
   push:
     branches: [main]
+    paths: ['**', '!plataforma/**', 'plataforma/contratos/**']
 
 jobs:
   checks:

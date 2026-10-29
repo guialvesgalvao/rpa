@@ -1,0 +1,24 @@
+# Postgres local, só para desenvolvimento e testes. Produção fica no Railway.
+name: rpa-plataforma
+
+services:
+  postgres:
+    image: postgres:18
+    ports:
+      - '5433:5432'
+    environment:
+      POSTGRES_USER: rpa
+      POSTGRES_PASSWORD: rpa
+      POSTGRES_DB: rpa
+    volumes:
+      - dados:/var/lib/postgresql
+      - ./docker/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      # Via TCP: durante o init o Postgres só escuta no socket, então só fica saudável depois dele.
+      test: ['CMD', 'pg_isready', '-h', '127.0.0.1', '-U', 'rpa', '-d', 'rpa']
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  dados:

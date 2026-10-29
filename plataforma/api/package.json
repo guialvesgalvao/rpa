@@ -1,0 +1,27 @@
+{
+  "name": "@plataforma/api",
+  "private": true,
+  "description": "API da plataforma RPA (Fastify)",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/servidor.ts",
+    "build": "node scripts/build.mjs",
+    "start": "node dist/servidor.mjs",
+    "db:gerar": "drizzle-kit generate",
+    "db:migrar": "node dist/migrar.mjs",
+    "db:migrar:dev": "node --env-file-if-exists=../.env --import tsx src/db/migrar.ts",
+    "usuarios": "node --env-file-if-exists=../.env --import tsx src/cli/usuarios.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@plataforma/contratos": "*",
+    "drizzle-orm": "^0.45.4",
+    "fastify": "^5.12.7",
+    "postgres": "^3.4.9",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.31.11"
+  }
+}

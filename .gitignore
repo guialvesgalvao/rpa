@@ -6,3 +6,7 @@ artifacts/
 coverage/
 dist/
 release/
+.env.local
+.env.*.local
+.next/
+*.tsbuildinfo

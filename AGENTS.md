@@ -26,6 +26,15 @@ RPA do Bling em Node/TypeScript/Playwright, com CLI (`src/cli.ts`) e app Electro
 - Uma versão nova (`npm version …` + `git push --follow-tags`, que dispara `.github/workflows/release.yml`) só sai quando o usuário pedir.
 - Nunca criar nem enviar tag por conta própria.
 
+## Plataforma
+
+- `plataforma/` (API Fastify + contratos zod) tem tooling próprio; o lint e o prettier da raiz a ignoram. Detalhes no `plataforma/README.md`.
+- Comandos: `npm --prefix plataforma ci`, depois `npm --prefix plataforma run typecheck|lint|format:check|test|build`.
+- Banco local: `docker compose -f plataforma/docker-compose.yml up -d --wait` (Postgres 18 na porta 5433, só desenvolvimento).
+- Nunca ler arquivos `.env*` (exceto `.env.example`) nem pedir credenciais no chat.
+- Credenciais do Railway ficam só no painel; scripts locais as recebem via `railway run`, executado pelo usuário.
+- A plataforma não usa as tags `v*` (são do app).
+
 ## Testes com credenciais reais (OBRIGATÓRIO)
 
 - **Sempre** perguntar ao usuário, antes de rodar qualquer fluxo que use as credenciais do Bling (app → Gerar, `npm run process -- bling …`, scripts de diagnóstico), se pode rodar e qual número de pedido usar.

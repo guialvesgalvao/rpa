@@ -141,6 +141,10 @@ export default defineProcess({
 - `src/utils/pdf.ts` — `splitPdf`, `splitPdfByRanges` (intervalos 1-based inclusivos), `mergePdfs`, `countPages`.
 - `src/utils/fs.ts` — `ensureDir`, `safeFileName`, `timestampedName`, `toWslPath`.
 
+## Plataforma (API)
+
+A pasta `plataforma/` guarda a API (Fastify) e os contratos zod usados pela API, pelo site e pelo app. Ela tem `package.json`, lockfile, tooling e CI próprios (`.github/workflows/plataforma-ci.yml`), e não usa as tags `v*` do app. Veja `plataforma/README.md`.
+
 ## Qualidade
 
 ```bash

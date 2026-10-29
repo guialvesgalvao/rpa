@@ -1,0 +1,44 @@
+name: Plataforma CI
+
+on:
+  pull_request:
+    paths: ['plataforma/**', '.github/workflows/plataforma-ci.yml']
+  push:
+    branches: [main]
+    paths: ['plataforma/**', '.github/workflows/plataforma-ci.yml']
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: plataforma
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: rpa
+          POSTGRES_PASSWORD: rpa
+          POSTGRES_DB: rpa_teste
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U rpa -d rpa_teste"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+    env:
+      DATABASE_URL_TESTE: postgres://rpa:rpa@localhost:5433/rpa_teste
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: plataforma/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm test
+      - run: npm run build

@@ -1,2 +1,3 @@
-export * from './auth.js';
-export * from './saude.js';
+export * from './auth.ts';
+export * from './empresas.ts';
+export * from './saude.ts';

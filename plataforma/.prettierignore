@@ -3,3 +3,5 @@ package-lock.json
 dist
 coverage
 **/drizzle/meta
+.next
+next-env.d.ts

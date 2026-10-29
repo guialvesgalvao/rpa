@@ -29,6 +29,8 @@ jobs:
           --health-retries 30
     env:
       DATABASE_URL_TESTE: postgres://rpa:rpa@localhost:5433/rpa_teste
+      # O build do site (web) roda no `npm run build` dos workspaces.
+      NEXT_TELEMETRY_DISABLED: 1
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5

@@ -1,0 +1,419 @@
+/* Portado do app desktop (`src/app/index.html`). As cores da empresa (`--cor-*`) vêm de `TEMAS`
+   (`@plataforma/contratos`) e são aplicadas por `[data-empresa]` (ver `src/tema.ts`). */
+:root {
+  --bg: #f4f5f6;
+  --card: #fff;
+  --text: #212529;
+  --muted: #6c757d;
+  --border: #d6d6d6;
+  --ok-bg: #e8f3dc;
+  --err-bg: #f8e1e3;
+  --run: #1d5fbf;
+  --run-bg: #e1ebf8;
+  --idle-bg: #eceef0;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+
+/* Cabeçalho branco com borda na cor da empresa (o logo da ABA tem fundo branco). */
+header {
+  background: #fff;
+  color: var(--cor-primaria);
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 10px 28px;
+  border-bottom: 4px solid var(--cor-primaria);
+}
+header img {
+  height: 68px;
+  width: auto;
+  display: block;
+}
+header .titulo {
+  margin-left: auto;
+  text-align: right;
+}
+header h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+header p {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* Menu lateral; o conteúdo da aba ativa fica à direita. */
+.app {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+}
+aside.menu {
+  background: #fff;
+  border-right: 1px solid var(--border);
+  padding: 16px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+aside.menu a {
+  display: block;
+  border-left: 4px solid transparent;
+  color: var(--text);
+  text-decoration: none;
+  padding: 12px 20px;
+}
+aside.menu a:hover {
+  background: var(--bg);
+  color: var(--cor-primaria);
+}
+aside.menu a[aria-current='page'] {
+  border-left-color: var(--cor-primaria);
+  background: var(--bg);
+  color: var(--cor-primaria);
+}
+
+/* Páginas de uma empresa: o tema vem de `data-empresa` neste bloco (`[empresa]/layout.tsx`). */
+.empresa {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Topo do menu: logo e empresa atual (ou o seletor); rodapé: usuário e Sair. */
+.menu-topo {
+  display: grid;
+  gap: 10px;
+  padding: 0 16px 16px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.menu-topo img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+.menu-empresa {
+  color: var(--cor-primaria);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.menu-rodape {
+  margin-top: auto;
+  padding: 16px 20px 0;
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 8px;
+}
+.menu-rodape .usuario {
+  font-size: 13px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+/* Seletor de empresa: `<details>` com a lista sobreposta ao conteúdo. */
+.seletor {
+  position: relative;
+}
+.seletor summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  list-style: none;
+  color: var(--cor-primaria);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.seletor summary::-webkit-details-marker {
+  display: none;
+}
+.seletor summary::after {
+  content: '▾';
+}
+.seletor[open] summary::after {
+  content: '▴';
+}
+.seletor form {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 100%;
+  display: grid;
+  padding: 4px 0;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 12%);
+}
+.seletor form button {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 400;
+  font-size: 14px;
+  padding: 8px 12px;
+  white-space: nowrap;
+}
+.seletor form button:hover:not(:disabled) {
+  background: var(--bg);
+  color: var(--cor-primaria);
+}
+.seletor form button[aria-current='true'] {
+  font-weight: 700;
+}
+
+main {
+  flex: 1;
+  min-width: 0;
+}
+.pagina {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 24px 28px;
+}
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 18px 20px;
+  margin-bottom: 16px;
+}
+.card > label,
+.card > h2 {
+  display: block;
+  margin-top: 0;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  margin-bottom: 8px;
+  padding-left: 10px;
+  border-left: 3px solid var(--cor-primaria);
+}
+textarea,
+input[type='text'],
+input[type='email'],
+input[type='password'],
+input[type='number'] {
+  width: 100%;
+  font: inherit;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: #fff;
+  color: var(--text);
+}
+textarea:focus,
+input[type='text']:focus,
+input[type='email']:focus,
+input[type='password']:focus,
+input[type='number']:focus {
+  outline: none;
+  border-color: var(--cor-destaque);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--cor-destaque) 18%, transparent);
+}
+textarea:disabled,
+input:disabled {
+  background: #f1f2f3;
+}
+.hint {
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 8px;
+  min-height: 1.2em;
+}
+.hint.warn {
+  color: var(--cor-primaria);
+}
+.aviso {
+  background: var(--err-bg);
+  color: var(--cor-primaria);
+  font-weight: 600;
+  font-size: 13px;
+  padding: 8px 12px;
+  border-radius: 4px;
+  margin-bottom: 10px;
+}
+.em-breve {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  background: var(--idle-bg);
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 1px 7px;
+}
+
+button {
+  font: inherit;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  font-size: 13px;
+  padding: 10px 18px;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 1px solid var(--cor-primaria);
+  background: #fff;
+  color: var(--cor-primaria);
+}
+button:hover:not(:disabled) {
+  background: var(--cor-primaria);
+  color: #fff;
+}
+button.primary {
+  background: var(--cor-destaque);
+  border-color: var(--cor-destaque);
+  color: #fff;
+  padding: 12px 26px;
+  font-size: 14px;
+}
+button.primary:hover:not(:disabled) {
+  background: var(--cor-destaque-escura);
+  border-color: var(--cor-destaque-escura);
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.campo > label {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.campo .hint {
+  margin-top: 4px;
+}
+
+.status {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.status.pendente {
+  background: var(--idle-bg);
+  color: var(--muted);
+}
+.status.processando {
+  background: var(--run-bg);
+  color: var(--run);
+}
+.status.ok {
+  background: var(--ok-bg);
+  color: var(--cor-destaque-escura);
+}
+.status.erro {
+  background: var(--err-bg);
+  color: var(--cor-primaria);
+}
+
+footer {
+  background: var(--cor-primaria);
+  color: #fff;
+  font-size: 12px;
+  text-align: center;
+  padding: 8px;
+  opacity: 0.95;
+}
+
+/* Tela de login: um card estreito no centro. */
+.entrar {
+  max-width: 420px;
+  padding-top: 48px;
+}
+.entrar form {
+  display: grid;
+  gap: 14px;
+}
+
+/* Telas estreitas (até 360 px): o menu lateral vira uma barra no topo. */
+@media (max-width: 720px) {
+  header {
+    padding: 10px 16px;
+  }
+  .pagina {
+    padding: 16px;
+  }
+  .app {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto 1fr;
+  }
+  aside.menu {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    padding: 8px 16px;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .menu-topo {
+    display: flex;
+    align-items: center;
+    padding: 0;
+    margin: 0;
+    border: 0;
+  }
+  .menu-topo img {
+    height: 36px;
+    width: auto;
+  }
+  .menu-itens {
+    display: flex;
+  }
+  aside.menu a {
+    border-left: 0;
+    border-bottom: 3px solid transparent;
+    padding: 8px 10px;
+  }
+  aside.menu a[aria-current='page'] {
+    border-bottom-color: var(--cor-primaria);
+  }
+  .menu-rodape {
+    margin: 0 0 0 auto;
+    padding: 0;
+    border: 0;
+    display: flex;
+    align-items: center;
+  }
+}

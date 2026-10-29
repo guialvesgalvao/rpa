@@ -18,6 +18,8 @@ import type {
 } from './api.js';
 import { podeTrocarEmpresa, tituloJanela } from './empresa.js';
 import type { Perfil } from './plataforma/contratos.js';
+import { criarArtes } from './artes/index.js';
+import { mensagemErro } from './artes/dom.js';
 import { abaInicial, abasDoPerfil, type Automacao, ordenarMenu } from './menu.js';
 
 declare global {
@@ -79,6 +81,7 @@ const topo = $('topo');
 const areaApp = $('app');
 const faixaOffline = $('offline');
 const artesOffline = $('artes-offline');
+const artes = criarArtes($('artes-raiz'), window.rpa.artes);
 const usuarioEl = $('usuario');
 const usuarioNome = $('usuario-nome');
 const sair = $<HTMLButtonElement>('sair');
@@ -230,9 +233,6 @@ function onEntradaAlterada() {
   if (!selecaoCard.hidden) desatualizada = true;
   atualizarControles();
 }
-
-// O Electron prefixa a mensagem com "Error invoking remote method '...': Error: ".
-const mensagemErro = (error: unknown) => (error as Error).message.replace(/^.*?Error: /, '');
 
 const nomeArquivo = (arquivo: string) => arquivo.split(/[\\/]/).pop() ?? '';
 
@@ -509,6 +509,7 @@ function aplicarSessao(sessao: SessaoTela) {
   if (!logado) {
     montadoPara = undefined;
     empresaMontada = undefined;
+    artes.encerrar();
     aplicarEmpresa(undefined, 0);
     dialogEmpresas.close();
     limparFatura();
@@ -538,6 +539,7 @@ function aplicarSessao(sessao: SessaoTela) {
   const chaveEmpresa = `${chaveSessao}:${sessao.empresa?.slug ?? ''}`;
   if (empresaMontada === chaveEmpresa) return;
   empresaMontada = chaveEmpresa;
+  artes.reiniciar();
   limparFatura();
   atualizarContagem();
   // Arte finalista nunca vê o modal do Bling.

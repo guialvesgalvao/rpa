@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
 import { access } from 'node:fs/promises';
 import path from 'node:path';
@@ -18,15 +19,31 @@ import { createLogger } from '../core/logger.js';
 import { DOCS_DISPONIVEIS, gerarDocumentos } from '../processes/bling/documentos.js';
 import { ensureDir } from '../utils/fs.js';
 import {
+  type ArquivoEscolhido,
   CHANNELS,
+  type CadastroResultado,
   type ConfigTela,
   type Defaults,
   type GerarResultado,
   type SessaoTela,
 } from './api.js';
 import { logoDaEmpresa, podeTrocarEmpresa, rotuloEmpresa } from './empresa.js';
+import {
+  type ArquivoLocal,
+  criarClienteArtes,
+  errosDaRejeicao,
+  inspecionarArquivo,
+  montarEnvio,
+  type OpcoesArte,
+} from './plataforma/artes.js';
 import { criarCliente, ErroIndisponivel, ErroRecusado } from './plataforma/cliente.js';
-import { type Perfil, temaDaEmpresa } from './plataforma/contratos.js';
+import {
+  type Cliente,
+  type PaginaClientes,
+  type Perfil,
+  type ProdutoDoCliente,
+  temaDaEmpresa,
+} from './plataforma/contratos.js';
 import { criarSessao, type EstadoSessao } from './plataforma/sessao.js';
 import { urlDaApi } from './plataforma/url.js';
 import {
@@ -41,7 +58,15 @@ import {
   salvarSettings,
   settingsDaEmpresa,
 } from './settings.js';
-import { validarLogin, validarSelecao, validarSlug } from './validacao.js';
+import {
+  validarCadastro,
+  validarConsultaClientes,
+  validarId,
+  validarLogin,
+  validarSelecao,
+  validarSlug,
+  validarTipoArquivo,
+} from './validacao.js';
 
 // Compilado em dist/app/, junto com index.html e assets/.
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -86,6 +111,22 @@ const sessaoIniciada: Promise<unknown> = app
     logger.error({ erro: (erro as Error).message }, 'Falha ao iniciar a sessão'),
   );
 const INTERVALO_SESSAO_MS = 5 * 60 * 1000;
+
+// Artes: a janela não faz `fetch` (CSP); o main chama a API com o acesso da sessão.
+const artesApi = criarClienteArtes({
+  baseUrl: urlDaApi(),
+  fetch,
+  obterAcesso: async () => {
+    const acesso = await sessao.obterAcesso();
+    if (acesso) return acesso;
+    if (sessao.estado().situacao === 'deslogado') {
+      throw new Error('Sessão encerrada. Entre novamente.');
+    }
+    throw new ErroIndisponivel('Sem conexão com o servidor.');
+  },
+});
+/** Arquivos escolhidos nos diálogos: a janela só conhece o id, nunca o caminho. */
+const arquivosEscolhidos = new Map<string, ArquivoLocal>();
 
 /** A sessão como a tela vê, com a empresa em uso (a última escolhida, ou a primeira) e o tema dela. */
 async function paraTela(estado: EstadoSessao): Promise<SessaoTela> {
@@ -288,6 +329,97 @@ ipcMain.handle(CHANNELS.empresaTrocar, async (_event, input: unknown): Promise<S
   logger.info({ empresa: slug }, 'Empresa trocada');
   return await paraTela(estado);
 });
+
+// Leitura e cadastro valem para os dois perfis; a API confere a empresa e o perfil de cada rota.
+ipcMain.handle(
+  CHANNELS.artesListarClientes,
+  async (_event, input: unknown): Promise<PaginaClientes> => {
+    const consulta = validarConsultaClientes(input);
+    const { empresa } = await contexto();
+    return artesApi.listarClientes(empresa, consulta);
+  },
+);
+
+ipcMain.handle(CHANNELS.artesObterCliente, async (_event, input: unknown): Promise<Cliente> => {
+  const id = validarId(input);
+  const { empresa } = await contexto();
+  return artesApi.obterCliente(empresa, id);
+});
+
+ipcMain.handle(
+  CHANNELS.artesProdutosDoCliente,
+  async (_event, input: unknown): Promise<ProdutoDoCliente[]> => {
+    const id = validarId(input);
+    const { empresa } = await contexto();
+    return artesApi.produtosDoCliente(empresa, id);
+  },
+);
+
+ipcMain.handle(CHANNELS.artesOpcoes, async (): Promise<OpcoesArte> => {
+  const { empresa } = await contexto();
+  return artesApi.opcoes(empresa);
+});
+
+const FILTROS_ARQUIVO = {
+  pdf: [{ name: 'PDF', extensions: ['pdf'] }],
+  imagem: [{ name: 'Imagem', extensions: ['png', 'jpg', 'jpeg', 'webp'] }],
+};
+
+ipcMain.handle(
+  CHANNELS.artesEscolherArquivo,
+  async (event, input: unknown): Promise<ArquivoEscolhido | null> => {
+    const tipo = validarTipoArquivo(input);
+    await contexto();
+    const window = BrowserWindow.fromWebContents(event.sender);
+    const options: OpenDialogOptions = { properties: ['openFile'], filters: FILTROS_ARQUIVO[tipo] };
+    const result = window
+      ? await dialog.showOpenDialog(window, options)
+      : await dialog.showOpenDialog(options);
+    const caminho = result.filePaths[0];
+    if (result.canceled || !caminho) return null;
+    const local = await inspecionarArquivo(caminho);
+    const id = randomUUID();
+    arquivosEscolhidos.set(id, local);
+    return { id, nome: local.nome, tamanho: local.tamanho, tipo: local.tipo?.tipo ?? null };
+  },
+);
+
+ipcMain.handle(
+  CHANNELS.artesCadastrar,
+  async (_event, input: unknown): Promise<CadastroResultado> => {
+    const { clienteId, pdfId, imagemId, ...entrada } = validarCadastro(input);
+    const { empresa } = await contexto();
+
+    // Relê tamanho e tipo na hora do envio: o arquivo pode ter mudado depois do diálogo.
+    const reler = async (id: string | undefined): Promise<ArquivoLocal | undefined> => {
+      if (!id) return undefined;
+      const escolhido = arquivosEscolhidos.get(id);
+      if (!escolhido) throw new Error('Arquivo não selecionado. Escolha o arquivo de novo.');
+      return inspecionarArquivo(escolhido.caminho);
+    };
+    let arquivos: { pdf?: ArquivoLocal; imagem?: ArquivoLocal };
+    try {
+      arquivos = { pdf: await reler(pdfId), imagem: await reler(imagemId) };
+    } catch (erro) {
+      // Erro de disco (ENOENT, EACCES…) tem `code`; "Arquivo não selecionado" sobe como está.
+      if (!(erro instanceof Error && 'code' in erro)) throw erro;
+      return { ok: false, erros: { arquivos: 'Não foi possível ler o arquivo escolhido.' } };
+    }
+
+    const envio = await montarEnvio(entrada, arquivos);
+    if ('erros' in envio) return { ok: false, erros: envio.erros };
+    try {
+      await artesApi.cadastrar(empresa, clienteId, envio.form);
+    } catch (erro) {
+      const erros = errosDaRejeicao(erro);
+      if (!erros) throw erro;
+      return { ok: false, erros };
+    }
+    arquivosEscolhidos.clear();
+    logger.info({ empresa }, 'Arte cadastrada');
+    return { ok: true };
+  },
+);
 
 ipcMain.handle(CHANNELS.instalarAtualizacao, () => {
   // Não interrompe uma geração em andamento (ex.: NF entre o Salvar e a autorização).

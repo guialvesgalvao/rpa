@@ -1,7 +1,15 @@
 import type { DocResult } from '../processes/bling/documentos.js';
 import type { DocTipo, PedidoSelecao } from '../processes/bling/selecao.js';
 
-import type { Perfil, Tema } from './plataforma/contratos.js';
+import type { ErrosCadastro, OpcoesArte } from './plataforma/artes.js';
+import type {
+  Cliente,
+  PaginaClientes,
+  Perfil,
+  ProdutoDoCliente,
+  Tema,
+  TipoArquivo,
+} from './plataforma/contratos.js';
 
 export type { DocResult, DocTipo, PedidoSelecao };
 
@@ -24,6 +32,38 @@ export type SessaoTela =
       empresas: EmpresaTela[];
       empresa?: EmpresaAtualTela;
     };
+
+/** Arquivo escolhido no diálogo: caminho e conteúdo ficam no main; `id` o identifica no cadastro. */
+export type ArquivoEscolhido = {
+  id: string;
+  nome: string;
+  tamanho: number;
+  tipo: TipoArquivo | null;
+};
+
+/** Dados do formulário de nova arte; os arquivos vão pelos ids de `escolherArquivo`. */
+export type CadastroArte = {
+  clienteId: string;
+  produtoId: string;
+  nome: string;
+  corId: string;
+  maquinaIds: string[];
+  pdfId?: string;
+  imagemId?: string;
+};
+
+export type CadastroResultado = { ok: true } | { ok: false; erros: ErrosCadastro };
+
+/** Artes da empresa em uso. Falha de rede ou de permissão vem como mensagem pronta para a tela. */
+export type ArtesApi = {
+  listarClientes(busca: string, cursor: string | null): Promise<PaginaClientes>;
+  obterCliente(id: string): Promise<Cliente>;
+  produtosDoCliente(id: string): Promise<ProdutoDoCliente[]>;
+  opcoes(): Promise<OpcoesArte>;
+  /** `null` se o usuário cancelar o diálogo. */
+  escolherArquivo(tipo: TipoArquivo): Promise<ArquivoEscolhido | null>;
+  cadastrar(entrada: CadastroArte): Promise<CadastroResultado>;
+};
 
 export type GerarResultado = { results: DocResult[] };
 
@@ -76,6 +116,7 @@ export type RpaApi = {
   trocarEmpresa(slug: string): Promise<SessaoTela>;
   /** Avisa quando a sessão muda sem ação da tela (renovação recusada ou servidor fora do ar). */
   onSessaoMudou(callback: (sessao: SessaoTela) => void): void;
+  artes: ArtesApi;
 };
 
 export const CHANNELS = {
@@ -93,4 +134,10 @@ export const CHANNELS = {
   sessaoSair: 'rpa:sessao:sair',
   sessaoMudou: 'rpa:sessao:mudou',
   empresaTrocar: 'rpa:empresa:trocar',
+  artesListarClientes: 'rpa:artes:listar-clientes',
+  artesObterCliente: 'rpa:artes:obter-cliente',
+  artesProdutosDoCliente: 'rpa:artes:produtos-do-cliente',
+  artesOpcoes: 'rpa:artes:opcoes',
+  artesEscolherArquivo: 'rpa:artes:escolher-arquivo',
+  artesCadastrar: 'rpa:artes:cadastrar',
 } as const;

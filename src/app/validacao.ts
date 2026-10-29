@@ -45,3 +45,52 @@ export function validarLogin(input: unknown): { email: string; senha: string } {
   if (!parsed.success) throw new Error('Informe o e-mail e a senha.');
   return parsed.data;
 }
+
+const idSchema = z.uuid();
+
+/** Valida um id (cliente, arquivo escolhido) que chega da janela pelo IPC. */
+export function validarId(input: unknown): string {
+  const parsed = idSchema.safeParse(input);
+  if (!parsed.success) throw new Error('Identificador inválido.');
+  return parsed.data;
+}
+
+const consultaClientesSchema = z.object({
+  busca: z.string().max(100).optional(),
+  cursor: z.string().max(512).nullish(),
+});
+
+/** Valida a busca e o cursor (opaco) da lista de clientes; a API valida o cursor em si. */
+export function validarConsultaClientes(input: unknown): { busca?: string; cursor?: string } {
+  const parsed = consultaClientesSchema.safeParse(input);
+  if (!parsed.success) throw new Error('Busca inválida.');
+  const { busca, cursor } = parsed.data;
+  return { busca: busca?.trim() || undefined, cursor: cursor || undefined };
+}
+
+/** Valida o tipo de arquivo que a janela pede para escolher. */
+export function validarTipoArquivo(input: unknown): 'pdf' | 'imagem' {
+  const parsed = z.enum(['pdf', 'imagem']).safeParse(input);
+  if (!parsed.success) throw new Error('Tipo de arquivo inválido.');
+  return parsed.data;
+}
+
+const cadastroSchema = z.object({
+  clienteId: z.uuid(),
+  // Ids vazios passam: `validarNovaArte` devolve "Selecione um produto/cor" ao lado do campo.
+  produtoId: z.string().max(100),
+  nome: z.string().max(500).optional(),
+  corId: z.string().max(100),
+  maquinaIds: z.array(z.string().max(100)).max(20),
+  pdfId: z.uuid().optional(),
+  imagemId: z.uuid().optional(),
+});
+
+export type CadastroEntrada = z.infer<typeof cadastroSchema>;
+
+/** Valida o cadastro de arte que chega da janela pelo IPC; os arquivos vêm como ids de `escolherArquivo`. */
+export function validarCadastro(input: unknown): CadastroEntrada {
+  const parsed = cadastroSchema.safeParse(input);
+  if (!parsed.success) throw new Error('Dados da arte inválidos.');
+  return parsed.data;
+}

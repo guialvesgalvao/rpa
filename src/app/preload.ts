@@ -20,6 +20,15 @@ const api: RpaApi = {
   trocarEmpresa: (slug) => ipcRenderer.invoke(CHANNELS.empresaTrocar, slug),
   onSessaoMudou: (callback) =>
     void ipcRenderer.on(CHANNELS.sessaoMudou, (_event, sessao: SessaoTela) => callback(sessao)),
+  artes: {
+    listarClientes: (busca, cursor) =>
+      ipcRenderer.invoke(CHANNELS.artesListarClientes, { busca, cursor }),
+    obterCliente: (id) => ipcRenderer.invoke(CHANNELS.artesObterCliente, id),
+    produtosDoCliente: (id) => ipcRenderer.invoke(CHANNELS.artesProdutosDoCliente, id),
+    opcoes: () => ipcRenderer.invoke(CHANNELS.artesOpcoes),
+    escolherArquivo: (tipo) => ipcRenderer.invoke(CHANNELS.artesEscolherArquivo, tipo),
+    cadastrar: (entrada) => ipcRenderer.invoke(CHANNELS.artesCadastrar, entrada),
+  },
 };
 
 contextBridge.exposeInMainWorld('rpa', api);

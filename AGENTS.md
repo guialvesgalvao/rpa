@@ -4,6 +4,8 @@
 
 RPA do Bling em Node/TypeScript/Playwright, com CLI (`src/cli.ts`) e app Electron (`src/app/`). Detalhes de instalação, configuração e uso no `README.md`.
 
+Decisões de arquitetura em `docs/adrs/` (índice no `README.md` da pasta).
+
 ## Comandos
 
 - `npm run typecheck`

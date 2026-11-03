@@ -1,0 +1,81 @@
+{
+  "itens": [
+    {
+      "id": 1001,
+      "descricao": "Caixa de Pizza Sintetica 35",
+      "descricaoDetalhada": "",
+      "codigo": "XX0001",
+      "unidade": "UN",
+      "quantidade": 1000,
+      "componentes": [
+        {
+          "id": "5001",
+          "idVendaItem": "1001",
+          "idProduto": "6001",
+          "idComponente": "6001",
+          "idEstrutura": "2001",
+          "nome": "Papel sintetico A",
+          "unidade": "UN",
+          "quantidade": "0.5000000000",
+          "codigo": ""
+        },
+        {
+          "id": "5002",
+          "idVendaItem": "1001",
+          "idProduto": "6002",
+          "idComponente": "6002",
+          "idEstrutura": "2001",
+          "nome": "Papel sintetico A + 46x46",
+          "unidade": "UN",
+          "quantidade": "0.5000000000",
+          "codigo": ""
+        }
+      ],
+      "produto": { "id": 2001, "tipo": "P" }
+    },
+    {
+      "id": 1002,
+      "descricao": "Sacola Sintetica",
+      "descricaoDetalhada": "",
+      "codigo": "XX0002",
+      "unidade": "UN",
+      "quantidade": 1000,
+      "componentes": [],
+      "produto": { "id": 2002, "tipo": "P" }
+    },
+    {
+      "id": 1003,
+      "descricao": "Frete",
+      "descricaoDetalhada": "",
+      "codigo": "FRETE",
+      "unidade": "",
+      "quantidade": 1,
+      "componentes": [],
+      "produto": { "id": 2003, "tipo": "S" }
+    }
+  ],
+  "contato": {
+    "dadosContato": {
+      "id": "3001",
+      "nome": "Cliente Ficticio Ltda",
+      "fantasia": "Pizzaria Ficticia",
+      "cnpj": "11.222.333/0001-81",
+      "tipo": "J"
+    }
+  },
+  "jsonParcelas": [
+    { "nroDias": "0", "dataVencimento": "19/10/2026", "valor": "100,00" },
+    { "nroDias": "7", "dataVencimento": "26/10/2026", "valor": "100,00" }
+  ],
+  "venda": {
+    "id": "4001",
+    "idContato": "3001",
+    "data": "12/10/2026",
+    "dataPrevista": "20/10/2026",
+    "numeroPedido": "9001",
+    "idNotaFiscalRef": "0",
+    "cnpj": "11.222.333/0001-81",
+    "observacoes": "",
+    "observacaoInterna": ""
+  }
+}

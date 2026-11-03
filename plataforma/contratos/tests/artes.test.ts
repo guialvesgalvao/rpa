@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { detectarTipo, LIMITES, nomeOuPadrao, rotuloArtes, validarNovaArte } from '../src/artes.ts';
+import {
+  detectarTipo,
+  EsquemaArteDoProduto,
+  LIMITES,
+  nomeOuPadrao,
+  rotuloArtes,
+  validarNovaArte,
+} from '../src/artes.ts';
 
 const PNG = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0]);
 const PDF = new TextEncoder().encode('%PDF-1.4\n');
@@ -77,5 +84,31 @@ describe('validarNovaArte', () => {
     expect(
       validarNovaArte({ ...valida, imagem: { tamanho: 1, tipo: 'pdf' } }).arquivos,
     ).toBeDefined();
+  });
+});
+
+describe('EsquemaArteDoProduto', () => {
+  const valida = {
+    id: '11111111-1111-4111-8111-111111111111',
+    nome: 'Padrão',
+    cor: { id: '22222222-2222-4222-8222-222222222222', nome: '4x0' },
+    maquinas: [{ id: '33333333-3333-4333-8333-333333333333', nome: 'Favorit' }],
+    criadoEm: '2026-03-05T12:00:00.000Z',
+    temPdf: true,
+    temImagem: false,
+  };
+
+  it('aceita uma arte completa', () => {
+    expect(EsquemaArteDoProduto.parse(valida)).toEqual(valida);
+  });
+
+  it('recusa id fora do formato, data inválida e campos de arquivo ausentes', () => {
+    expect(EsquemaArteDoProduto.safeParse({ ...valida, id: 'abc' }).success).toBe(false);
+    expect(EsquemaArteDoProduto.safeParse({ ...valida, criadoEm: '05/03/2026' }).success).toBe(
+      false,
+    );
+    const semFlag: Partial<typeof valida> = { ...valida };
+    delete semFlag.temImagem;
+    expect(EsquemaArteDoProduto.safeParse(semFlag).success).toBe(false);
   });
 });

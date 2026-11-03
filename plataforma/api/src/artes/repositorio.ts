@@ -1,8 +1,23 @@
-import type { Cliente, Opcao, PaginaClientes, ProdutoDoCliente } from '@plataforma/contratos';
-import { and, asc, eq, sql } from 'drizzle-orm';
+import type {
+  ArteDoProduto,
+  Cliente,
+  Opcao,
+  PaginaClientes,
+  ProdutoDoCliente,
+} from '@plataforma/contratos';
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 
 import type { Banco } from '../db/cliente.js';
-import { artes, clientes, cores, empresas, maquinas, produtos } from '../db/esquema.js';
+import {
+  arquivos,
+  arteMaquinas,
+  artes,
+  clientes,
+  cores,
+  empresas,
+  maquinas,
+  produtos,
+} from '../db/esquema.js';
 
 // Sem maiúsculas nem acentos, espaços colapsados. Com dígitos no termo a pontuação sai, para o CNPJ casar
 // com ou sem máscara (`busca` guarda o CNPJ só com dígitos).
@@ -139,6 +154,89 @@ export function produtosDoCliente(
     .where(and(eq(artes.empresaId, empresaId), eq(artes.clienteId, clienteId)))
     .groupBy(produtos.id, produtos.nome)
     .orderBy(asc(ordemProduto), asc(produtos.id));
+}
+
+// Produto de outra empresa não aparece: `null`.
+export async function buscarProduto(
+  db: Banco,
+  empresaId: string,
+  id: string,
+): Promise<Opcao | null> {
+  const [linha] = await db
+    .select({ id: produtos.id, nome: produtos.nome })
+    .from(produtos)
+    .where(and(eq(produtos.id, id), eq(produtos.empresaId, empresaId)));
+  return linha ?? null;
+}
+
+// Artes do cliente para um produto, da mais nova para a mais antiga (`id` desempata criações no mesmo instante).
+export async function artesDoProduto(
+  db: Banco,
+  empresaId: string,
+  clienteId: string,
+  produtoId: string,
+): Promise<ArteDoProduto[]> {
+  const linhas = await db
+    .select({
+      id: artes.id,
+      nome: artes.nome,
+      criadoEm: artes.criadoEm,
+      corId: cores.id,
+      corNome: cores.nome,
+      pdfId: artes.pdfId,
+      imagemId: artes.imagemId,
+    })
+    .from(artes)
+    .innerJoin(cores, eq(cores.id, artes.corId))
+    .where(
+      and(
+        eq(artes.empresaId, empresaId),
+        eq(artes.clienteId, clienteId),
+        eq(artes.produtoId, produtoId),
+      ),
+    )
+    .orderBy(desc(artes.criadoEm), desc(artes.id));
+  if (linhas.length === 0) return [];
+
+  const vinculos = await db
+    .select({ arteId: arteMaquinas.arteId, id: maquinas.id, nome: maquinas.nome })
+    .from(arteMaquinas)
+    .innerJoin(maquinas, eq(maquinas.id, arteMaquinas.maquinaId))
+    .where(
+      inArray(
+        arteMaquinas.arteId,
+        linhas.map((linha) => linha.id),
+      ),
+    )
+    .orderBy(asc(maquinas.nome));
+
+  return linhas.map((linha) => ({
+    id: linha.id,
+    nome: linha.nome,
+    cor: { id: linha.corId, nome: linha.corNome },
+    maquinas: vinculos
+      .filter((vinculo) => vinculo.arteId === linha.id)
+      .map(({ id, nome }) => ({ id, nome })),
+    criadoEm: linha.criadoEm.toISOString(),
+    temPdf: linha.pdfId !== null,
+    temImagem: linha.imagemId !== null,
+  }));
+}
+
+export type ImagemDaArte = { tipoMime: string; conteudo: Buffer };
+
+// `null` quando a arte não existe na empresa ou não tem imagem.
+export async function imagemDaArte(
+  db: Banco,
+  empresaId: string,
+  arteId: string,
+): Promise<ImagemDaArte | null> {
+  const [linha] = await db
+    .select({ tipoMime: arquivos.tipoMime, conteudo: arquivos.conteudo })
+    .from(artes)
+    .innerJoin(arquivos, eq(arquivos.id, artes.imagemId))
+    .where(and(eq(artes.id, arteId), eq(artes.empresaId, empresaId)));
+  return linha ?? null;
 }
 
 export function listarProdutos(db: Banco, empresaId: string): Promise<Opcao[]> {

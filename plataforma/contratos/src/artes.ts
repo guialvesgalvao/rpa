@@ -143,5 +143,17 @@ export const EsquemaArte = z.object({
   imagem: EsquemaArquivoArte.nullable(),
 });
 
+// Arte de um produto do cliente, já com cor e máquinas por nome (lista para escolher a arte de uma OP).
+export const EsquemaArteDoProduto = z.object({
+  id: z.uuid(),
+  nome: z.string(),
+  cor: EsquemaOpcao,
+  maquinas: z.array(EsquemaOpcao),
+  criadoEm: z.iso.datetime(),
+  temPdf: z.boolean(),
+  temImagem: z.boolean(),
+});
+
 export type ArquivoArte = z.infer<typeof EsquemaArquivoArte>;
 export type Arte = z.infer<typeof EsquemaArte>;
+export type ArteDoProduto = z.infer<typeof EsquemaArteDoProduto>;

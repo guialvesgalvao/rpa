@@ -8,7 +8,7 @@ import {
 } from '@plataforma/contratos';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 
-import { buscarCliente, ehUuid, idDaEmpresa } from '../artes/repositorio.js';
+import { buscarCliente, ehUuid, idDaEmpresa, imagemDaArte } from '../artes/repositorio.js';
 import { type ArquivoRecebido, atualizarArte, criarArte, removerArte } from '../artes/servico.js';
 import type { Banco } from '../db/cliente.js';
 import { ErroApi } from '../erros.js';
@@ -180,6 +180,25 @@ export function rotasArtes(app: FastifyInstance, { db }: { db: Banco }): void {
           imagem: campos.imagem,
         });
         return reply.code(201).send(arte);
+      },
+    );
+
+    // Só a imagem é servida: o PDF da arte não tem rota de leitura nesta entrega.
+    escopo.get(
+      '/v1/empresas/:empresa/artes/:id/imagem',
+      { preHandler: comEmpresa },
+      async (request, reply) => {
+        const empresaId = await empresaDe(request);
+        const { id } = request.params as { id: string };
+        const imagem = ehUuid(id) ? await imagemDaArte(db, empresaId, id) : null;
+        if (!imagem) {
+          throw new ErroApi(404, 'imagem_nao_encontrada', 'Imagem da arte não encontrada.');
+        }
+        return reply
+          .header('content-type', imagem.tipoMime)
+          .header('x-content-type-options', 'nosniff')
+          .header('cache-control', 'private, no-cache')
+          .send(imagem.conteudo);
       },
     );
 

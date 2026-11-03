@@ -1,4 +1,5 @@
 import {
+  type ArteDoProduto,
   type Cliente,
   EsquemaConsultaClientes,
   type Opcao,
@@ -8,7 +9,9 @@ import {
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 
 import {
+  artesDoProduto,
   buscarCliente,
+  buscarProduto,
   decodificarCursor,
   ehUuid,
   idDaEmpresa,
@@ -62,6 +65,20 @@ export function rotasClientes(app: FastifyInstance, { db }: { db: Banco }): void
       const empresaId = await empresaDe(request);
       const cliente = await clienteDe(request, empresaId);
       return produtosDoCliente(db, empresaId, cliente.id);
+    },
+  );
+
+  // Produto de outra empresa, inexistente ou com id malformado: sempre 404. Sem artes: lista vazia.
+  app.get(
+    '/v1/empresas/:empresa/clientes/:id/produtos/:produtoId/artes',
+    { preHandler },
+    async (request): Promise<ArteDoProduto[]> => {
+      const empresaId = await empresaDe(request);
+      const cliente = await clienteDe(request, empresaId);
+      const { produtoId } = request.params as { produtoId: string };
+      const produto = ehUuid(produtoId) ? await buscarProduto(db, empresaId, produtoId) : null;
+      if (!produto) throw new ErroApi(404, 'produto_nao_encontrado', 'Produto não encontrado.');
+      return artesDoProduto(db, empresaId, cliente.id, produto.id);
     },
   );
 

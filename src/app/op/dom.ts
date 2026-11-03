@@ -23,21 +23,6 @@ export type DepsListaOp = {
 
 const SEM_ARTE = '';
 
-/** Ícone de info com a cor e as máquinas da arte escolhida (no `title` e para leitor de tela). */
-function iconeInfo(): { el: HTMLElement; mostrar(texto: string | undefined): void } {
-  const el = criar('span', 'op-info', 'ⓘ');
-  el.tabIndex = 0;
-  el.setAttribute('role', 'img');
-  return {
-    el,
-    mostrar(texto) {
-      el.hidden = !texto;
-      el.title = texto ?? '';
-      el.setAttribute('aria-label', texto ?? '');
-    },
-  };
-}
-
 function linhaDoItem(pedido: PedidoOk, item: ItemOpTela, deps: DepsListaOp): HTMLElement {
   const escolha = deps.escolhas.get(chaveItem(pedido.numero, item.indice)) ?? { marcado: false };
   const linha = criar('div', 'op-item');
@@ -64,7 +49,6 @@ function linhaDoItem(pedido: PedidoOk, item: ItemOpTela, deps: DepsListaOp): HTM
   }
 
   const arte = criar('div', 'op-arte');
-  const info = iconeInfo();
   if (item.artes.length) {
     const seletor = criar('select');
     seletor.disabled = deps.bloqueado;
@@ -72,9 +56,12 @@ function linhaDoItem(pedido: PedidoOk, item: ItemOpTela, deps: DepsListaOp): HTM
     for (const a of item.artes) seletor.append(new Option(rotuloArte(a), a.id));
     seletor.append(new Option('Sem arte', SEM_ARTE));
     seletor.value = escolha.arteId ?? SEM_ARTE;
+    // Cor e máquinas da arte escolhida, sempre visíveis; some em "Sem arte".
+    const info = criar('span', 'hint op-arte-info');
     const atualizarInfo = () => {
       const atual = item.artes.find((a) => a.id === seletor.value);
-      info.mostrar(atual && descreverArte(atual));
+      info.textContent = atual ? descreverArte(atual) : '';
+      info.hidden = !atual;
     };
     seletor.addEventListener('change', () => {
       escolha.arteId = seletor.value || undefined;
@@ -82,9 +69,8 @@ function linhaDoItem(pedido: PedidoOk, item: ItemOpTela, deps: DepsListaOp): HTM
       deps.aoMudar();
     });
     atualizarInfo();
-    arte.append(criar('span', 'op-arte-rotulo', 'Arte:'), seletor, info.el);
+    arte.append(criar('span', 'op-arte-rotulo', 'Arte:'), seletor, info);
   } else {
-    info.mostrar(undefined);
     arte.append(criar('span', 'hint op-sem-arte', 'Sem arte cadastrada: a OP sai sem a arte.'));
   }
   if (pedido.cliente) {

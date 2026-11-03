@@ -26,8 +26,10 @@ export type ResultadoOp = {
 
 export type DepsGerarOps = {
   itens: readonly ItemGeracao[];
-  /** Nome da empresa no cabeçalho do PDF (sem logo). */
+  /** Nome da empresa no cabeçalho do PDF; aparece quando não há `logo`. */
   empresa: string;
+  /** Logo da empresa no cabeçalho de todas as OPs. */
+  logo?: ImagemOp;
   agora?: () => Date;
   /** Reserva `quantidade` números consecutivos de OP (API da plataforma). */
   reservarNumeros: (quantidade: number) => Promise<number[]>;
@@ -46,14 +48,16 @@ export function montarOrdem(args: {
   numero: number;
   data: Date;
   empresa: string;
+  logo?: ImagemOp;
   arte?: ArteEscolhida;
   imagem?: ImagemOp;
 }): OrdemProducao {
-  const { pedido, item, numero, data, empresa, arte, imagem } = args;
+  const { pedido, item, numero, data, empresa, logo, arte, imagem } = args;
   return {
     numero,
     data,
     empresa,
+    ...(logo ? { logo } : {}),
     cliente: { nome: pedido.clienteNome, fantasia: pedido.clienteFantasia },
     numeroPedido: pedido.numero,
     previsaoInicial: pedido.dataVenda,
@@ -77,7 +81,7 @@ type EmPreparo = { indice: number; item: ItemOp; geracao: ItemGeracao; imagem?: 
  * não consuma números à toa. A falha de um item não interrompe os outros.
  */
 export async function gerarOps(deps: DepsGerarOps): Promise<ResultadoOp[]> {
-  const { itens, empresa, agora = () => new Date(), onProgresso, onFalha } = deps;
+  const { itens, empresa, logo, agora = () => new Date(), onProgresso, onFalha } = deps;
   const resultados: ResultadoOp[] = itens.map(({ pedido, indice }) => {
     const item = pedido.itens[indice];
     return {
@@ -155,6 +159,7 @@ export async function gerarOps(deps: DepsGerarOps): Promise<ResultadoOp[]> {
         numero,
         data,
         empresa,
+        logo,
         arte: geracao.arte,
         imagem,
       });

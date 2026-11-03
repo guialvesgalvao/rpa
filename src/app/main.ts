@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
-import { access } from 'node:fs/promises';
+import { access, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -22,6 +22,7 @@ import { mockAtivo, type PedidoOp } from '../processes/bling/pedido-op.js';
 import { gerarOps, type ItemGeracao } from '../processes/op/gerar.js';
 import { lerPedidosBling, lerPedidosMock, type PedidoLido } from '../processes/op/pedidos.js';
 import { salvarPdfOp } from '../processes/op/pdf.js';
+import type { ImagemOp } from '../processes/op/tipos.js';
 import { ensureDir } from '../utils/fs.js';
 import {
   type ArquivoEscolhido,
@@ -579,6 +580,18 @@ ipcMain.handle(
   },
 );
 
+/** Logo da empresa para o cabeçalho da OP; sem logo ou sem conseguir ler, o PDF mostra o nome. */
+async function lerLogoDaEmpresa(slug: string): Promise<ImagemOp | undefined> {
+  const logo = logoDaEmpresa(slug);
+  if (!logo) return undefined;
+  try {
+    return { bytes: await readFile(path.join(here, logo)), mime: 'image/png' };
+  } catch (error) {
+    logger.warn({ empresa: slug, err: error }, 'Não consegui ler a logo; a OP sai com o nome');
+    return undefined;
+  }
+}
+
 ipcMain.handle(
   CHANNELS.opGerar,
   async (event, input: unknown, destDir: unknown): Promise<GerarOpResultado> => {
@@ -598,6 +611,8 @@ ipcMain.handle(
             empresa,
           );
 
+    const logo = await lerLogoDaEmpresa(empresa);
+
     running = true;
     logger.info({ itens: itens.length, destDir: pasta }, 'Iniciando geração de OPs');
     try {
@@ -605,6 +620,7 @@ ipcMain.handle(
         gerarOps({
           itens,
           empresa: nomeEmpresa,
+          logo,
           reservarNumeros: (quantidade) => artesApi.reservarNumerosOp(empresa, quantidade),
           baixarImagem: (arteId) => artesApi.imagemDaArte(empresa, arteId),
           salvarPdf: (ordem) => salvarPdfOp(page, ordem, pasta),

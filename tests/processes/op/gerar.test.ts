@@ -125,6 +125,32 @@ describe('gerarOps', () => {
     });
   });
 
+  it('com logo, toda OP leva a logo da empresa no cabeçalho', async () => {
+    const LOGO = { bytes: new Uint8Array([9, 9]), mime: 'image/png' };
+    const t = deps(
+      [
+        { pedido, indice: 0, arte: ARTE },
+        { pedido, indice: 2 },
+      ],
+      { logo: LOGO },
+    );
+    await gerarOps(t.deps);
+
+    expect(t.ordens).toHaveLength(2);
+    for (const ordem of t.ordens) expect(ordem.logo).toBe(LOGO);
+  });
+
+  it('sem logo, nenhuma OP leva logo (o cabeçalho mostra o nome)', async () => {
+    const t = deps([
+      { pedido, indice: 0 },
+      { pedido, indice: 2 },
+    ]);
+    await gerarOps(t.deps);
+
+    expect(t.ordens).toHaveLength(2);
+    for (const ordem of t.ordens) expect(ordem).not.toHaveProperty('logo');
+  });
+
   it('arte sem imagem não baixa nada; sem arte, o PDF sai sem o bloco', async () => {
     let baixadas = 0;
     const t = deps(

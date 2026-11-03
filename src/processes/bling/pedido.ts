@@ -71,17 +71,16 @@ export function extrairDadosPedido(json: unknown, numero: string): DadosPedido {
  * Abre o pedido (clique no Número da linha) só para capturar a resposta de `obterVenda` e volta
  * à listagem sem salvar. A chamada direta ao endpoint responde "Unknown Function" (Task 2).
  */
-export async function lerDadosPedido(
+export async function capturarObterVenda(
   page: Page,
   numero: string,
   rastro: Rastro,
-): Promise<DadosPedido> {
+): Promise<unknown> {
   const row = await rastro.etapa(`Busquei o pedido ${numero} na listagem`, () =>
     buscarPedido(page, numero),
   );
-  let json: unknown;
   try {
-    json = await rastro.etapa(`Abri o pedido ${numero}`, async () => {
+    return await rastro.etapa(`Abri o pedido ${numero}`, async () => {
       const resposta = page.waitForResponse((r) => r.url().includes(OBTER_VENDA), {
         timeout: DETALHE_TIMEOUT_MS,
       });
@@ -94,6 +93,14 @@ export async function lerDadosPedido(
     // Mesmo em falha, volta à listagem para o próximo pedido conseguir buscar.
     await rastro.etapa('Voltei à listagem sem salvar', () => voltarParaListagem(page));
   }
+}
+
+export async function lerDadosPedido(
+  page: Page,
+  numero: string,
+  rastro: Rastro,
+): Promise<DadosPedido> {
+  const json = await capturarObterVenda(page, numero, rastro);
   return rastro.etapa('Li os dados do pedido (cliente e parcelas)', async () =>
     extrairDadosPedido(json, numero),
   );

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   detectarTipo,
   EsquemaArteDoProduto,
+  EsquemaProdutoDoCliente,
   LIMITES,
   nomeOuPadrao,
   rotuloArtes,
@@ -110,5 +111,18 @@ describe('EsquemaArteDoProduto', () => {
     const semFlag: Partial<typeof valida> = { ...valida };
     delete semFlag.temImagem;
     expect(EsquemaArteDoProduto.safeParse(semFlag).success).toBe(false);
+  });
+});
+
+describe('EsquemaProdutoDoCliente', () => {
+  const base = { id: '11111111-1111-4111-8111-111111111111', nome: 'Caixa', quantidadeArtes: 1 };
+
+  it('mantém o código do produto e aceita código nulo', () => {
+    expect(EsquemaProdutoDoCliente.parse({ ...base, codigo: 'CX0001' }).codigo).toBe('CX0001');
+    expect(EsquemaProdutoDoCliente.parse({ ...base, codigo: null }).codigo).toBeNull();
+  });
+
+  it('trata o código ausente (API anterior) como nulo', () => {
+    expect(EsquemaProdutoDoCliente.parse(base)).toEqual({ ...base, codigo: null });
   });
 });

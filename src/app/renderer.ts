@@ -20,7 +20,7 @@ import { podeTrocarEmpresa, tituloJanela } from './empresa.js';
 import type { Perfil } from './plataforma/contratos.js';
 import { criarArtes } from './artes/index.js';
 import { mensagemErro } from './artes/dom.js';
-import { abaInicial, abasDoPerfil, type Automacao, ordenarMenu } from './menu.js';
+import { abaAoRemontar, abasDoPerfil, type Automacao, ordenarMenu } from './menu.js';
 
 declare global {
   interface Window {
@@ -311,8 +311,12 @@ function setRunning(value: boolean) {
   atualizarControles();
 }
 
+/** Aba aberta; some ao sair, para o próximo login abrir na aba inicial. */
+let abaAtual: Automacao['id'] | undefined;
+
 /** Mostra só a seção da aba `id`. As outras ficam escondidas, sem perder o estado. */
 function selecionarAba(id: Automacao['id']) {
+  abaAtual = id;
   for (const secao of document.querySelectorAll<HTMLElement>('section[data-aba]')) {
     secao.hidden = secao.dataset.aba !== id;
   }
@@ -322,9 +326,12 @@ function selecionarAba(id: Automacao['id']) {
   }
 }
 
-/** Monta o menu com as abas do perfil e abre na primeira delas. */
-function montarMenu(perfil: Perfil) {
-  const abas = abasDoPerfil(perfil);
+/**
+ * Monta o menu com as abas do perfil na empresa em uso. Fica na aba aberta se ela continua
+ * liberada (troca de empresa); senão, abre na primeira.
+ */
+function montarMenu(perfil: Perfil, empresaSlug: string | undefined) {
+  const abas = abasDoPerfil(perfil, empresaSlug);
   for (const botao of menu.querySelectorAll('button[data-aba]')) botao.remove();
   // O menu fica clicável mesmo com uma geração em andamento: trocar de aba não a interrompe.
   for (const automacao of ordenarMenu(abas)) {
@@ -335,7 +342,7 @@ function montarMenu(perfil: Perfil) {
     botao.addEventListener('click', () => selecionarAba(automacao.id));
     usuarioEl.before(botao);
   }
-  selecionarAba(abaInicial(abas).id);
+  selecionarAba(abaAoRemontar(abas, abaAtual).id);
 }
 
 window.rpa.onProgresso(renderItem);
@@ -494,7 +501,7 @@ function aplicarEmpresa(empresa: EmpresaAtualTela | undefined, total: number) {
   document.title = tituloJanela(empresa?.nome);
 }
 
-/** E-mail e perfil da sessão que a tela já montou; evita refazer o menu a cada aviso igual. */
+/** E-mail, perfil e empresa para os quais o menu já foi montado; evita refazê-lo a cada aviso igual. */
 let montadoPara: string | undefined;
 /** Usuário, perfil e empresa para os quais a tela já carregou o Bling; trocar a empresa recarrega. */
 let empresaMontada: string | undefined;
@@ -509,6 +516,7 @@ function aplicarSessao(sessao: SessaoTela) {
   if (!logado) {
     montadoPara = undefined;
     empresaMontada = undefined;
+    abaAtual = undefined;
     artes.encerrar();
     aplicarEmpresa(undefined, 0);
     dialogEmpresas.close();
@@ -531,12 +539,12 @@ function aplicarSessao(sessao: SessaoTela) {
   aplicarEmpresa(sessao.empresa, sessao.empresas.length);
   atualizarControles();
 
-  const chaveSessao = `${sessao.email}:${sessao.perfil}`;
-  if (montadoPara !== chaveSessao) {
-    montadoPara = chaveSessao;
-    montarMenu(sessao.perfil);
+  // A OP depende da empresa: o menu é refeito ao trocá-la.
+  const chaveEmpresa = `${sessao.email}:${sessao.perfil}:${sessao.empresa?.slug ?? ''}`;
+  if (montadoPara !== chaveEmpresa) {
+    montadoPara = chaveEmpresa;
+    montarMenu(sessao.perfil, sessao.empresa?.slug);
   }
-  const chaveEmpresa = `${chaveSessao}:${sessao.empresa?.slug ?? ''}`;
   if (empresaMontada === chaveEmpresa) return;
   empresaMontada = chaveEmpresa;
   artes.reiniciar();

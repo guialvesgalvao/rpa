@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { validarLogin, validarSelecao, validarSlug } from '../../src/app/validacao.js';
+import {
+  validarCnpj,
+  validarItemOp,
+  validarLogin,
+  validarSelecao,
+  validarSlug,
+} from '../../src/app/validacao.js';
 
 describe('validarSelecao', () => {
   it('aceita a seleção e remove pedidos sem documento', () => {
@@ -81,6 +87,48 @@ describe('validarSlug', () => {
   it('recusa o que não é um slug', () => {
     for (const input of ['', '   ', 'a'.repeat(101), 1, null, undefined, { slug: 'aba' }]) {
       expect(() => validarSlug(input)).toThrow('Empresa inválida.');
+    }
+  });
+});
+
+describe('validarCnpj', () => {
+  it('aceita com ou sem máscara e devolve os 14 dígitos', () => {
+    expect(validarCnpj('12.345.678/0001-90')).toBe('12345678000190');
+    expect(validarCnpj('12345678000190')).toBe('12345678000190');
+  });
+
+  it('recusa CNPJ incompleto, CPF, texto grande e tipo errado', () => {
+    for (const entrada of [
+      '1234567800019',
+      '123.456.789-09',
+      '1'.repeat(31),
+      12345678000190,
+      null,
+    ]) {
+      expect(() => validarCnpj(entrada)).toThrow('CNPJ inválido.');
+    }
+  });
+});
+
+describe('validarItemOp', () => {
+  const clienteId = '3f0c6d2e-8a41-4b5e-9d3a-1c2b3d4e5f60';
+
+  it('aceita cliente e código, sem espaços nas pontas', () => {
+    expect(validarItemOp({ clienteId, codigo: ' RA0012 ' })).toEqual({
+      clienteId,
+      codigo: 'RA0012',
+    });
+  });
+
+  it('recusa cliente fora do formato e código vazio ou longo', () => {
+    for (const entrada of [
+      { clienteId: 'x', codigo: 'RA0012' },
+      { clienteId, codigo: '   ' },
+      { clienteId, codigo: 'A'.repeat(101) },
+      { clienteId },
+      null,
+    ]) {
+      expect(() => validarItemOp(entrada)).toThrow('Item da OP inválido.');
     }
   });
 });

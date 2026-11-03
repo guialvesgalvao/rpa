@@ -31,7 +31,10 @@ export const EsquemaConsultaClientes = z.object({
 
 export const EsquemaOpcao = z.object({ id: z.uuid(), nome: z.string() });
 
+// `codigo` é o SKU do Bling (casa o item do pedido com o produto na OP). Ausente na resposta de uma API
+// anterior a ele: vira `null`.
 export const EsquemaProdutoDoCliente = EsquemaOpcao.extend({
+  codigo: z.string().nullable().default(null),
   quantidadeArtes: z.number().int().min(1),
 });
 

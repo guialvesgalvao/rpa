@@ -147,12 +147,13 @@ export function produtosDoCliente(
     .select({
       id: produtos.id,
       nome: produtos.nome,
+      codigo: produtos.codigo,
       quantidadeArtes: sql<number>`count(${artes.id})::int`,
     })
     .from(artes)
     .innerJoin(produtos, eq(produtos.id, artes.produtoId))
     .where(and(eq(artes.empresaId, empresaId), eq(artes.clienteId, clienteId)))
-    .groupBy(produtos.id, produtos.nome)
+    .groupBy(produtos.id, produtos.nome, produtos.codigo)
     .orderBy(asc(ordemProduto), asc(produtos.id));
 }
 

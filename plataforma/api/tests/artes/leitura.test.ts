@@ -95,10 +95,10 @@ async function criarCliente(slug: string, razaoSocial: string, nomeFantasia: str
   return cliente;
 }
 
-async function criarProduto(slug: string, nome: string) {
+async function criarProduto(slug: string, nome: string, codigo: string | null = null) {
   const [produto] = await db
     .insert(produtos)
-    .values({ empresaId: await empresaId(slug), nome })
+    .values({ empresaId: await empresaId(slug), nome, codigo })
     .returning();
   if (!produto) throw new Error('produto não criado');
   return produto;
@@ -315,10 +315,10 @@ describe('GET /clientes/:id', () => {
 });
 
 describe('GET /clientes/:id/produtos', () => {
-  it('lista só produtos com arte, com a quantidade', async () => {
+  it('lista só produtos com arte, com o código e a quantidade', async () => {
     const cliente = await criarCliente('aba', 'Padaria Exemplo Ltda');
     const outro = await criarCliente('aba', 'Mercado Exemplo Ltda');
-    const pizza = await criarProduto('aba', 'Caixa de Pizza');
+    const pizza = await criarProduto('aba', 'Caixa de Pizza', 'CX0001');
     const sacola = await criarProduto('aba', 'Sacola de Papel');
     await criarProduto('aba', 'Copo de Papel');
 
@@ -330,8 +330,8 @@ describe('GET /clientes/:id/produtos', () => {
     const resposta = await get(`/v1/empresas/aba/clientes/${cliente.id}/produtos`);
     expect(resposta.statusCode).toBe(200);
     expect(z.array(EsquemaProdutoDoCliente).parse(resposta.json())).toEqual([
-      { id: pizza.id, nome: 'Caixa de Pizza', quantidadeArtes: 2 },
-      { id: sacola.id, nome: 'Sacola de Papel', quantidadeArtes: 1 },
+      { id: pizza.id, nome: 'Caixa de Pizza', codigo: 'CX0001', quantidadeArtes: 2 },
+      { id: sacola.id, nome: 'Sacola de Papel', codigo: null, quantidadeArtes: 1 },
     ]);
   });
 

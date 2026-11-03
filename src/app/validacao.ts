@@ -75,6 +75,31 @@ export function validarTipoArquivo(input: unknown): 'pdf' | 'imagem' {
   return parsed.data;
 }
 
+const cnpjSchema = z
+  .string()
+  .max(30)
+  .transform((cnpj) => cnpj.replace(/\D/g, ''))
+  .pipe(z.string().length(14));
+
+/** Valida o CNPJ que chega da janela (com ou sem máscara) e devolve só os 14 dígitos. */
+export function validarCnpj(input: unknown): string {
+  const parsed = cnpjSchema.safeParse(input);
+  if (!parsed.success) throw new Error('CNPJ inválido.');
+  return parsed.data;
+}
+
+const itemOpSchema = z.object({
+  clienteId: z.uuid(),
+  codigo: z.string().trim().min(1).max(100),
+});
+
+/** Valida o item da OP (cliente do banco e código do produto no Bling) que chega pelo IPC. */
+export function validarItemOp(input: unknown): { clienteId: string; codigo: string } {
+  const parsed = itemOpSchema.safeParse(input);
+  if (!parsed.success) throw new Error('Item da OP inválido.');
+  return parsed.data;
+}
+
 const cadastroSchema = z.object({
   clienteId: z.uuid(),
   // Ids vazios passam: `validarNovaArte` devolve "Selecione um produto/cor" ao lado do campo.

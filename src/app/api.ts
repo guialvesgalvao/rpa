@@ -1,7 +1,7 @@
 import type { DocResult } from '../processes/bling/documentos.js';
 import type { DocTipo, PedidoSelecao } from '../processes/bling/selecao.js';
 
-import type { ErrosCadastro, OpcoesArte } from './plataforma/artes.js';
+import type { ArtesDoItem, ErrosCadastro, OpcoesArte } from './plataforma/artes.js';
 import type {
   Cliente,
   PaginaClientes,
@@ -65,6 +65,19 @@ export type ArtesApi = {
   cadastrar(entrada: CadastroArte): Promise<CadastroResultado>;
 };
 
+export type { ArtesDoItem };
+
+/**
+ * Ordens de Produção: só para o admin da Roma (o main recusa os demais com "Sem permissão.").
+ * Falha de rede ou de permissão vem como mensagem pronta para a tela.
+ */
+export type OpApi = {
+  /** Cliente do banco com esse CNPJ (com ou sem máscara); `null` se não houver. */
+  clientePorCnpj(cnpj: string): Promise<Cliente | null>;
+  /** Produto do cliente com o código (SKU) do item e as artes dele, da mais nova para a mais antiga. */
+  artesDoItem(clienteId: string, codigo: string): Promise<ArtesDoItem>;
+};
+
 export type GerarResultado = { results: DocResult[] };
 
 export type Defaults = {
@@ -117,6 +130,7 @@ export type RpaApi = {
   /** Avisa quando a sessão muda sem ação da tela (renovação recusada ou servidor fora do ar). */
   onSessaoMudou(callback: (sessao: SessaoTela) => void): void;
   artes: ArtesApi;
+  op: OpApi;
 };
 
 export const CHANNELS = {
@@ -140,4 +154,6 @@ export const CHANNELS = {
   artesOpcoes: 'rpa:artes:opcoes',
   artesEscolherArquivo: 'rpa:artes:escolher-arquivo',
   artesCadastrar: 'rpa:artes:cadastrar',
+  opClientePorCnpj: 'rpa:op:cliente-por-cnpj',
+  opArtesDoItem: 'rpa:op:artes-do-item',
 } as const;

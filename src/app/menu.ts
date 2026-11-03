@@ -10,9 +10,21 @@ export const AUTOMACOES: Automacao[] = [
   { id: 'artes', rotulo: 'Artes' },
 ];
 
-/** Abas liberadas para o perfil: o admin vê todas; a arte finalista, só Artes. */
-export function abasDoPerfil(perfil: Perfil): Automacao[] {
-  return perfil === 'admin' ? [...AUTOMACOES] : AUTOMACOES.filter(({ id }) => id === 'artes');
+/** Única empresa com Ordens de Produção (layout próprio da Roma). */
+export const EMPRESA_OP = 'roma';
+
+/** A OP é só do admin da Roma. O main repete esta checagem em cada canal da OP. */
+export function podeUsarOp(perfil: Perfil, empresaSlug: string | undefined): boolean {
+  return perfil === 'admin' && empresaSlug === EMPRESA_OP;
+}
+
+/**
+ * Abas liberadas para o perfil na empresa em uso: o admin vê Artes e Fatura, e a OP só na Roma;
+ * a arte finalista, só Artes.
+ */
+export function abasDoPerfil(perfil: Perfil, empresaSlug?: string): Automacao[] {
+  if (perfil !== 'admin') return AUTOMACOES.filter(({ id }) => id === 'artes');
+  return AUTOMACOES.filter(({ id }) => id !== 'op' || podeUsarOp(perfil, empresaSlug));
 }
 
 /** Cópia em ordem alfabética (pt-BR), sem distinguir maiúsculas nem acentos. */
@@ -27,4 +39,12 @@ export function abaInicial<T extends { rotulo: string }>(itens: readonly T[]): T
   const [primeira] = ordenarMenu(itens);
   if (!primeira) throw new Error('Menu de automações vazio');
   return primeira;
+}
+
+/** Ao remontar o menu (troca de empresa), fica na aba atual se ela continua liberada. */
+export function abaAoRemontar<T extends { id: string; rotulo: string }>(
+  itens: readonly T[],
+  atual: string | undefined,
+): T {
+  return itens.find((item) => item.id === atual) ?? abaInicial(itens);
 }

@@ -5,14 +5,17 @@ import { z } from 'zod';
 
 import { ErroIndisponivel, ErroRecusado } from './cliente.js';
 import {
+  type ArteDoProduto,
   type Cliente,
   detectarTipo,
+  EsquemaArteDoProduto,
   EsquemaCliente,
   EsquemaErro,
   EsquemaOpcao,
   EsquemaPaginaClientes,
   EsquemaProdutoDoCliente,
   type ErrosNovaArte,
+  LIMITES,
   type Opcao,
   type PaginaClientes,
   type ProdutoDoCliente,
@@ -48,13 +51,27 @@ export type DepsClienteArtes = {
   timeoutEnvioMs?: number;
 };
 
+/** Imagem de uma arte, com o tipo conferido pelos primeiros bytes. */
+export type ImagemArte = { mime: TipoDetectado['mime']; bytes: Uint8Array };
+
 export type ClienteArtes = {
   listarClientes(empresa: string, consulta: ConsultaClientes): Promise<PaginaClientes>;
   obterCliente(empresa: string, id: string): Promise<Cliente>;
+  /** Cliente com o CNPJ exato (14 dígitos, com ou sem máscara); `null` se não houver. */
+  clientePorCnpj(empresa: string, cnpj: string): Promise<Cliente | null>;
   produtosDoCliente(empresa: string, id: string): Promise<ProdutoDoCliente[]>;
+  /** Artes do produto para o cliente, da mais nova para a mais antiga. */
+  artesDoProduto(empresa: string, clienteId: string, produtoId: string): Promise<ArteDoProduto[]>;
+  imagemDaArte(empresa: string, arteId: string): Promise<ImagemArte>;
   opcoes(empresa: string): Promise<OpcoesArte>;
   cadastrar(empresa: string, clienteId: string, form: FormData): Promise<void>;
 };
+
+/** Só os dígitos do CNPJ; `null` se não sobrarem 14. */
+export function normalizarCnpj(cnpj: string): string | null {
+  const digitos = cnpj.replace(/\D/g, '');
+  return digitos.length === 14 ? digitos : null;
+}
 
 const TIMEOUT_PADRAO_MS = 15_000;
 // O Railway aceita uploads de até 5 minutos.
@@ -125,12 +142,49 @@ export function criarClienteArtes({
       const resposta = await chamar('GET', rota(empresa, `/clientes/${encodeURIComponent(id)}`));
       return lerJson(resposta, EsquemaCliente);
     },
+    async clientePorCnpj(empresa, cnpj) {
+      const digitos = normalizarCnpj(cnpj);
+      if (!digitos) return null;
+      // A busca casa por trecho; com os 14 dígitos, só o próprio CNPJ casa, e a 1ª página basta.
+      const params = new URLSearchParams({ busca: digitos });
+      const resposta = await chamar('GET', rota(empresa, `/clientes?${params}`));
+      const { itens } = await lerJson(resposta, EsquemaPaginaClientes);
+      return itens.find((cliente) => cliente.cnpj === digitos) ?? null;
+    },
     async produtosDoCliente(empresa, id) {
       const resposta = await chamar(
         'GET',
         rota(empresa, `/clientes/${encodeURIComponent(id)}/produtos`),
       );
       return lerJson(resposta, z.array(EsquemaProdutoDoCliente));
+    },
+    async artesDoProduto(empresa, clienteId, produtoId) {
+      const resposta = await chamar(
+        'GET',
+        rota(
+          empresa,
+          `/clientes/${encodeURIComponent(clienteId)}/produtos/${encodeURIComponent(produtoId)}/artes`,
+        ),
+      );
+      return lerJson(resposta, z.array(EsquemaArteDoProduto));
+    },
+    async imagemDaArte(empresa, arteId) {
+      const resposta = await chamar(
+        'GET',
+        rota(empresa, `/artes/${encodeURIComponent(arteId)}/imagem`),
+      );
+      let bytes: Uint8Array;
+      try {
+        bytes = new Uint8Array(await resposta.arrayBuffer());
+      } catch (erro) {
+        throw new ErroIndisponivel('Sem conexão com o servidor.', { cause: erro });
+      }
+      // O tipo vem dos bytes, não do cabeçalho: o PDF só embute PNG, JPEG ou WebP.
+      const tipo = detectarTipo(bytes.subarray(0, BYTES_ASSINATURA));
+      if (tipo?.tipo !== 'imagem' || bytes.length > LIMITES.imagemBytes) {
+        throw new ErroIndisponivel('Resposta do servidor fora do contrato.');
+      }
+      return { mime: tipo.mime, bytes };
     },
     async opcoes(empresa) {
       const [produtos, cores, maquinas] = await Promise.all([
@@ -151,6 +205,26 @@ export function criarClienteArtes({
       });
     },
   };
+}
+
+/** Produto do cliente que casou com o item do pedido (`null` se nenhum) e as artes dele. */
+export type ArtesDoItem = { produtoId: string | null; artes: ArteDoProduto[] };
+
+/**
+ * Artes de um item do pedido: casa o código (SKU) do Bling com os produtos do cliente que têm arte.
+ * Sem produto com esse código, o item fica sem arte (a OP não bloqueia).
+ */
+export async function artesDoItem(
+  api: Pick<ClienteArtes, 'produtosDoCliente' | 'artesDoProduto'>,
+  empresa: string,
+  clienteId: string,
+  codigo: string,
+): Promise<ArtesDoItem> {
+  const alvo = codigo.trim();
+  const produtos = alvo ? await api.produtosDoCliente(empresa, clienteId) : [];
+  const produto = produtos.find((p) => p.codigo?.trim() === alvo);
+  if (!produto) return { produtoId: null, artes: [] };
+  return { produtoId: produto.id, artes: await api.artesDoProduto(empresa, clienteId, produto.id) };
 }
 
 /** Arquivo escolhido na janela: só o main guarda o caminho; a tela recebe nome, tamanho e tipo. */

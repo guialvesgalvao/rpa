@@ -28,8 +28,11 @@ import {
   type SessaoTela,
 } from './api.js';
 import { logoDaEmpresa, podeTrocarEmpresa, rotuloEmpresa } from './empresa.js';
+import { podeUsarOp } from './menu.js';
 import {
   type ArquivoLocal,
+  type ArtesDoItem,
+  artesDoItem,
   criarClienteArtes,
   errosDaRejeicao,
   inspecionarArquivo,
@@ -63,6 +66,8 @@ import {
   validarConsultaClientes,
   validarId,
   validarLogin,
+  validarCnpj,
+  validarItemOp,
   validarSelecao,
   validarSlug,
   validarTipoArquivo,
@@ -173,6 +178,13 @@ async function contexto(): Promise<{ usuarioId: string; empresa: string; perfil:
   );
   if (!empresa) throw new Error('Seu usuário não tem empresa vinculada.');
   return { usuarioId: id, empresa, perfil };
+}
+
+/** A OP é só do admin da Roma; repete no main a regra do menu. Devolve a empresa em uso. */
+async function exigirOp(): Promise<string> {
+  const { empresa, perfil } = await contexto();
+  if (!podeUsarOp(perfil, empresa)) throw new Error('Sem permissão.');
+  return empresa;
 }
 
 const { autoUpdater } = electronUpdater;
@@ -420,6 +432,21 @@ ipcMain.handle(
     return { ok: true };
   },
 );
+
+ipcMain.handle(
+  CHANNELS.opClientePorCnpj,
+  async (_event, input: unknown): Promise<Cliente | null> => {
+    const cnpj = validarCnpj(input);
+    const empresa = await exigirOp();
+    return artesApi.clientePorCnpj(empresa, cnpj);
+  },
+);
+
+ipcMain.handle(CHANNELS.opArtesDoItem, async (_event, input: unknown): Promise<ArtesDoItem> => {
+  const { clienteId, codigo } = validarItemOp(input);
+  const empresa = await exigirOp();
+  return artesDoItem(artesApi, empresa, clienteId, codigo);
+});
 
 ipcMain.handle(CHANNELS.instalarAtualizacao, () => {
   // Não interrompe uma geração em andamento (ex.: NF entre o Salvar e a autorização).

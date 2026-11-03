@@ -29,6 +29,11 @@ const api: RpaApi = {
     escolherArquivo: (tipo) => ipcRenderer.invoke(CHANNELS.artesEscolherArquivo, tipo),
     cadastrar: (entrada) => ipcRenderer.invoke(CHANNELS.artesCadastrar, entrada),
   },
+  op: {
+    clientePorCnpj: (cnpj) => ipcRenderer.invoke(CHANNELS.opClientePorCnpj, cnpj),
+    artesDoItem: (clienteId, codigo) =>
+      ipcRenderer.invoke(CHANNELS.opArtesDoItem, { clienteId, codigo }),
+  },
 };
 
 contextBridge.exposeInMainWorld('rpa', api);

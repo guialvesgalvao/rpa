@@ -6,6 +6,8 @@
   --text: #212529;
   --muted: #6c757d;
   --border: #d6d6d6;
+  /* Verde fixo dos textos de sucesso (fora do tema da empresa). */
+  --ok: #3e7a01;
   --ok-bg: #e8f3dc;
   --err-bg: #f8e1e3;
   --run: #1d5fbf;
@@ -340,7 +342,7 @@ button:disabled {
 }
 .status.ok {
   background: var(--ok-bg);
-  color: var(--cor-destaque-escura);
+  color: var(--ok);
 }
 .status.erro {
   background: var(--err-bg);
@@ -450,7 +452,7 @@ footer {
 }
 .sucesso {
   background: var(--ok-bg);
-  color: var(--cor-destaque-escura);
+  color: var(--ok);
   font-weight: 600;
   font-size: 13px;
   padding: 8px 12px;

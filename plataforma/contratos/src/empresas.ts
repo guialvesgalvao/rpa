@@ -22,8 +22,13 @@ export const TEMAS = {
     destaque: '#4d9801',
     destaqueEscura: '#3e7a01',
   },
-  // Provisório: as cores da Roma ainda não foram enviadas.
-  roma: TEMA_NEUTRO,
+  // Destaque quase preto: o hover (`destaqueEscura`) clareia em vez de escurecer.
+  roma: {
+    primaria: '#9c2a24',
+    primariaEscura: '#7a201c',
+    destaque: '#010101',
+    destaqueEscura: '#333333',
+  },
 } as const satisfies Record<string, Tema>;
 
 export function temaDaEmpresa(slug: string): Tema {

@@ -10,7 +10,8 @@ import {
 describe('empresa', () => {
   it('tem logo só das empresas que enviaram uma', () => {
     expect(logoDaEmpresa('aba')).toBe('assets/logo-aba.png');
-    expect(logoDaEmpresa('roma')).toBeUndefined();
+    expect(logoDaEmpresa('roma')).toBe('assets/logo-roma.png');
+    expect(logoDaEmpresa('outra')).toBeUndefined();
     expect(logoDaEmpresa('constructor')).toBeUndefined();
   });
 

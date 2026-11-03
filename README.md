@@ -83,7 +83,7 @@ O app abre na tela de **Entrar** (e-mail e senha da plataforma). A sessão fica 
 - **admin:** vê Artes, Fatura e OP e configura o Bling.
 - **arte finalista:** vê só Artes, sem Configurações do Bling.
 
-O topo do menu mostra a empresa em uso (ABA Embalagens, Roma…). Com mais de uma, clique nele para trocar; a troca fica bloqueada durante uma execução. Tema, logo e título da janela acompanham a empresa, e a última escolhida volta ao reabrir. Empresa sem logo cadastrada (hoje a Roma) mostra só o nome.
+O topo do menu mostra a empresa em uso (ABA Embalagens, Roma…). Com mais de uma, clique nele para trocar; a troca fica bloqueada durante uma execução. Tema, logo e título da janela acompanham a empresa, e a última escolhida volta ao reabrir. Empresa sem logo cadastrada mostra só o nome.
 
 ### Configurações do app
 

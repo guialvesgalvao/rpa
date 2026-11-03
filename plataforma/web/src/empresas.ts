@@ -5,6 +5,7 @@ export type Empresa = Eu['empresas'][number];
 // Logos em `public/empresas/`. Empresa sem logo aparece só pelo nome.
 const LOGOS: Record<string, string> = {
   aba: '/empresas/aba.png',
+  roma: '/empresas/roma.png',
 };
 
 // Slugs aceitos no cookie `rpa_empresa` e nas URLs geradas pelo site.

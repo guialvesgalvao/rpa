@@ -145,9 +145,28 @@ const artesApi = criarClienteArtes({
 /** Arquivos escolhidos nos diálogos: a janela só conhece o id, nunca o caminho. */
 const arquivosEscolhidos = new Map<string, ArquivoLocal>();
 
+const ICONE_PADRAO = path.join(here, 'assets', 'logo-aba.png');
+let iconeAtual = ICONE_PADRAO;
+
+/** O ícone da janela (e da barra de tarefas) acompanha a empresa em uso; sem logo, o da ABA. */
+function atualizarIcone(slug: string | undefined): void {
+  const logo = slug === undefined ? undefined : logoDaEmpresa(slug);
+  const icone = logo ? path.join(here, logo) : ICONE_PADRAO;
+  if (icone === iconeAtual) return;
+  iconeAtual = icone;
+  // `setIcon` só existe no Windows e no Linux.
+  if (process.platform === 'darwin') return;
+  for (const janela of BrowserWindow.getAllWindows()) {
+    if (!janela.isDestroyed()) janela.setIcon(icone);
+  }
+}
+
 /** A sessão como a tela vê, com a empresa em uso (a última escolhida, ou a primeira) e o tema dela. */
 async function paraTela(estado: EstadoSessao): Promise<SessaoTela> {
-  if (estado.situacao === 'deslogado') return estado;
+  if (estado.situacao === 'deslogado') {
+    atualizarIcone(undefined);
+    return estado;
+  }
   const { id, nome, email, perfil, empresas } = estado.perfil;
   const slug = empresaAtual(
     await lerSettings(settingsFile),
@@ -155,6 +174,7 @@ async function paraTela(estado: EstadoSessao): Promise<SessaoTela> {
     empresas.map((e) => e.slug),
   );
   const atual = empresas.find((e) => e.slug === slug);
+  atualizarIcone(atual?.slug);
   return {
     situacao: estado.situacao,
     nome,
@@ -403,6 +423,7 @@ ipcMain.handle(CHANNELS.sessaoSair, async () => {
   if (running) throw new Error('Aguarde a execução terminar para sair.');
   limparBuscaOp();
   await sessao.sair();
+  atualizarIcone(undefined);
 });
 
 ipcMain.handle(CHANNELS.empresaTrocar, async (_event, input: unknown): Promise<SessaoTela> => {
@@ -653,7 +674,7 @@ function createWindow() {
     minWidth: 820,
     minHeight: 560,
     title: 'Automações',
-    icon: path.join(here, 'assets', 'logo-aba.png'),
+    icon: iconeAtual,
     backgroundColor: '#f4f5f6',
     autoHideMenuBar: true,
     webPreferences: {

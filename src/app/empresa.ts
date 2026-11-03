@@ -1,5 +1,8 @@
-/** Logo por slug de empresa; sem entrada, o topo mostra só o nome (a Roma ainda não enviou a logo). */
-const LOGOS: Record<string, string> = { aba: 'assets/logo-aba.png' };
+/** Logo por slug de empresa; sem entrada, o topo mostra só o nome e a janela usa o ícone da ABA. */
+const LOGOS: Record<string, string> = {
+  aba: 'assets/logo-aba.png',
+  roma: 'assets/logo-roma.png',
+};
 
 export function logoDaEmpresa(slug: string): string | undefined {
   return Object.hasOwn(LOGOS, slug) ? LOGOS[slug] : undefined;

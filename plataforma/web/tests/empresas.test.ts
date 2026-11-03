@@ -33,10 +33,12 @@ describe('ordenarEmpresas', () => {
 describe('logoDaEmpresa', () => {
   it('devolve o logo de public/empresas quando existe', () => {
     expect(logoDaEmpresa('aba')).toBe('/empresas/aba.png');
+    expect(logoDaEmpresa('roma')).toBe('/empresas/roma.png');
   });
 
   it('não tem logo para empresa sem identidade nem para chaves herdadas', () => {
-    expect(logoDaEmpresa('roma')).toBeUndefined();
+    expect(logoDaEmpresa('outra')).toBeUndefined();
+    expect(logoDaEmpresa('constructor')).toBeUndefined();
     expect(logoDaEmpresa('toString')).toBeUndefined();
   });
 });

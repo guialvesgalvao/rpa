@@ -14,9 +14,14 @@ import {
 } from 'electron';
 import electronUpdater from 'electron-updater';
 
-import { loadConfig } from '../config/env.js';
+import { type Config, loadConfig } from '../config/env.js';
+import { withPaginaOculta } from '../core/browser.js';
 import { createLogger } from '../core/logger.js';
 import { DOCS_DISPONIVEIS, gerarDocumentos } from '../processes/bling/documentos.js';
+import { mockAtivo, type PedidoOp } from '../processes/bling/pedido-op.js';
+import { gerarOps, type ItemGeracao } from '../processes/op/gerar.js';
+import { lerPedidosBling, lerPedidosMock, type PedidoLido } from '../processes/op/pedidos.js';
+import { salvarPdfOp } from '../processes/op/pdf.js';
 import { ensureDir } from '../utils/fs.js';
 import {
   type ArquivoEscolhido,
@@ -24,7 +29,10 @@ import {
   type CadastroResultado,
   type ConfigTela,
   type Defaults,
+  type GerarOpResultado,
   type GerarResultado,
+  type ItemParaGerarOp,
+  type PedidoOpTela,
   type SessaoTela,
 } from './api.js';
 import { logoDaEmpresa, podeTrocarEmpresa, rotuloEmpresa } from './empresa.js';
@@ -40,7 +48,9 @@ import {
   type OpcoesArte,
 } from './plataforma/artes.js';
 import { criarCliente, ErroIndisponivel, ErroRecusado } from './plataforma/cliente.js';
+import { montarPedidosTela } from './plataforma/op.js';
 import {
+  type ArteDoProduto,
   type Cliente,
   type PaginaClientes,
   type Perfil,
@@ -68,6 +78,8 @@ import {
   validarLogin,
   validarCnpj,
   validarItemOp,
+  validarItensOp,
+  validarNumerosOp,
   validarSelecao,
   validarSlug,
   validarTipoArquivo,
@@ -187,6 +199,90 @@ async function exigirOp(): Promise<string> {
   return empresa;
 }
 
+/**
+ * Última busca da aba OP. A geração monta as OPs com estes pedidos e artes, nunca com dados vindos
+ * da janela: ela só indica pedido, posição do item e id da arte.
+ */
+const op = {
+  empresa: undefined as string | undefined,
+  pedidos: new Map<string, { pedido: PedidoOp; clienteId: string | null }>(),
+  artes: new Map<string, ArteDoProduto[]>(),
+};
+const chaveArtes = (clienteId: string, codigo: string) => `${clienteId}:${codigo.trim()}`;
+
+function limparBuscaOp(): void {
+  op.empresa = undefined;
+  op.pedidos.clear();
+  op.artes.clear();
+}
+
+function guardarBusca(empresa: string, lidos: PedidoLido[], telas: PedidoOpTela[]): void {
+  limparBuscaOp();
+  op.empresa = empresa;
+  for (const lido of lidos) {
+    if (!('pedido' in lido)) continue;
+    const tela = telas.find((t) => t.numero === lido.numero);
+    const clienteId = tela?.situacao === 'ok' ? (tela.cliente?.id ?? null) : null;
+    op.pedidos.set(lido.numero, { pedido: lido.pedido, clienteId });
+    if (tela?.situacao !== 'ok' || !clienteId) continue;
+    for (const item of tela.itens) op.artes.set(chaveArtes(clienteId, item.codigo), item.artes);
+  }
+}
+
+/** Item da última busca com a arte escolhida; recusa pedido, item ou arte que o main não conhece. */
+function itemParaGerar({ numero, indice, arteId }: ItemParaGerarOp): ItemGeracao {
+  const guardado = op.pedidos.get(numero);
+  const item = guardado?.pedido.itens[indice];
+  if (!guardado || !item) throw new Error('Busque os pedidos de novo.');
+  if (!arteId) return { pedido: guardado.pedido, indice };
+  const arte = guardado.clienteId
+    ? op.artes.get(chaveArtes(guardado.clienteId, item.codigo))?.find((a) => a.id === arteId)
+    : undefined;
+  if (!arte) throw new Error('Arte não encontrada. Busque os pedidos de novo.');
+  return {
+    pedido: guardado.pedido,
+    indice,
+    arte: {
+      id: arte.id,
+      cor: arte.cor.nome,
+      maquinas: arte.maquinas.map((m) => m.nome),
+      temImagem: arte.temImagem,
+    },
+  };
+}
+
+/**
+ * Configuração da execução (Bling, Chrome, pastas) do usuário na empresa em uso. Com `credenciais`,
+ * exige usuário, senha e pasta do Bling (o robô vai entrar nele).
+ */
+async function configDoBling(credenciais: boolean): Promise<Config> {
+  const { usuarioId, empresa, perfil } = await contexto();
+  const settings = await lerSettings(settingsFile);
+  if (credenciais && faltaConfig(perfil, settingsDaEmpresa(settings, usuarioId, empresa))) {
+    throw new Error('Preencha o usuário, a senha e a pasta do Bling em Configurações.');
+  }
+  const config = await montarConfig(envConfig, settings, usuarioId, empresa, dirDados, cifra);
+  if (credenciais && (!config.bling.user || !config.bling.password)) {
+    throw new Error('Preencha o usuário e a senha do Bling em Configurações.');
+  }
+  return config;
+}
+
+/** Pasta de destino criada e com escrita; senão, mensagem pronta para a tela. */
+async function pastaGravavel(destDir: unknown): Promise<string> {
+  if (typeof destDir !== 'string' || !destDir.trim()) {
+    throw new Error('Escolha a pasta de destino.');
+  }
+  const pasta = path.resolve(destDir);
+  try {
+    await ensureDir(pasta);
+    await access(pasta, constants.W_OK);
+  } catch {
+    throw new Error(`Não foi possível usar a pasta "${pasta}". Escolha outra pasta.`);
+  }
+  return pasta;
+}
+
 const { autoUpdater } = electronUpdater;
 const INTERVALO_ATUALIZACAO_MS = 4 * 60 * 60 * 1000;
 
@@ -262,23 +358,9 @@ ipcMain.handle(
       throw new Error('Escolha a pasta de destino.');
     }
     const selecao = validarSelecao(input);
-    const { usuarioId, empresa, perfil } = await contexto();
-    const settings = await lerSettings(settingsFile);
-    if (faltaConfig(perfil, settingsDaEmpresa(settings, usuarioId, empresa))) {
-      throw new Error('Preencha o usuário, a senha e a pasta do Bling em Configurações.');
-    }
-    const config = await montarConfig(envConfig, settings, usuarioId, empresa, dirDados, cifra);
-    if (!config.bling.user || !config.bling.password) {
-      throw new Error('Preencha o usuário e a senha do Bling em Configurações.');
-    }
+    const config = await configDoBling(true);
     // Valida a pasta antes de abrir o navegador (evita gastar um login no Bling à toa).
-    const pasta = path.resolve(destDir);
-    try {
-      await ensureDir(pasta);
-      await access(pasta, constants.W_OK);
-    } catch {
-      throw new Error(`Não foi possível usar a pasta "${pasta}". Escolha outra pasta.`);
-    }
+    const pasta = await pastaGravavel(destDir);
 
     running = true;
     logger.info({ pedidos: selecao.length, destDir }, 'Iniciando geração de documentos');
@@ -319,6 +401,7 @@ ipcMain.handle(CHANNELS.sessaoEntrar, async (_event, input: unknown): Promise<Se
 
 ipcMain.handle(CHANNELS.sessaoSair, async () => {
   if (running) throw new Error('Aguarde a execução terminar para sair.');
+  limparBuscaOp();
   await sessao.sair();
 });
 
@@ -445,8 +528,82 @@ ipcMain.handle(
 ipcMain.handle(CHANNELS.opArtesDoItem, async (_event, input: unknown): Promise<ArtesDoItem> => {
   const { clienteId, codigo } = validarItemOp(input);
   const empresa = await exigirOp();
-  return artesDoItem(artesApi, empresa, clienteId, codigo);
+  const resultado = await artesDoItem(artesApi, empresa, clienteId, codigo);
+  // Arte recém-cadastrada na tela da OP: a geração só aceita artes que o main conhece.
+  op.artes.set(chaveArtes(clienteId, codigo), resultado.artes);
+  return resultado;
 });
+
+ipcMain.handle(
+  CHANNELS.opBuscarPedidos,
+  async (_event, input: unknown): Promise<PedidoOpTela[]> => {
+    const numeros = validarNumerosOp(input);
+    const empresa = await exigirOp();
+    if (running) throw new Error('Já existe uma execução em andamento.');
+    const mock = mockAtivo();
+    // Sem a fixture, o robô entra no Bling: exige as credenciais antes de abrir o navegador.
+    const config = await configDoBling(!mock);
+    running = true;
+    logger.info({ pedidos: numeros.length, mock }, 'Buscando pedidos para a OP');
+    try {
+      const lidos = mock
+        ? await lerPedidosMock(numeros)
+        : await lerPedidosBling(config, logger, numeros);
+      const telas = await montarPedidosTela(lidos, empresa, artesApi);
+      guardarBusca(empresa, lidos, telas);
+      return telas;
+    } finally {
+      running = false;
+    }
+  },
+);
+
+ipcMain.handle(
+  CHANNELS.opGerar,
+  async (event, input: unknown, destDir: unknown): Promise<GerarOpResultado> => {
+    const selecao = validarItensOp(input);
+    const empresa = await exigirOp();
+    if (running) throw new Error('Já existe uma execução em andamento.');
+    if (op.empresa !== empresa) throw new Error('Busque os pedidos de novo.');
+    const itens = selecao.map(itemParaGerar);
+    const pasta = await pastaGravavel(destDir);
+    const config = await configDoBling(false);
+    const estado = sessao.estado();
+    const nomeEmpresa =
+      estado.situacao === 'deslogado'
+        ? empresa
+        : rotuloEmpresa(
+            estado.perfil.empresas.find((e) => e.slug === empresa)?.nome ?? '',
+            empresa,
+          );
+
+    running = true;
+    logger.info({ itens: itens.length, destDir: pasta }, 'Iniciando geração de OPs');
+    try {
+      const resultados = await withPaginaOculta(config, (page) =>
+        gerarOps({
+          itens,
+          empresa: nomeEmpresa,
+          reservarNumeros: (quantidade) => artesApi.reservarNumerosOp(empresa, quantidade),
+          baixarImagem: (arteId) => artesApi.imagemDaArte(empresa, arteId),
+          salvarPdf: (ordem) => salvarPdfOp(page, ordem, pasta),
+          onProgresso: (resultado) => {
+            if (resultado.status === 'ok') {
+              const { numero, codigo, numeroOp, arquivos } = resultado;
+              logger.info({ numero, codigo, numeroOp, arquivos }, 'OP salva');
+            }
+            event.sender.send(CHANNELS.opProgresso, resultado);
+          },
+          onFalha: ({ numero, codigo, erro }, error) =>
+            logger.error({ numero, codigo, erro, err: error }, 'Falha ao gerar a OP'),
+        }),
+      );
+      return { resultados };
+    } finally {
+      running = false;
+    }
+  },
+);
 
 ipcMain.handle(CHANNELS.instalarAtualizacao, () => {
   // Não interrompe uma geração em andamento (ex.: NF entre o Salvar e a autorização).

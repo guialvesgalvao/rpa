@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import { and, eq, isNull, ne, sql } from 'drizzle-orm';
+import { and, desc, eq, isNull, ne, sql } from 'drizzle-orm';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 
 import {
@@ -15,10 +15,12 @@ import {
   usuarios,
 } from '../../src/db/esquema.js';
 import {
+  CLIENTE_OP,
   CLIENTES_POR_EMPRESA,
   exigirBancoLocal,
   gerarCnpj,
   PDF_MINIMO,
+  PRODUTOS_OP,
   semear,
 } from '../../src/cli/semear-dev.js';
 import { codigoDoErro, criarBancoTeste, limparTabelas } from '../helpers/banco.js';
@@ -318,8 +320,9 @@ describe('semear-dev', () => {
 
   it('popula clientes, produtos e artes, e pode ser repetido sem duplicar', async () => {
     const resumo = await semear(db);
-    expect(resumo.clientes).toBe(CLIENTES_POR_EMPRESA * 2);
-    expect(resumo.produtos).toBe(16);
+    // + o cliente e os 2 produtos da fixture da OP, só na Roma.
+    expect(resumo.clientes).toBe(CLIENTES_POR_EMPRESA * 2 + 1);
+    expect(resumo.produtos).toBe(16 + PRODUTOS_OP.length);
     expect(resumo.artes).toBeGreaterThan(0);
     expect(await db.$count(usuarios)).toBe(2);
 
@@ -327,7 +330,23 @@ describe('semear-dev', () => {
     const repetido = await semear(db);
     expect(repetido).toEqual({ clientes: 0, produtos: 0, artes: 0 });
     expect(await db.$count(artes)).toBe(antes);
-    expect(await db.$count(clientes)).toBe(CLIENTES_POR_EMPRESA * 2);
+    expect(await db.$count(clientes)).toBe(CLIENTES_POR_EMPRESA * 2 + 1);
+  });
+
+  it('semeia na Roma o cliente e os produtos da fixture da OP, com 2 artes no XX0001', async () => {
+    await semear(db);
+    const [roma] = await db.select().from(empresas).where(eq(empresas.slug, 'roma'));
+    const [cliente] = await db.select().from(clientes).where(eq(clientes.cnpj, CLIENTE_OP.cnpj));
+    expect(cliente?.empresaId).toBe(roma?.id);
+    const [caixa] = await db.select().from(produtos).where(eq(produtos.codigo, 'XX0001'));
+    const daCaixa = await db
+      .select()
+      .from(artes)
+      .where(and(eq(artes.clienteId, cliente!.id), eq(artes.produtoId, caixa!.id)))
+      .orderBy(desc(artes.criadoEm));
+    expect(daCaixa.map((a) => a.nome)).toEqual(['Padrão', 'Versão anterior']);
+    expect(daCaixa[0]?.imagemId).not.toBeNull();
+    expect(daCaixa[1]?.imagemId).toBeNull();
   });
 
   it('dá código aos produtos, inclusive aos já semeados sem código', async () => {

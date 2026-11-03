@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
-import { CHANNELS, type DocResult, type RpaApi, type SessaoTela } from './api.js';
+import { CHANNELS, type DocResult, type ResultadoOp, type RpaApi, type SessaoTela } from './api.js';
 
 const api: RpaApi = {
   defaults: () => ipcRenderer.invoke(CHANNELS.defaults),
@@ -33,6 +33,12 @@ const api: RpaApi = {
     clientePorCnpj: (cnpj) => ipcRenderer.invoke(CHANNELS.opClientePorCnpj, cnpj),
     artesDoItem: (clienteId, codigo) =>
       ipcRenderer.invoke(CHANNELS.opArtesDoItem, { clienteId, codigo }),
+    buscarPedidos: (numeros) => ipcRenderer.invoke(CHANNELS.opBuscarPedidos, numeros),
+    gerar: (itens, destDir) => ipcRenderer.invoke(CHANNELS.opGerar, itens, destDir),
+    onProgresso: (callback) =>
+      void ipcRenderer.on(CHANNELS.opProgresso, (_event, resultado: ResultadoOp) =>
+        callback(resultado),
+      ),
   },
 };
 

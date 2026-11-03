@@ -11,6 +11,7 @@ import {
   EsquemaArteDoProduto,
   EsquemaCliente,
   EsquemaErro,
+  EsquemaNumerosOp,
   EsquemaOpcao,
   EsquemaPaginaClientes,
   EsquemaProdutoDoCliente,
@@ -65,6 +66,8 @@ export type ClienteArtes = {
   imagemDaArte(empresa: string, arteId: string): Promise<ImagemArte>;
   opcoes(empresa: string): Promise<OpcoesArte>;
   cadastrar(empresa: string, clienteId: string, form: FormData): Promise<void>;
+  /** Reserva `quantidade` números de OP consecutivos (só admin). */
+  reservarNumerosOp(empresa: string, quantidade: number): Promise<number[]>;
 };
 
 /** Só os dígitos do CNPJ; `null` se não sobrarem 14. */
@@ -91,15 +94,17 @@ export function criarClienteArtes({
   async function chamar(
     metodo: 'GET' | 'POST',
     caminho: string,
-    opcoes: { corpo?: FormData; timeout?: number } = {},
+    opcoes: { corpo?: FormData; json?: unknown; timeout?: number } = {},
   ): Promise<Response> {
     const acesso = await obterAcesso();
+    const headers: Record<string, string> = { authorization: `Bearer ${acesso}` };
+    if (opcoes.json !== undefined) headers['content-type'] = 'application/json';
     let resposta: Response;
     try {
       resposta = await buscar(`${base}${caminho}`, {
         method: metodo,
-        headers: { authorization: `Bearer ${acesso}` },
-        body: opcoes.corpo,
+        headers,
+        body: opcoes.json !== undefined ? JSON.stringify(opcoes.json) : opcoes.corpo,
         signal: AbortSignal.timeout(opcoes.timeout ?? timeoutMs),
       });
     } catch (erro) {
@@ -204,7 +209,22 @@ export function criarClienteArtes({
         timeout: timeoutEnvioMs,
       });
     },
+    async reservarNumerosOp(empresa, quantidade) {
+      const resposta = await chamar('POST', rota(empresa, '/op/numeros'), {
+        json: { quantidade },
+      });
+      return (await lerJson(resposta, EsquemaNumerosOp)).numeros;
+    },
   };
+}
+
+/** Produto com o código (SKU) do Bling, sem espaços nas pontas; código vazio não casa. */
+export function produtoDoCodigo<T extends { codigo: string | null }>(
+  produtos: readonly T[],
+  codigo: string,
+): T | undefined {
+  const alvo = codigo.trim();
+  return alvo ? produtos.find((p) => p.codigo?.trim() === alvo) : undefined;
 }
 
 /** Produto do cliente que casou com o item do pedido (`null` se nenhum) e as artes dele. */
@@ -220,9 +240,8 @@ export async function artesDoItem(
   clienteId: string,
   codigo: string,
 ): Promise<ArtesDoItem> {
-  const alvo = codigo.trim();
-  const produtos = alvo ? await api.produtosDoCliente(empresa, clienteId) : [];
-  const produto = produtos.find((p) => p.codigo?.trim() === alvo);
+  const produtos = codigo.trim() ? await api.produtosDoCliente(empresa, clienteId) : [];
+  const produto = produtoDoCodigo(produtos, codigo);
   if (!produto) return { produtoId: null, artes: [] };
   return { produtoId: produto.id, artes: await api.artesDoProduto(empresa, clienteId, produto.id) };
 }

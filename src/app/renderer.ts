@@ -1,4 +1,3 @@
-import type { Passo } from '../core/rastro.js';
 import {
   DOC_LABEL,
   type DocTipo,
@@ -21,19 +20,14 @@ import type { Perfil } from './plataforma/contratos.js';
 import { criarArtes } from './artes/index.js';
 import { mensagemErro } from './artes/dom.js';
 import { abaAoRemontar, abasDoPerfil, type Automacao, ordenarMenu } from './menu.js';
+import { criarOp } from './op/index.js';
+import { preencherResultado } from './resultados.js';
 
 declare global {
   interface Window {
     rpa: RpaApi;
   }
 }
-
-const STATUS_LABEL: Record<DocResult['status'], string> = {
-  pendente: 'Aguardando',
-  processando: 'Processando…',
-  ok: 'Concluído',
-  erro: 'Erro',
-};
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const numeros = $<HTMLTextAreaElement>('numeros');
@@ -82,6 +76,12 @@ const areaApp = $('app');
 const faixaOffline = $('offline');
 const artesOffline = $('artes-offline');
 const artes = criarArtes($('artes-raiz'), window.rpa.artes);
+const opTela = criarOp({
+  api: window.rpa.op,
+  artes: window.rpa.artes,
+  escolherPasta: (atual) => window.rpa.escolherPasta(atual),
+  abrirPasta: (dir) => window.rpa.abrirPasta(dir),
+});
 const usuarioEl = $('usuario');
 const usuarioNome = $('usuario-nome');
 const sair = $<HTMLButtonElement>('sair');
@@ -234,55 +234,11 @@ function onEntradaAlterada() {
   atualizarControles();
 }
 
-const nomeArquivo = (arquivo: string) => arquivo.split(/[\\/]/).pop() ?? '';
-
-function div(className: string, texto: string) {
-  const el = document.createElement('div');
-  el.className = className;
-  el.textContent = texto;
-  return el;
-}
-
-/** Passo a passo do documento com erro; o erro do passo só aparece se diferir do erro geral. */
-function renderPassos(passos: Passo[], erro: string | undefined) {
-  const details = document.createElement('details');
-  details.className = 'passos';
-  details.open = true;
-  const summary = document.createElement('summary');
-  summary.textContent = 'Passo a passo';
-  const lista = document.createElement('ol');
-  for (const passo of passos) {
-    const li = document.createElement('li');
-    li.className = `passo ${passo.status}`;
-    const marca = document.createElement('span');
-    marca.className = 'marca';
-    marca.textContent = passo.status === 'ok' ? '✔' : '✖';
-    li.append(marca, passo.texto);
-    if (passo.erro && passo.erro !== erro) li.append(div('passo-erro', passo.erro));
-    lista.append(li);
-  }
-  details.append(summary, lista);
-  return details;
-}
-
 function renderItem(item: DocResult) {
   const tr = linhas.get(chave(item.numero, item.doc));
   if (!tr) return;
   const [, , status, detalhe] = tr.cells;
-  const chip = document.createElement('span');
-  chip.textContent = STATUS_LABEL[item.status];
-  chip.className = `status ${item.status}`;
-  status!.replaceChildren(chip);
-
-  const conteudo: Node[] = [];
-  if (item.status === 'erro') {
-    conteudo.push(div('erro-msg', item.erro ?? 'Erro desconhecido'));
-    if (item.passos?.length) conteudo.push(renderPassos(item.passos, item.erro));
-  } else {
-    for (const arquivo of item.arquivos ?? []) conteudo.push(div('arquivo', nomeArquivo(arquivo)));
-    if (item.detalhe) conteudo.push(div('', item.detalhe));
-  }
-  detalhe!.replaceChildren(...conteudo);
+  preencherResultado(status!, detalhe!, item);
 }
 
 /** Uma linha por documento, agrupadas por pedido (o número aparece na primeira do grupo). */
@@ -439,6 +395,7 @@ formConfig.addEventListener('submit', async (event) => {
     });
     if (!pasta.value.trim() || pasta.value === pastaPadrao) pasta.value = config.destDir;
     pastaPadrao = config.destDir;
+    opTela.definirPasta(config.destDir);
     dialogConfig.close();
     atualizarControles();
   } catch (error) {
@@ -453,6 +410,7 @@ async function carregarAdmin() {
   const defaults = await window.rpa.defaults();
   pasta.value = defaults.destDir;
   pastaPadrao = defaults.destDir;
+  opTela.definirPasta(defaults.destDir);
   docsDisponiveis = defaults.docsDisponiveis;
   atualizarContagem();
   atualizarControles();
@@ -518,6 +476,7 @@ function aplicarSessao(sessao: SessaoTela) {
     empresaMontada = undefined;
     abaAtual = undefined;
     artes.encerrar();
+    opTela.encerrar();
     aplicarEmpresa(undefined, 0);
     dialogEmpresas.close();
     limparFatura();
@@ -548,6 +507,7 @@ function aplicarSessao(sessao: SessaoTela) {
   if (empresaMontada === chaveEmpresa) return;
   empresaMontada = chaveEmpresa;
   artes.reiniciar();
+  opTela.reiniciar();
   limparFatura();
   atualizarContagem();
   // Arte finalista nunca vê o modal do Bling.

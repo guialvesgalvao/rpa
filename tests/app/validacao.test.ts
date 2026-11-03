@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  MAX_PEDIDOS_OP,
   validarCnpj,
   validarItemOp,
+  validarItensOp,
   validarLogin,
+  validarNumerosOp,
   validarSelecao,
   validarSlug,
 } from '../../src/app/validacao.js';
@@ -129,6 +132,48 @@ describe('validarItemOp', () => {
       null,
     ]) {
       expect(() => validarItemOp(entrada)).toThrow('Item da OP inválido.');
+    }
+  });
+});
+
+describe('validarNumerosOp', () => {
+  it('aceita números de pedido e remove repetidos, na ordem', () => {
+    expect(validarNumerosOp(['2604', '2683', '2604'])).toEqual(['2604', '2683']);
+  });
+
+  it('recusa lista vazia, longa demais, ou com texto', () => {
+    const muitos = Array.from({ length: MAX_PEDIDOS_OP + 1 }, (_, i) => String(i + 1));
+    for (const entrada of [[], muitos, ['12a'], [''], 'x', null]) {
+      expect(() => validarNumerosOp(entrada)).toThrow('Números de pedido inválidos.');
+    }
+  });
+});
+
+describe('validarItensOp', () => {
+  const arteId = '3f0c6d2e-8a41-4b5e-9d3a-1c2b3d4e5f60';
+
+  it('aceita itens com e sem arte; item repetido conta uma vez', () => {
+    expect(
+      validarItensOp([
+        { numero: '9001', indice: 0, arteId },
+        { numero: '9001', indice: 1 },
+        { numero: '9001', indice: 0 },
+      ]),
+    ).toEqual([
+      { numero: '9001', indice: 0, arteId },
+      { numero: '9001', indice: 1 },
+    ]);
+  });
+
+  it('recusa lista vazia, índice negativo, arte fora do formato e número com texto', () => {
+    expect(() => validarItensOp([])).toThrow('Marque ao menos um produto.');
+    for (const entrada of [
+      [{ numero: '9001', indice: -1 }],
+      [{ numero: '9001', indice: 0, arteId: 'x' }],
+      [{ numero: '90a', indice: 0 }],
+      null,
+    ]) {
+      expect(() => validarItensOp(entrada)).toThrow('Seleção de produtos inválida.');
     }
   });
 });

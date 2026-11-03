@@ -135,7 +135,7 @@ export async function executarSelecao<D>(
 const ALERTA_FORMAS_PAGAMENTO = 'Unknown Function getFormasPagamento';
 
 /** Deixa a listagem de vendas pronta para buscar pedidos em qualquer situação. */
-async function prepararListagem(page: Page, config: Config, logger: Logger): Promise<void> {
+export async function prepararListagem(page: Page, config: Config, logger: Logger): Promise<void> {
   await openVendas(page, config, logger);
   const alerta = page.getByText(ALERTA_FORMAS_PAGAMENTO).filter({ visible: true });
   await page.locator(SEARCH_INPUT).or(alerta).first().waitFor();

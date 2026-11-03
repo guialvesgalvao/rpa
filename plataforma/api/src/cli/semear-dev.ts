@@ -264,59 +264,176 @@ export async function semear(db: Banco): Promise<ResumoSemente> {
     resumo.clientes += novosClientes.length;
     resumo.produtos += novosProdutos.length;
 
-    if ((await db.$count(artes, eq(artes.empresaId, empresa.id))) > 0) {
-      resumo.artes += await semearArtesExtras(db, empresa.id, adminId, todasCores, todasMaquinas);
-      continue;
-    }
-
-    const clientesDaEmpresa = await db
-      .select({ id: clientes.id })
-      .from(clientes)
-      .where(eq(clientes.empresaId, empresa.id))
-      .orderBy(clientes.cnpj)
-      .limit(15);
-    const produtosDaEmpresa = await db
-      .select({ id: produtos.id })
-      .from(produtos)
-      .where(eq(produtos.empresaId, empresa.id))
-      .orderBy(produtos.nome);
-
-    for (const [i, cliente] of clientesDaEmpresa.entries()) {
-      // 0 a 3 produtos por cliente; os clientes sem arte mostram o placeholder.
-      for (let p = 0; p < i % 4; p++) {
-        const produto = produtosDaEmpresa[(i + p) % produtosDaEmpresa.length];
-        const cor = todasCores[(i + p) % todasCores.length];
-        if (!produto || !cor) continue;
-        // Alterna entre só PDF, só imagem e os dois.
-        const variante = (i + p) % 3;
-        const pdfId =
-          variante !== 1
-            ? await gravarArquivo(db, 'arte.pdf', 'application/pdf', PDF_MINIMO)
-            : null;
-        const imagemId =
-          variante !== 0 ? await gravarArquivo(db, 'arte.png', 'image/png', PNG_1X1) : null;
-        const [arte] = await db
-          .insert(artes)
-          .values({
-            empresaId: empresa.id,
-            clienteId: cliente.id,
-            produtoId: produto.id,
-            corId: cor.id,
-            pdfId,
-            imagemId,
-            criadoPor: adminId,
-            atualizadoPor: adminId,
-          })
-          .returning({ id: artes.id });
-        if (!arte) throw new Error('arte não gravada');
-        const escolhidas = maquinasDaVariante(todasMaquinas, i + p);
-        await db
-          .insert(arteMaquinas)
-          .values(escolhidas.map((maquina) => ({ arteId: arte.id, maquinaId: maquina.id })));
-        resumo.artes++;
-      }
+    if ((await db.$count(artes, eq(artes.empresaId, empresa.id))) === 0) {
+      resumo.artes += await semearArtesIniciais(db, empresa.id, adminId, todasCores, todasMaquinas);
     }
     resumo.artes += await semearArtesExtras(db, empresa.id, adminId, todasCores, todasMaquinas);
+
+    if (empresa.slug === EMPRESA_OP) {
+      const op = await semearOp(db, empresa.id, adminId, todasCores, todasMaquinas);
+      resumo.clientes += op.clientes;
+      resumo.produtos += op.produtos;
+      resumo.artes += op.artes;
+    }
+  }
+  return resumo;
+}
+
+// Primeira carga de artes da empresa: 0 a 3 produtos por cliente, alternando arquivos e máquinas.
+async function semearArtesIniciais(
+  db: Banco,
+  empresaId: string,
+  adminId: string,
+  todasCores: Opcao[],
+  todasMaquinas: Opcao[],
+): Promise<number> {
+  let criadas = 0;
+  const clientesDaEmpresa = await db
+    .select({ id: clientes.id })
+    .from(clientes)
+    .where(eq(clientes.empresaId, empresaId))
+    .orderBy(clientes.cnpj)
+    .limit(15);
+  const produtosDaEmpresa = await db
+    .select({ id: produtos.id })
+    .from(produtos)
+    .where(eq(produtos.empresaId, empresaId))
+    .orderBy(produtos.nome);
+
+  for (const [i, cliente] of clientesDaEmpresa.entries()) {
+    // 0 a 3 produtos por cliente; os clientes sem arte mostram o placeholder.
+    for (let p = 0; p < i % 4; p++) {
+      const produto = produtosDaEmpresa[(i + p) % produtosDaEmpresa.length];
+      const cor = todasCores[(i + p) % todasCores.length];
+      if (!produto || !cor) continue;
+      // Alterna entre só PDF, só imagem e os dois.
+      const variante = (i + p) % 3;
+      const pdfId =
+        variante !== 1 ? await gravarArquivo(db, 'arte.pdf', 'application/pdf', PDF_MINIMO) : null;
+      const imagemId =
+        variante !== 0 ? await gravarArquivo(db, 'arte.png', 'image/png', PNG_1X1) : null;
+      const [arte] = await db
+        .insert(artes)
+        .values({
+          empresaId,
+          clienteId: cliente.id,
+          produtoId: produto.id,
+          corId: cor.id,
+          pdfId,
+          imagemId,
+          criadoPor: adminId,
+          atualizadoPor: adminId,
+        })
+        .returning({ id: artes.id });
+      if (!arte) throw new Error('arte não gravada');
+      const escolhidas = maquinasDaVariante(todasMaquinas, i + p);
+      await db
+        .insert(arteMaquinas)
+        .values(escolhidas.map((maquina) => ({ arteId: arte.id, maquinaId: maquina.id })));
+      criadas++;
+    }
+  }
+  return criadas;
+}
+
+// Única empresa com a aba OP no app.
+const EMPRESA_OP = 'roma';
+
+// Cliente e produtos da fixture sintética do app (`tests/fixtures/pedido-op.json`): com `RPA_OP_MOCK=1`, a
+// aba OP acha o cliente pelo CNPJ e as artes pelo código. Dados fictícios.
+export const CLIENTE_OP = {
+  razaoSocial: 'Cliente Ficticio Ltda',
+  nomeFantasia: 'Pizzaria Ficticia',
+  cnpj: '11222333000181',
+};
+export const PRODUTOS_OP = [
+  { nome: 'Caixa de Pizza Sintetica 35', codigo: 'XX0001' },
+  { nome: 'Sacola Sintetica', codigo: 'XX0002' },
+];
+
+// Idempotente: duas artes para o produto XX0001 do cliente da fixture (a mais nova com imagem e as duas
+// máquinas; a antiga só com PDF), para exercitar a pré-seleção e o bloco de arte da OP.
+async function semearOp(
+  db: Banco,
+  empresaId: string,
+  adminId: string,
+  todasCores: Opcao[],
+  todasMaquinas: Opcao[],
+): Promise<ResumoSemente> {
+  const novosClientes = await db
+    .insert(clientes)
+    .values({ empresaId, ...CLIENTE_OP })
+    .onConflictDoNothing()
+    .returning({ id: clientes.id });
+  const novosProdutos = await db
+    .insert(produtos)
+    .values(PRODUTOS_OP.map((p) => ({ empresaId, ...p })))
+    .onConflictDoNothing()
+    .returning({ id: produtos.id });
+  // Produto com o mesmo nome e sem código (banco antigo): recebe o código.
+  for (const { nome, codigo } of PRODUTOS_OP) {
+    await db
+      .update(produtos)
+      .set({ codigo })
+      .where(
+        and(eq(produtos.empresaId, empresaId), eq(produtos.nome, nome), isNull(produtos.codigo)),
+      );
+  }
+  const resumo = { clientes: novosClientes.length, produtos: novosProdutos.length, artes: 0 };
+
+  const [cliente] = await db
+    .select({ id: clientes.id })
+    .from(clientes)
+    .where(and(eq(clientes.empresaId, empresaId), eq(clientes.cnpj, CLIENTE_OP.cnpj)));
+  const [produto] = await db
+    .select({ id: produtos.id })
+    .from(produtos)
+    .where(and(eq(produtos.empresaId, empresaId), eq(produtos.codigo, PRODUTOS_OP[0]!.codigo)));
+  if (!cliente || !produto) throw new Error('cliente ou produto da OP não gravado');
+  const jaTem = await db.$count(
+    artes,
+    and(eq(artes.clienteId, cliente.id), eq(artes.produtoId, produto.id)),
+  );
+  if (jaTem > 0) return resumo;
+
+  const variantes = [
+    { nome: 'Padrão', dias: 0, imagem: true, maquinas: 2 },
+    { nome: 'Versão anterior', dias: DIAS_ARTE_EXTRA, imagem: false, maquinas: 0 },
+  ];
+  for (const [i, variante] of variantes.entries()) {
+    const cor = todasCores[i % todasCores.length];
+    if (!cor) continue;
+    const criadoEm = new Date(Date.now() - variante.dias * 24 * 60 * 60 * 1000);
+    const imagemId = variante.imagem
+      ? await gravarArquivo(db, 'arte-op.png', 'image/png', PNG_1X1)
+      : null;
+    const pdfId = variante.imagem
+      ? null
+      : await gravarArquivo(db, 'arte-op.pdf', 'application/pdf', PDF_MINIMO);
+    const [arte] = await db
+      .insert(artes)
+      .values({
+        empresaId,
+        clienteId: cliente.id,
+        produtoId: produto.id,
+        nome: variante.nome,
+        corId: cor.id,
+        pdfId,
+        imagemId,
+        criadoPor: adminId,
+        atualizadoPor: adminId,
+        criadoEm,
+        atualizadoEm: criadoEm,
+      })
+      .returning({ id: artes.id });
+    if (!arte) throw new Error('arte não gravada');
+    await db.insert(arteMaquinas).values(
+      maquinasDaVariante(todasMaquinas, variante.maquinas).map((m) => ({
+        arteId: arte.id,
+        maquinaId: m.id,
+      })),
+    );
+    resumo.artes++;
   }
   return resumo;
 }

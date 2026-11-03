@@ -100,6 +100,48 @@ export function validarItemOp(input: unknown): { clienteId: string; codigo: stri
   return parsed.data;
 }
 
+/** Mesmo teto do intervalo De/Até da Fatura. */
+export const MAX_PEDIDOS_OP = 200;
+
+const numerosOpSchema = z
+  .array(z.string().regex(/^\d{1,12}$/))
+  .min(1)
+  .max(MAX_PEDIDOS_OP);
+
+/** Valida os números de pedido da OP; repetidos contam uma vez, na ordem em que vieram. */
+export function validarNumerosOp(input: unknown): string[] {
+  const parsed = numerosOpSchema.safeParse(input);
+  if (!parsed.success) throw new Error('Números de pedido inválidos.');
+  return [...new Set(parsed.data)];
+}
+
+const itensOpSchema = z
+  .array(
+    z.object({
+      numero: z.string().regex(/^\d{1,12}$/),
+      indice: z.number().int().min(0).max(1000),
+      arteId: z.uuid().optional(),
+    }),
+  )
+  .max(1000);
+
+/** Valida os produtos marcados para gerar a OP; item repetido conta uma vez. */
+export function validarItensOp(
+  input: unknown,
+): { numero: string; indice: number; arteId?: string }[] {
+  const parsed = itensOpSchema.safeParse(input);
+  if (!parsed.success) throw new Error('Seleção de produtos inválida.');
+  const vistos = new Set<string>();
+  const itens = parsed.data.filter(({ numero, indice }) => {
+    const chave = `${numero}:${indice}`;
+    if (vistos.has(chave)) return false;
+    vistos.add(chave);
+    return true;
+  });
+  if (!itens.length) throw new Error('Marque ao menos um produto.');
+  return itens;
+}
+
 const cadastroSchema = z.object({
   clienteId: z.uuid(),
   // Ids vazios passam: `validarNovaArte` devolve "Selecione um produto/cor" ao lado do campo.

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { localizarChrome } from '../../src/core/browser.js';
+import { localizarChrome, withPaginaOculta } from '../../src/core/browser.js';
 
 const PADRAO = String.raw`C:\Program Files\Google\Chrome\Application\chrome.exe`;
 const POR_USUARIO = String.raw`C:\Users\fulano\AppData\Local\Google\Chrome\Application\chrome.exe`;
@@ -21,4 +21,32 @@ describe('localizarChrome', () => {
     );
     expect(() => localizarChrome(PADRAO, {}, () => false)).toThrow(/não encontrado/);
   });
+});
+
+describe('withPaginaOculta', () => {
+  // Precisa do Chromium do Playwright (`npm run browsers:install`).
+  it('abre uma guia em branco, devolve o resultado e fecha o navegador', async () => {
+    let aberta: import('playwright').Page | undefined;
+    const pdf = await withPaginaOculta(
+      { browserChannel: 'chromium', chromePath: '' },
+      async (page) => {
+        aberta = page;
+        await page.setContent('<p>OP</p>');
+        return page.pdf();
+      },
+    );
+    expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
+    expect(aberta?.isClosed()).toBe(true);
+  }, 60_000);
+
+  it('fecha o navegador mesmo quando a função falha', async () => {
+    let aberta: import('playwright').Page | undefined;
+    await expect(
+      withPaginaOculta({ browserChannel: 'chromium', chromePath: '' }, async (page) => {
+        aberta = page;
+        throw new Error('falhou');
+      }),
+    ).rejects.toThrow('falhou');
+    expect(aberta?.isClosed()).toBe(true);
+  }, 60_000);
 });

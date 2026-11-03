@@ -14,6 +14,8 @@ import { blocoErro, botao, criar, formatarTamanho, mensagemErro } from './dom.js
 export type DepsFormulario = {
   api: Pick<ArtesApi, 'opcoes' | 'escolherArquivo' | 'cadastrar'>;
   cliente: Cliente;
+  /** Produto já escolhido ao abrir (ex.: o item da OP); o usuário pode trocar. */
+  produtoId?: string;
   voltar: () => void;
   concluido: () => void;
 };
@@ -56,7 +58,7 @@ function opcoesMarcaveis(
 /** Formulário de nova arte, com as mesmas regras e mensagens do site (`validarNovaArte`). */
 export function montarFormulario(
   raiz: HTMLElement,
-  { api, cliente, voltar, concluido }: DepsFormulario,
+  { api, cliente, produtoId, voltar, concluido }: DepsFormulario,
 ): { encerrar(): void } {
   let encerrado = false;
   const card = criar('div', 'card');
@@ -83,6 +85,7 @@ export function montarFormulario(
     const produto = criar('select');
     produto.append(new Option('Selecione um produto', ''));
     for (const { id, nome } of opcoes.produtos) produto.append(new Option(nome, id));
+    if (produtoId && opcoes.produtos.some((p) => p.id === produtoId)) produto.value = produtoId;
     const campoProduto = campo('Produto', produto);
 
     const nome = criar('input');

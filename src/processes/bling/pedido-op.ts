@@ -140,11 +140,17 @@ export function fonteBling(page: Page, rastro: Rastro): FontePedidoOp {
   };
 }
 
-/** Fonte fictícia: devolve sempre o pedido da fixture sintética, sem abrir o Bling. */
+/**
+ * Fonte fictícia: devolve o pedido da fixture sintética, sem abrir o Bling, com o número pedido
+ * (vários números viram pedidos distintos na tela).
+ */
 export function fonteMock(
   caminho = resolve(process.cwd(), 'tests/fixtures/pedido-op.json'),
 ): FontePedidoOp {
-  return async () => extrairPedidoOp(JSON.parse(await readFile(caminho, 'utf8')) as unknown);
+  return async (numero) => ({
+    ...extrairPedidoOp(JSON.parse(await readFile(caminho, 'utf8')) as unknown),
+    numero,
+  });
 }
 
 export const mockAtivo = (env: NodeJS.ProcessEnv = process.env): boolean => env.RPA_OP_MOCK === '1';

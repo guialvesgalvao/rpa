@@ -91,10 +91,11 @@ describe('extrairPedidoOp', () => {
 });
 
 describe('fonte fictícia', () => {
-  it('lê a fixture sem navegador', async () => {
-    const p = await fonteMock(caminho)('qualquer');
-    expect(p.numero).toBe('9001');
+  it('lê a fixture sem navegador, com o número pedido', async () => {
+    const p = await fonteMock(caminho)('1234');
+    expect(p.numero).toBe('1234');
     expect(p.itens).toHaveLength(2);
+    expect((await fonteMock(caminho)('1235')).numero).toBe('1235');
   });
 
   it('só liga com RPA_OP_MOCK=1', () => {

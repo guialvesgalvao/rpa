@@ -368,6 +368,62 @@
         border-radius: 999px;
         padding: 1px 7px;
       }
+      /* Aba OP: Pedido → Produto, com a arte de cada produto. */
+      .op-pedidos {
+        display: grid;
+        gap: 8px;
+        max-height: 520px;
+        overflow-y: auto;
+      }
+      #op-selecao.desatualizada .op-pedidos {
+        opacity: 0.55;
+      }
+      .op-pedido-titulo {
+        font-weight: 700;
+      }
+      .op-pedido-datas {
+        margin-top: 2px;
+      }
+      .op-item {
+        border-top: 1px solid var(--border);
+        margin-top: 8px;
+        padding-top: 8px;
+      }
+      .op-item.desmarcado .op-arte {
+        opacity: 0.6;
+      }
+      .op-item-erro {
+        margin: 4px 0 0 24px;
+        font-size: 13px;
+      }
+      .op-arte {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        margin: 6px 0 0 24px;
+        font-size: 14px;
+      }
+      .op-arte select {
+        font: inherit;
+        padding: 6px 10px;
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        background: #fff;
+        min-width: 220px;
+      }
+      .op-arte .hint {
+        margin-top: 0;
+      }
+      .op-info {
+        cursor: help;
+        color: var(--muted);
+        font-size: 16px;
+      }
+      button.op-nova-arte {
+        padding: 5px 12px;
+        font-size: 12px;
+      }
       .pedido-docs {
         display: flex;
         flex-wrap: wrap;
@@ -495,12 +551,14 @@
         align-items: center;
         margin-bottom: 8px;
       }
-      #resumo {
+      #resumo,
+      #op-resumo {
         margin-left: auto;
         color: var(--muted);
         font-weight: 600;
       }
-      #erro-geral {
+      #erro-geral,
+      #op-erro-geral {
         color: var(--aba-red);
         font-weight: 600;
         min-height: 1.2em;
@@ -775,11 +833,69 @@
         </section>
 
         <section data-aba="op" hidden>
+          <div class="etapas">
+            <span><b>1</b>Informe os pedidos</span>
+            <span><b>2</b>Escolha produtos e artes</span>
+            <span><b>3</b>Gere as OPs</span>
+          </div>
           <div class="pagina">
-            <div class="card">
-              <h2>OP</h2>
-              <div class="hint">Em breve — processo ainda não desenvolvido.</div>
+            <div id="op-principal">
+              <div class="card">
+                <label for="op-numeros">Números dos pedidos</label>
+                <textarea
+                  id="op-numeros"
+                  placeholder="Um por linha. Ex.:&#10;1&#10;2&#10;3"
+                ></textarea>
+                <div class="intervalo">
+                  <span>Intervalo:</span>
+                  <label for="op-de">De</label>
+                  <input id="op-de" type="number" min="1" step="1" />
+                  <label for="op-ate">Até</label>
+                  <input id="op-ate" type="number" min="1" step="1" />
+                  <button id="op-confirmar" type="button">Buscar pedidos</button>
+                </div>
+                <div id="op-contagem" class="hint"></div>
+              </div>
+
+              <div class="card" id="op-selecao" hidden>
+                <h2>Escolha os produtos e as artes</h2>
+                <div id="op-aviso" class="aviso" hidden>
+                  Seleção desatualizada — busque os pedidos novamente
+                </div>
+                <div id="op-pedidos" class="op-pedidos"></div>
+                <div id="op-resumo-selecao" class="hint"></div>
+              </div>
+
+              <div class="card">
+                <label for="op-pasta">Salvar OPs em</label>
+                <div class="row">
+                  <input id="op-pasta" type="text" />
+                  <button id="op-escolher" type="button">Escolher…</button>
+                </div>
+              </div>
+
+              <div class="actions">
+                <button id="op-gerar" class="primary" type="button" disabled>Gerar OPs</button>
+                <button id="op-abrir" type="button">Abrir pasta</button>
+                <span id="op-resumo"></span>
+              </div>
+              <div id="op-erro-geral"></div>
+
+              <div class="card" id="op-resultado" hidden>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Pedido</th>
+                      <th>Produto</th>
+                      <th>Status</th>
+                      <th>Detalhe</th>
+                    </tr>
+                  </thead>
+                  <tbody id="op-itens"></tbody>
+                </table>
+              </div>
             </div>
+            <div id="op-detalhe" hidden></div>
           </div>
         </section>
       </main>

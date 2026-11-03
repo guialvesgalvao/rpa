@@ -1,7 +1,9 @@
 import type { DocResult } from '../processes/bling/documentos.js';
 import type { DocTipo, PedidoSelecao } from '../processes/bling/selecao.js';
+import type { ResultadoOp } from '../processes/op/gerar.js';
 
 import type { ArtesDoItem, ErrosCadastro, OpcoesArte } from './plataforma/artes.js';
+import type { ItemOpTela, PedidoOpTela } from './plataforma/op.js';
 import type {
   Cliente,
   PaginaClientes,
@@ -65,7 +67,12 @@ export type ArtesApi = {
   cadastrar(entrada: CadastroArte): Promise<CadastroResultado>;
 };
 
-export type { ArtesDoItem };
+export type { ArtesDoItem, ItemOpTela, PedidoOpTela, ResultadoOp };
+
+/** Produto marcado para gerar a OP; `arteId` vazio gera a OP sem o bloco de arte. */
+export type ItemParaGerarOp = { numero: string; indice: number; arteId?: string };
+
+export type GerarOpResultado = { resultados: ResultadoOp[] };
 
 /**
  * Ordens de Produção: só para o admin da Roma (o main recusa os demais com "Sem permissão.").
@@ -76,6 +83,11 @@ export type OpApi = {
   clientePorCnpj(cnpj: string): Promise<Cliente | null>;
   /** Produto do cliente com o código (SKU) do item e as artes dele, da mais nova para a mais antiga. */
   artesDoItem(clienteId: string, codigo: string): Promise<ArtesDoItem>;
+  /** Lê os pedidos (Bling, ou a fixture com `RPA_OP_MOCK=1`) e acha clientes e artes no banco. */
+  buscarPedidos(numeros: string[]): Promise<PedidoOpTela[]>;
+  /** Gera um PDF por item, com os pedidos da última busca. */
+  gerar(itens: ItemParaGerarOp[], destDir: string): Promise<GerarOpResultado>;
+  onProgresso(callback: (resultado: ResultadoOp) => void): void;
 };
 
 export type GerarResultado = { results: DocResult[] };
@@ -156,4 +168,7 @@ export const CHANNELS = {
   artesCadastrar: 'rpa:artes:cadastrar',
   opClientePorCnpj: 'rpa:op:cliente-por-cnpj',
   opArtesDoItem: 'rpa:op:artes-do-item',
+  opBuscarPedidos: 'rpa:op:buscar-pedidos',
+  opGerar: 'rpa:op:gerar',
+  opProgresso: 'rpa:op:progresso',
 } as const;

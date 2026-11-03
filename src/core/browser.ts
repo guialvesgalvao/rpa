@@ -62,6 +62,27 @@ async function openContext(
 }
 
 /**
+ * Guia em branco num navegador oculto e descartável, só para gerar PDFs (sem o perfil do Bling, que
+ * pode estar em uso). Usa o mesmo Chrome configurado; com `chromium`, o do Playwright. Fecha ao final.
+ */
+export async function withPaginaOculta<T>(
+  config: Pick<Config, 'browserChannel' | 'chromePath'>,
+  fn: (page: Page) => Promise<T>,
+): Promise<T> {
+  const browser = await chromium.launch({
+    headless: true,
+    ...(config.browserChannel === 'chrome'
+      ? { executablePath: localizarChrome(config.chromePath) }
+      : {}),
+  });
+  try {
+    return await fn(await browser.newPage());
+  } finally {
+    await browser.close().catch(() => undefined);
+  }
+}
+
+/**
  * Abre o navegador, executa fn e fecha tudo, mesmo em caso de erro.
  * Em falha, salva screenshot e trace (abrir com `npx playwright show-trace <arquivo>`) em artifacts/.
  */

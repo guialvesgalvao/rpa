@@ -203,3 +203,37 @@ describe('artesDoItem', () => {
     ).rejects.toBeInstanceOf(ErroRecusado);
   });
 });
+
+describe('reservarNumerosOp', () => {
+  it('envia a quantidade em JSON por POST e devolve os números', async () => {
+    const chamadas: RequestInit[] = [];
+    const urls: string[] = [];
+    const c = criarClienteArtes({
+      baseUrl: 'http://api.local',
+      fetch: (async (url: string | URL | Request, init?: RequestInit) => {
+        urls.push(String(url));
+        chamadas.push(init ?? {});
+        return json({ numeros: [7, 8] }, 201);
+      }) as typeof fetch,
+      obterAcesso: async () => 'acesso-1',
+    });
+
+    expect(await c.reservarNumerosOp('roma', 2)).toEqual([7, 8]);
+    expect(urls).toEqual(['http://api.local/v1/empresas/roma/op/numeros']);
+    expect(chamadas[0]?.method).toBe('POST');
+    expect(chamadas[0]?.headers).toEqual({
+      authorization: 'Bearer acesso-1',
+      'content-type': 'application/json',
+    });
+    expect(JSON.parse(String(chamadas[0]?.body))).toEqual({ quantidade: 2 });
+  });
+
+  it('403 (perfil sem permissão) vira ErroRecusado; resposta fora do contrato, ErroIndisponivel', async () => {
+    await expect(api(() => erroApi(403)).cliente.reservarNumerosOp('roma', 1)).rejects.toBeInstanceOf(
+      ErroRecusado,
+    );
+    await expect(
+      api(() => json({ numeros: [] }, 201)).cliente.reservarNumerosOp('roma', 1),
+    ).rejects.toBeInstanceOf(ErroIndisponivel);
+  });
+});

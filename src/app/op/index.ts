@@ -5,7 +5,8 @@ import { montarFormulario } from '../artes/formulario.js';
 import { preencherResultado } from '../resultados.js';
 import { renderPedidos } from './dom.js';
 import {
-  artePreSelecionada,
+  aplicarArtesRecarregadas,
+  type ArtesRecarregadas,
   chaveItem,
   type EscolhaItem,
   itensParaGerar,
@@ -146,7 +147,7 @@ export function criarOp({ api, artes, escolherPasta, abrirPasta }: DepsOp): Tela
     principal.hidden = false;
   }
 
-  /** Cadastra a arte e volta à lista com a arte nova (a mais nova) escolhida no produto. */
+  /** Cadastra a arte e volta à lista com a arte nova (a mais nova) escolhida neste produto. */
   function abrirCadastro(pedido: Extract<PedidoOpTela, { situacao: 'ok' }>, item: ItemOpTela) {
     const cliente = pedido.cliente;
     if (!cliente) return;
@@ -161,26 +162,33 @@ export function criarOp({ api, artes, escolherPasta, abrirPasta }: DepsOp): Tela
       voltar: mostrarPrincipal,
       concluido: () => {
         mostrarPrincipal();
-        void recarregarArtes(cliente.id, item.codigo, minha);
+        void recarregarArtes(
+          cliente.id,
+          item.codigo,
+          { numero: pedido.numero, indice: item.indice },
+          minha,
+        );
       },
     });
   }
 
-  async function recarregarArtes(clienteId: string, codigo: string, minha: number) {
+  /** A arte nova fica escolhida só no item de origem; os demais só a ganham como opção. */
+  async function recarregarArtes(
+    clienteId: string,
+    codigo: string,
+    origem: ArtesRecarregadas['origem'],
+    minha: number,
+  ) {
     try {
       const { produtoId, artes: novas } = await api.artesDoItem(clienteId, codigo);
       if (minha !== geracao) return;
-      const preSelecionada = artePreSelecionada(novas)?.id;
-      for (const pedido of pedidos) {
-        if (pedido.situacao !== 'ok' || pedido.cliente?.id !== clienteId) continue;
-        for (const item of pedido.itens) {
-          if (item.codigo.trim() !== codigo.trim() || item.erro) continue;
-          item.produtoId = produtoId;
-          item.artes = novas;
-          const escolha = escolhas.get(chaveItem(pedido.numero, item.indice));
-          if (escolha) escolha.arteId = preSelecionada;
-        }
-      }
+      ({ pedidos, escolhas } = aplicarArtesRecarregadas(pedidos, escolhas, {
+        clienteId,
+        codigo,
+        produtoId,
+        artes: novas,
+        origem,
+      }));
       desenharLista();
       atualizarControles();
     } catch (erro) {

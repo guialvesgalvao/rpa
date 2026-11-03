@@ -53,6 +53,45 @@ export function montarEscolhas(
   return escolhas;
 }
 
+/** Artes recarregadas de um produto do cliente, depois de cadastrar uma arte a partir de `origem`. */
+export type ArtesRecarregadas = {
+  clienteId: string;
+  codigo: string;
+  produtoId: string | null;
+  artes: ArteDoProduto[];
+  origem: { numero: string; indice: number };
+};
+
+/**
+ * Atualiza a lista de artes de todos os itens (sem erro) do mesmo cliente e código. Só o item de
+ * origem passa para a arte pré-selecionada (a nova); os demais mantêm a escolha, inclusive "Sem
+ * arte", se ela ainda existe — senão voltam à pré-seleção, como em `montarEscolhas`.
+ */
+export function aplicarArtesRecarregadas(
+  pedidos: readonly PedidoOpTela[],
+  escolhas: ReadonlyMap<string, EscolhaItem>,
+  { clienteId, codigo, produtoId, artes, origem }: ArtesRecarregadas,
+): { pedidos: PedidoOpTela[]; escolhas: Map<string, EscolhaItem> } {
+  const novasEscolhas = new Map(escolhas);
+  const preSelecionada = artePreSelecionada(artes)?.id;
+  const novosPedidos = pedidos.map((pedido) => {
+    if (pedido.situacao !== 'ok' || pedido.cliente?.id !== clienteId) return pedido;
+    const itens = pedido.itens.map((item) => {
+      if (item.codigo.trim() !== codigo.trim() || item.erro) return item;
+      const chave = chaveItem(pedido.numero, item.indice);
+      const escolha = escolhas.get(chave);
+      if (escolha) {
+        const ehOrigem = pedido.numero === origem.numero && item.indice === origem.indice;
+        const mantem = !ehOrigem && (!escolha.arteId || artes.some((a) => a.id === escolha.arteId));
+        novasEscolhas.set(chave, { ...escolha, arteId: mantem ? escolha.arteId : preSelecionada });
+      }
+      return { ...item, produtoId, artes };
+    });
+    return { ...pedido, itens };
+  });
+  return { pedidos: novosPedidos, escolhas: novasEscolhas };
+}
+
 /** Produtos marcados (e que geram OP), na ordem da lista, com a arte escolhida. */
 export function itensParaGerar(
   pedidos: readonly PedidoOpTela[],

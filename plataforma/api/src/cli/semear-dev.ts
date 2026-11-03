@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 
 import { gerarHash } from '../auth/senha.js';
 import { type Banco, criarBanco } from '../db/cliente.js';
@@ -23,7 +23,7 @@ export const CLIENTES_POR_EMPRESA = 60;
 
 const HOSTS_LOCAIS = new Set(['localhost', '127.0.0.1']);
 
-const PRODUTOS = [
+const NOMES_PRODUTOS = [
   'Caixa de Pizza',
   'Sacola de Papel',
   'Embalagem para Salgados',
@@ -33,6 +33,15 @@ const PRODUTOS = [
   'Copo de Papel',
   'Bandeja Térmica',
 ];
+
+// Código (SKU) fictício por posição, só para casar o item do pedido nos testes locais.
+const PRODUTOS = NOMES_PRODUTOS.map((nome, i) => ({
+  nome,
+  codigo: `DEV${String(i + 1).padStart(4, '0')}`,
+}));
+
+const NOME_ARTE_EXTRA = 'Natal';
+const DIAS_ARTE_EXTRA = 30;
 
 const RAMOS = ['Padaria', 'Confeitaria', 'Pizzaria', 'Lanchonete', 'Mercearia', 'Doceria'];
 const NOMES = [
@@ -141,6 +150,71 @@ async function semearUsuarios(db: Banco, empresaIds: string[]): Promise<string> 
   return adminId;
 }
 
+type Opcao = { id: string; nome: string };
+
+// Alterna entre só Favorit, só Rekord e as duas, para exercitar a informação de máquina na OP.
+function maquinasDaVariante(todas: Opcao[], variante: number): Opcao[] {
+  const favorit = todas.find((m) => m.nome === 'Favorit');
+  const rekord = todas.find((m) => m.nome === 'Rekord');
+  const opcoes = [[favorit], [rekord], [favorit, rekord]].map((lista) =>
+    lista.filter((m): m is Opcao => m !== undefined),
+  );
+  const escolhida = opcoes[variante % opcoes.length] ?? [];
+  return escolhida.length > 0 ? escolhida : todas.slice(0, 1);
+}
+
+// Idempotente (só entra se a empresa ainda não tem arte "Natal"): dá uma segunda arte, mais antiga, a alguns
+// pares cliente/produto que já têm arte, para exercitar a pré-seleção da arte mais nova.
+async function semearArtesExtras(
+  db: Banco,
+  empresaId: string,
+  adminId: string,
+  todasCores: Opcao[],
+  todasMaquinas: Opcao[],
+): Promise<number> {
+  if (
+    (await db.$count(artes, and(eq(artes.empresaId, empresaId), eq(artes.nome, NOME_ARTE_EXTRA)))) >
+    0
+  ) {
+    return 0;
+  }
+  const pares = await db
+    .selectDistinct({ clienteId: artes.clienteId, produtoId: artes.produtoId })
+    .from(artes)
+    .where(eq(artes.empresaId, empresaId))
+    .orderBy(artes.clienteId, artes.produtoId)
+    .limit(6);
+  const antiga = new Date(Date.now() - DIAS_ARTE_EXTRA * 24 * 60 * 60 * 1000);
+  let criadas = 0;
+  for (const [i, par] of pares.entries()) {
+    const cor = todasCores[(i + 1) % todasCores.length];
+    if (!cor) continue;
+    const imagemId = await gravarArquivo(db, 'arte-natal.png', 'image/png', PNG_1X1);
+    const [arte] = await db
+      .insert(artes)
+      .values({
+        empresaId,
+        ...par,
+        nome: NOME_ARTE_EXTRA,
+        corId: cor.id,
+        imagemId,
+        criadoPor: adminId,
+        atualizadoPor: adminId,
+        criadoEm: antiga,
+        atualizadoEm: antiga,
+      })
+      .returning({ id: artes.id });
+    if (!arte) throw new Error('arte não gravada');
+    await db
+      .insert(arteMaquinas)
+      .values(
+        maquinasDaVariante(todasMaquinas, i + 1).map((m) => ({ arteId: arte.id, maquinaId: m.id })),
+      );
+    criadas++;
+  }
+  return criadas;
+}
+
 export type ResumoSemente = { clientes: number; produtos: number; artes: number };
 
 // Idempotente: clientes e produtos repetidos são ignorados; as artes só entram se a empresa ainda não tem nenhuma.
@@ -175,13 +249,25 @@ export async function semear(db: Banco): Promise<ResumoSemente> {
       .returning({ id: clientes.id });
     const novosProdutos = await db
       .insert(produtos)
-      .values(PRODUTOS.map((nome) => ({ empresaId: empresa.id, nome })))
+      .values(PRODUTOS.map(({ nome, codigo }) => ({ empresaId: empresa.id, nome, codigo })))
       .onConflictDoNothing()
       .returning({ id: produtos.id });
+    // Bancos semeados antes da coluna `codigo`: só preenche o que ainda está vazio.
+    for (const { nome, codigo } of PRODUTOS) {
+      await db
+        .update(produtos)
+        .set({ codigo })
+        .where(
+          and(eq(produtos.empresaId, empresa.id), eq(produtos.nome, nome), isNull(produtos.codigo)),
+        );
+    }
     resumo.clientes += novosClientes.length;
     resumo.produtos += novosProdutos.length;
 
-    if ((await db.$count(artes, eq(artes.empresaId, empresa.id))) > 0) continue;
+    if ((await db.$count(artes, eq(artes.empresaId, empresa.id))) > 0) {
+      resumo.artes += await semearArtesExtras(db, empresa.id, adminId, todasCores, todasMaquinas);
+      continue;
+    }
 
     const clientesDaEmpresa = await db
       .select({ id: clientes.id })
@@ -223,13 +309,14 @@ export async function semear(db: Banco): Promise<ResumoSemente> {
           })
           .returning({ id: artes.id });
         if (!arte) throw new Error('arte não gravada');
-        const escolhidas = (i + p) % 2 === 0 ? todasMaquinas : todasMaquinas.slice(0, 1);
+        const escolhidas = maquinasDaVariante(todasMaquinas, i + p);
         await db
           .insert(arteMaquinas)
           .values(escolhidas.map((maquina) => ({ arteId: arte.id, maquinaId: maquina.id })));
         resumo.artes++;
       }
     }
+    resumo.artes += await semearArtesExtras(db, empresa.id, adminId, todasCores, todasMaquinas);
   }
   return resumo;
 }

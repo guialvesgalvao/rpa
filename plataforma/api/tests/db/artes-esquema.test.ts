@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, isNull, ne, sql } from 'drizzle-orm';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 
 import {
@@ -328,5 +328,47 @@ describe('semear-dev', () => {
     expect(repetido).toEqual({ clientes: 0, produtos: 0, artes: 0 });
     expect(await db.$count(artes)).toBe(antes);
     expect(await db.$count(clientes)).toBe(CLIENTES_POR_EMPRESA * 2);
+  });
+
+  it('dá código aos produtos, inclusive aos já semeados sem código', async () => {
+    await semear(db);
+    expect(await db.$count(produtos, isNull(produtos.codigo))).toBe(0);
+
+    await db.update(produtos).set({ codigo: null });
+    await semear(db);
+    expect(await db.$count(produtos, isNull(produtos.codigo))).toBe(0);
+  });
+
+  it('cria artes extras mais antigas, com Favorit, Rekord e as duas máquinas', async () => {
+    await semear(db);
+    const extras = await db.select().from(artes).where(eq(artes.nome, 'Natal'));
+    expect(extras.length).toBeGreaterThan(0);
+    for (const extra of extras) {
+      const principais = await db
+        .select()
+        .from(artes)
+        .where(
+          and(
+            eq(artes.clienteId, extra.clienteId),
+            eq(artes.produtoId, extra.produtoId),
+            ne(artes.nome, 'Natal'),
+          ),
+        );
+      expect(principais.length).toBeGreaterThan(0);
+      for (const principal of principais) {
+        expect(extra.criadoEm.getTime()).toBeLessThan(principal.criadoEm.getTime());
+      }
+    }
+
+    const vinculos = await db
+      .select({ arteId: arteMaquinas.arteId, nome: maquinas.nome })
+      .from(arteMaquinas)
+      .innerJoin(maquinas, eq(maquinas.id, arteMaquinas.maquinaId));
+    const porArte = new Map<string, string[]>();
+    for (const { arteId, nome } of vinculos) {
+      porArte.set(arteId, [...(porArte.get(arteId) ?? []), nome]);
+    }
+    const combinacoes = new Set([...porArte.values()].map((nomes) => [...nomes].sort().join('+')));
+    expect(combinacoes).toEqual(new Set(['Favorit', 'Rekord', 'Favorit+Rekord']));
   });
 });

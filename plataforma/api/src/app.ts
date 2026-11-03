@@ -9,6 +9,7 @@ import { criarAutenticacao } from './plugins/autenticacao.js';
 import { rotasArtes } from './rotas/artes.js';
 import { rotasAuth } from './rotas/auth.js';
 import { rotasClientes } from './rotas/clientes.js';
+import { rotasOp } from './rotas/op.js';
 import { rotasOpcoes } from './rotas/opcoes.js';
 
 export type DepsApp = Pick<FastifyServerOptions, 'logger'> & {
@@ -39,6 +40,7 @@ export function criarApp({
   rotasClientes(app, { db });
   rotasOpcoes(app, { db });
   rotasArtes(app, { db });
+  rotasOp(app, { db });
 
   return app;
 }

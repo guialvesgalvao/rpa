@@ -43,6 +43,13 @@
       "when": 1793290062281,
       "tag": "0005_artes_cores_maquinas",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793666454402,
+      "tag": "0006_op_contador_produto_codigo",
+      "breakpoints": true
     }
   ]
 }

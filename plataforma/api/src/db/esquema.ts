@@ -138,12 +138,29 @@ export const produtos = pgTable(
       .notNull()
       .references(() => empresas.id),
     nome: text('nome').notNull(),
+    // Código (SKU) do produto no Bling, para casar o item do pedido; nulo enquanto não informado.
+    codigo: text('codigo'),
     criadoEm: instante('criado_em').notNull().defaultNow(),
   },
   (t) => [
     check('produtos_nome_preenchido', sql`btrim(${t.nome}) <> ''`),
+    check('produtos_codigo_preenchido', sql`${t.codigo} is null or btrim(${t.codigo}) <> ''`),
     unique('produtos_id_empresa_unico').on(t.id, t.empresaId),
+    // Vários produtos sem código são permitidos (nulos não colidem no Postgres).
+    unique('produtos_empresa_codigo_unico').on(t.empresaId, t.codigo),
   ],
+);
+
+// Último número de OP reservado por empresa; a linha nasce na primeira reserva.
+export const opContadores = pgTable(
+  'op_contadores',
+  {
+    empresaId: uuid('empresa_id')
+      .primaryKey()
+      .references(() => empresas.id),
+    ultimo: integer('ultimo').notNull().default(0),
+  },
+  (t) => [check('op_contadores_ultimo_nao_negativo', sql`${t.ultimo} >= 0`)],
 );
 
 // Globais: iguais para as duas empresas (valores de referência na migração `artes_cores_maquinas`).

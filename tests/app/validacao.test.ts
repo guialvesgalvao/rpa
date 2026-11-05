@@ -165,6 +165,41 @@ describe('validarItensOp', () => {
     ]);
   });
 
+  it('aceita o pré-preenchimento e o devolve normalizado; vazio some', () => {
+    const processo = Array.from({ length: 9 }, () => ({}));
+    processo[0] = { aplica: 'sim', quantidade: ' 10 ', data: '2026-11-03' };
+    expect(
+      validarItensOp([
+        { numero: '9001', indice: 0, preenchimento: { dataEntrega: '2026-11-20', processo } },
+        { numero: '9001', indice: 1, preenchimento: { dataEntrega: '', observacao: ' ' } },
+      ]),
+    ).toEqual([
+      {
+        numero: '9001',
+        indice: 0,
+        preenchimento: {
+          dataEntrega: '2026-11-20',
+          processo: [{ aplica: 'sim', quantidade: '10', data: '2026-11-03' }, ...processo.slice(1)],
+        },
+      },
+      { numero: '9001', indice: 1 },
+    ]);
+  });
+
+  it('recusa pré-preenchimento com data inválida, processo incompleto ou texto longo', () => {
+    const item = (preenchimento: unknown) => [{ numero: '9001', indice: 0, preenchimento }];
+    for (const preenchimento of [
+      { dataEntrega: '20/11/2026' },
+      { dataEntrega: '2026-02-30' },
+      { processo: [{ aplica: 'sim' }] },
+      { processo: Array.from({ length: 9 }, () => ({ aplica: 'talvez' })) },
+      { processo: Array.from({ length: 9 }, () => ({ responsavel: 'x'.repeat(29) })) },
+      { observacao: 'x'.repeat(401) },
+    ]) {
+      expect(() => validarItensOp(item(preenchimento))).toThrow('Seleção de produtos inválida.');
+    }
+  });
+
   it('recusa lista vazia, índice negativo, arte fora do formato e número com texto', () => {
     expect(() => validarItensOp([])).toThrow('Marque ao menos um produto.');
     for (const entrada of [

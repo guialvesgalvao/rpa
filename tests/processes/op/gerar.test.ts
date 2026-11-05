@@ -171,6 +171,18 @@ describe('gerarOps', () => {
     expect(t.ordens[1]?.arte).toBeUndefined();
   });
 
+  it('cada OP sai com o próprio pré-preenchimento; a sem dados sai em branco', async () => {
+    const t = deps([
+      { pedido, indice: 0, preenchimento: { dataEntrega: '2026-11-20', observacao: 'Urgente' } },
+      { pedido, indice: 2 },
+    ]);
+    await gerarOps(t.deps);
+    expect(t.ordens[0]?.dataEntrega).toEqual(new Date(2026, 10, 20));
+    expect(t.ordens[0]?.observacao).toBe('Urgente');
+    expect(t.ordens[1]?.dataEntrega).toBeUndefined();
+    expect(t.ordens[1]?.observacao).toBeUndefined();
+  });
+
   it('falha ao baixar a imagem: só aquele item falha, antes de reservar números', async () => {
     const t = deps(
       [
@@ -270,5 +282,52 @@ describe('montarOrdem', () => {
     });
     expect(ordem.previsaoFinal).toBeUndefined();
     expect(ordem.arte).toBeUndefined();
+  });
+
+  it('sem pré-preenchimento, data de entrega, processo e observação ficam ausentes', () => {
+    const ordem = montarOrdem({
+      pedido,
+      item: pedido.itens[0]!,
+      numero: 1,
+      data: HOJE,
+      empresa: 'Roma Embalagens',
+    });
+    expect(ordem.dataEntrega).toBeUndefined();
+    expect(ordem.processo).toBeUndefined();
+    expect(ordem.observacao).toBeUndefined();
+  });
+
+  it('aplica o pré-preenchimento, com as datas como data local', () => {
+    const ordem = montarOrdem({
+      pedido,
+      item: pedido.itens[0]!,
+      numero: 1,
+      data: HOJE,
+      empresa: 'Roma Embalagens',
+      preenchimento: {
+        dataEntrega: '2026-11-20',
+        processo: [
+          {
+            aplica: 'sim',
+            quantidade: '1000',
+            responsavel: 'Operador Ficticio',
+            data: '2026-11-03',
+          },
+          {},
+        ],
+        observacao: 'Fundo e tampa juntos',
+      },
+    });
+    expect(ordem.dataEntrega).toEqual(new Date(2026, 10, 20));
+    expect(ordem.processo).toEqual([
+      {
+        aplica: 'sim',
+        quantidade: '1000',
+        responsavel: 'Operador Ficticio',
+        data: new Date(2026, 10, 3),
+      },
+      {},
+    ]);
+    expect(ordem.observacao).toBe('Fundo e tampa juntos');
   });
 });

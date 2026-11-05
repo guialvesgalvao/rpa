@@ -1,4 +1,4 @@
-import type { ImagemOp, OrdemProducao } from './tipos.js';
+import type { ImagemOp, LinhaProcessoDaOp, OrdemProducao } from './tipos.js';
 
 /** Passos fixos da tabela "Descrição do Processo" (`table-example.jpeg`). */
 export const PASSOS_PROCESSO = [
@@ -13,7 +13,7 @@ export const PASSOS_PROCESSO = [
   'Despacho',
 ] as const;
 
-/** Altura da caixa de Observação; a imagem da arte tem o dobro. */
+/** Altura mínima da caixa de Observação; a imagem da arte tem o dobro. */
 const ALTURA_OBSERVACAO_MM = 22;
 export const ALTURA_ARTE_MM = ALTURA_OBSERVACAO_MM * 2;
 
@@ -82,7 +82,9 @@ table { width: 100%; border-collapse: collapse; }
 .processo .marca { text-align: center; width: 9mm; }
 .processo .passo { font-weight: bold; width: 34mm; }
 .processo .data { text-align: center; width: 30mm; }
-.observacao { height: ${ALTURA_OBSERVACAO_MM}mm; padding: 2mm 3mm; white-space: pre-wrap; overflow: hidden; }
+.processo .qtde { width: 22mm; }
+.processo .responsavel { width: 50mm; }
+.observacao { min-height: ${ALTURA_OBSERVACAO_MM}mm; padding: 2mm 3mm; white-space: pre-wrap; overflow-wrap: anywhere; }
 .arte { display: flex; gap: 4mm; margin-top: 4mm; }
 .arte .imagem { flex: 0 0 auto; height: ${ALTURA_ARTE_MM}mm; max-width: 110mm; display: flex; align-items: center; justify-content: center; }
 .arte .imagem img { height: 100%; max-width: 100%; object-fit: contain; }
@@ -121,7 +123,7 @@ const campoData = (rotulo: string, valor: Date | undefined): string =>
 function blocoDatas(op: OrdemProducao): string {
   return `<section class="datas">
   <div class="caixa">${campoData('Previsão inicial', op.previsaoInicial)}${campoData('Previsão final', op.previsaoFinal)}</div>
-  <div class="caixa">${campoData('Data início de produção', op.data)}${campoData('Data entrega de produção', undefined)}</div>
+  <div class="caixa">${campoData('Data início de produção', op.data)}${campoData('Data entrega de produção', op.dataEntrega)}</div>
 </section>`;
 }
 
@@ -160,20 +162,28 @@ function blocoInsumos({ insumos, item }: OrdemProducao): string {
 </section>`;
 }
 
-function blocoProcesso(): string {
-  const linhas = PASSOS_PROCESSO.map(
-    (passo, i) => `<tr>
-      <td class="passo">${i + 1}) ${passo}</td>
-      <td class="marca">( )</td><td class="marca">( )</td>
-      <td></td><td></td>
-      <td class="data">____/____/______</td>
+const DATA_PROCESSO_EM_BRANCO = '____/____/______';
+
+const marca = (marcada: boolean): string => (marcada ? '(X)' : '( )');
+
+function linhaProcesso(passo: string, posicao: number, linha: LinhaProcessoDaOp = {}): string {
+  return `<tr>
+      <td class="passo">${posicao}) ${passo}</td>
+      <td class="marca">${marca(linha.aplica === 'sim')}</td><td class="marca">${marca(linha.aplica === 'nao')}</td>
+      <td class="qtde">${escaparHtml(linha.quantidade ?? '')}</td><td class="responsavel">${escaparHtml(linha.responsavel ?? '')}</td>
+      <td class="data">${linha.data ? formatarDataOp(linha.data) : DATA_PROCESSO_EM_BRANCO}</td>
       <td></td>
-    </tr>`,
-  ).join('');
+    </tr>`;
+}
+
+function blocoProcesso({ processo }: OrdemProducao): string {
+  const linhas = PASSOS_PROCESSO.map((passo, i) => linhaProcesso(passo, i + 1, processo?.[i])).join(
+    '',
+  );
   return `<section>
   <h2>Descrição do Processo</h2>
   <table class="processo">
-    <thead><tr><th></th><th class="marca">Sim</th><th class="marca">Não</th><th>Quantidade</th><th>Responsável</th><th class="data">Data</th><th>Visto</th></tr></thead>
+    <thead><tr><th></th><th class="marca">Sim</th><th class="marca">Não</th><th class="qtde">Quantidade</th><th class="responsavel">Responsável</th><th class="data">Data</th><th>Visto</th></tr></thead>
     <tbody>${linhas}</tbody>
   </table>
 </section>`;
@@ -212,7 +222,7 @@ ${blocoCliente(op)}
 ${blocoDatas(op)}
 ${blocoItem(op)}
 ${blocoInsumos(op)}
-${blocoProcesso()}
+${blocoProcesso(op)}
 ${blocoObservacao(op)}
 ${blocoArte(op)}
 </body>

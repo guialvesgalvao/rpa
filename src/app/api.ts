@@ -1,6 +1,7 @@
 import type { DocResult } from '../processes/bling/documentos.js';
 import type { DocTipo, PedidoSelecao } from '../processes/bling/selecao.js';
 import type { ResultadoOp } from '../processes/op/gerar.js';
+import type { PreenchimentoOp } from '../processes/op/preenchimento.js';
 
 import type { ArtesDoItem, ErrosCadastro, OpcoesArte } from './plataforma/artes.js';
 import type { ItemOpTela, PedidoOpTela } from './plataforma/op.js';
@@ -70,8 +71,18 @@ export type ArtesApi = {
 
 export type { ArtesDoItem, ItemOpTela, PedidoOpTela, ResultadoOp };
 
-/** Produto marcado para gerar a OP; `arteId` vazio gera a OP sem o bloco de arte. */
-export type ItemParaGerarOp = { numero: string; indice: number; arteId?: string };
+export type { PreenchimentoOp };
+
+/**
+ * Produto marcado para gerar a OP; `arteId` vazio gera a OP sem o bloco de arte. `preenchimento`
+ * ausente gera a OP com data de entrega, processo e observação em branco.
+ */
+export type ItemParaGerarOp = {
+  numero: string;
+  indice: number;
+  arteId?: string;
+  preenchimento?: PreenchimentoOp;
+};
 
 export type GerarOpResultado = { resultados: ResultadoOp[] };
 

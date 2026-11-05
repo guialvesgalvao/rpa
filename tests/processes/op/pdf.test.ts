@@ -5,6 +5,7 @@ import { chromium, type Browser, type Page } from 'playwright';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { gerarPdfOp, salvarPdfOp } from '../../../src/processes/op/pdf.js';
+import { LIMITES_PREENCHIMENTO } from '../../../src/processes/op/preenchimento.js';
 import { PASSOS_PROCESSO } from '../../../src/processes/op/template.js';
 import type { OrdemProducao } from '../../../src/processes/op/tipos.js';
 import { resumirPdf } from '../../helpers/pdf-layout.js';
@@ -89,6 +90,30 @@ describe('PDF da OP', () => {
     expect(pdf.texto.match(/Máquina/g)).toHaveLength(2);
     expect(pdf.texto).toContain('Favorit');
     expect(pdf.texto).toContain('4x0');
+    expect(pdf.imagens).toBe(1);
+  });
+
+  it('pré-preenchida no limite dos campos, com arte: continua em 1 página', async () => {
+    const arte = { imagem: { bytes: png, mime: 'image/png' }, maquinas: ['Favorit'], cor: '4x0' };
+    const processo = PASSOS_PROCESSO.map(() => ({
+      aplica: 'sim' as const,
+      quantidade: '9'.repeat(LIMITES_PREENCHIMENTO.quantidade),
+      responsavel: 'M'.repeat(LIMITES_PREENCHIMENTO.responsavel),
+      data: new Date(2026, 10, 3),
+    }));
+    // Pior caso de altura: todas as linhas permitidas, a última longa até o teto de caracteres.
+    const curtas = Array.from({ length: LIMITES_PREENCHIMENTO.linhasObservacao - 1 }, () => 'x');
+    const longa = 'Observacao sintetica longa. '.repeat(20);
+    const observacao = [...curtas, longa].join('\n').slice(0, LIMITES_PREENCHIMENTO.observacao);
+    const pdf = await resumirPdf(
+      await gerarPdfOp(
+        page,
+        op({ arte, processo, observacao, dataEntrega: new Date(2026, 10, 20) }),
+      ),
+    );
+    expect(pdf.paginas).toBe(1);
+    expect(pdf.texto).toContain('20/11/2026');
+    expect(pdf.texto.match(/03\/11\/2026/g)).toHaveLength(PASSOS_PROCESSO.length);
     expect(pdf.imagens).toBe(1);
   });
 

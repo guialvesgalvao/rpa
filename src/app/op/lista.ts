@@ -1,8 +1,12 @@
-import type { ItemOpTela, ItemParaGerarOp, PedidoOpTela } from '../api.js';
+import { normalizarPreenchimento } from '../../processes/op/preenchimento.js';
+import type { ItemOpTela, ItemParaGerarOp, PedidoOpTela, PreenchimentoOp } from '../api.js';
 import type { ArteDoProduto } from '../plataforma/contratos.js';
 
-/** Escolha do usuário para um produto: gerar ou não a OP, e com qual arte (vazio = sem arte). */
-export type EscolhaItem = { marcado: boolean; arteId?: string };
+/**
+ * Escolha do usuário para um produto: gerar ou não a OP, com qual arte (vazio = sem arte) e os dados
+ * pré-preenchidos da OP (vazio = data de entrega, processo e observação em branco).
+ */
+export type EscolhaItem = { marcado: boolean; arteId?: string; preenchimento?: PreenchimentoOp };
 
 export const chaveItem = (numero: string, indice: number): string => `${numero}:${indice}`;
 
@@ -24,7 +28,7 @@ export const podeGerar = (item: ItemOpTela): boolean => !item.erro;
 /**
  * Escolhas da lista Pedido → Produto: produto que gera OP entra marcado com a arte pré-selecionada;
  * produto com erro fica desmarcado. Um produto que já estava na lista mantém a escolha anterior, se
- * a arte ainda existir.
+ * a arte ainda existir, e sempre mantém o pré-preenchimento.
  */
 export function montarEscolhas(
   pedidos: readonly PedidoOpTela[],
@@ -42,11 +46,16 @@ export function montarEscolhas(
       const anterior = anteriores.get(chave);
       const arteValida =
         anterior && (!anterior.arteId || item.artes.some((a) => a.id === anterior.arteId));
+      const preenchimento = anterior?.preenchimento;
       escolhas.set(
         chave,
         arteValida
           ? { ...anterior }
-          : { marcado: anterior?.marcado ?? true, arteId: artePreSelecionada(item.artes)?.id },
+          : {
+              marcado: anterior?.marcado ?? true,
+              arteId: artePreSelecionada(item.artes)?.id,
+              ...(preenchimento ? { preenchimento } : {}),
+            },
       );
     }
   }
@@ -92,7 +101,7 @@ export function aplicarArtesRecarregadas(
   return { pedidos: novosPedidos, escolhas: novasEscolhas };
 }
 
-/** Produtos marcados (e que geram OP), na ordem da lista, com a arte escolhida. */
+/** Produtos marcados (e que geram OP), na ordem da lista, com a arte e o pré-preenchimento. */
 export function itensParaGerar(
   pedidos: readonly PedidoOpTela[],
   escolhas: ReadonlyMap<string, EscolhaItem>,
@@ -103,10 +112,12 @@ export function itensParaGerar(
     for (const item of pedido.itens) {
       const escolha = escolhas.get(chaveItem(pedido.numero, item.indice));
       if (!escolha?.marcado || !podeGerar(item)) continue;
+      const preenchimento = normalizarPreenchimento(escolha.preenchimento);
       itens.push({
         numero: pedido.numero,
         indice: item.indice,
         ...(escolha.arteId ? { arteId: escolha.arteId } : {}),
+        ...(preenchimento ? { preenchimento } : {}),
       });
     }
   }
@@ -120,8 +131,11 @@ export function resumirSelecao(
 ): string {
   const itens = itensParaGerar(pedidos, escolhas);
   const semArte = itens.filter((i) => !i.arteId).length;
-  const base = `${itens.length} OP(s) selecionada(s)`;
-  return semArte ? `${base}, ${semArte} sem arte` : base;
+  const preenchidas = itens.filter((i) => i.preenchimento).length;
+  const partes = [`${itens.length} OP(s) selecionada(s)`];
+  if (semArte) partes.push(`${semArte} sem arte`);
+  if (preenchidas) partes.push(`${preenchidas} pré-preenchida(s)`);
+  return partes.join(', ');
 }
 
 /** Ex.: "Cor: Azul · Máquinas: Favorit, Rekord". */

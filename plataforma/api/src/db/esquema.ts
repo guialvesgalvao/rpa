@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import {
+  bigint,
   boolean,
   char,
   check,
@@ -7,6 +8,7 @@ import {
   foreignKey,
   index,
   integer,
+  jsonb,
   pgTable,
   primaryKey,
   text,
@@ -22,6 +24,9 @@ export const ORIGENS_SESSAO = ['web', 'desktop'] as const;
 export type OrigemSessao = (typeof ORIGENS_SESSAO)[number];
 
 const instante = (nome: string) => timestamp(nome, { withTimezone: true });
+
+// Id do registro no Bling (passa de 2³¹, então `bigint`; em JS ainda cabe com folga num `number` seguro).
+const idBling = () => bigint('id_bling', { mode: 'number' });
 
 export const empresas = pgTable('empresas', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -115,6 +120,10 @@ export const clientes = pgTable(
     busca: text('busca').generatedAlwaysAs(
       sql`f_unaccent(lower(razao_social || ' ' || coalesce(nome_fantasia, '') || ' ' || cnpj))`,
     ),
+    // Preenchido pela sincronização com o Bling; nulo nos cadastros manuais ainda não vinculados.
+    idBling: idBling(),
+    // Inativo ou excluído no Bling: some da busca, mas a linha e as artes ficam.
+    inativoNoBlingEm: instante('inativo_no_bling_em'),
     criadoEm: instante('criado_em').notNull().defaultNow(),
   },
   (t) => [
@@ -127,6 +136,7 @@ export const clientes = pgTable(
     unique('clientes_empresa_cnpj_unico').on(t.empresaId, t.cnpj),
     // Alvo das chaves estrangeiras compostas de `artes`.
     unique('clientes_id_empresa_unico').on(t.id, t.empresaId),
+    unique('clientes_empresa_id_bling_unico').on(t.empresaId, t.idBling),
   ],
 );
 
@@ -140,6 +150,8 @@ export const produtos = pgTable(
     nome: text('nome').notNull(),
     // Código (SKU) do produto no Bling, para casar o item do pedido; nulo enquanto não informado.
     codigo: text('codigo'),
+    idBling: idBling(),
+    inativoNoBlingEm: instante('inativo_no_bling_em'),
     criadoEm: instante('criado_em').notNull().defaultNow(),
   },
   (t) => [
@@ -148,6 +160,7 @@ export const produtos = pgTable(
     unique('produtos_id_empresa_unico').on(t.id, t.empresaId),
     // Vários produtos sem código são permitidos (nulos não colidem no Postgres).
     unique('produtos_empresa_codigo_unico').on(t.empresaId, t.codigo),
+    unique('produtos_empresa_id_bling_unico').on(t.empresaId, t.idBling),
   ],
 );
 
@@ -174,6 +187,20 @@ export const blingConexoes = pgTable('bling_conexoes', {
   autorizadoPor: uuid('autorizado_por').references(() => usuarios.id, { onDelete: 'set null' }),
   autorizadoEm: instante('autorizado_em').notNull(),
   atualizadoEm: instante('atualizado_em').notNull(),
+});
+
+// Estado da sincronização automática com o Bling, por empresa. Fica no banco para continuar de onde parou depois
+// de um deploy. `em_execucao_desde` é o lease do agendador; `ultimo_resultado` segue o contrato
+// `EsquemaResultadoSincronizacaoBling`.
+export const blingSincronizacoes = pgTable('bling_sincronizacoes', {
+  empresaId: uuid('empresa_id')
+    .primaryKey()
+    .references(() => empresas.id, { onDelete: 'cascade' }),
+  incrementalDesde: instante('incremental_desde'),
+  ultimaCompletaEm: instante('ultima_completa_em'),
+  emExecucaoDesde: instante('em_execucao_desde'),
+  ultimoResultado: jsonb('ultimo_resultado').$type<unknown>(),
+  atualizadoEm: instante('atualizado_em').notNull().defaultNow(),
 });
 
 // Globais: iguais para as duas empresas (valores de referência na migração `artes_cores_maquinas`).

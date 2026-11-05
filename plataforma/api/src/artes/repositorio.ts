@@ -5,7 +5,7 @@ import type {
   PaginaClientes,
   ProdutoDoCliente,
 } from '@plataforma/contratos';
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 
 import type { Banco } from '../db/cliente.js';
 import {
@@ -89,14 +89,15 @@ const paraCliente = (linha: {
 
 export type FiltroClientes = { busca?: string; cursor: Cursor | null; limite: number };
 
-// Paginação por cursor (keyset) em (nome sem acento, id): estável com nomes iguais.
+// Paginação por cursor (keyset) em (nome sem acento, id): estável com nomes iguais. Clientes inativos ou
+// excluídos no Bling ficam de fora; `buscarCliente` ainda os encontra, para as artes continuarem acessíveis.
 export async function listarClientes(
   db: Banco,
   empresaId: string,
   { busca, cursor, limite }: FiltroClientes,
 ): Promise<PaginaClientes> {
   const termo = busca ? normalizarTermo(busca) : '';
-  const condicoes = [eq(clientes.empresaId, empresaId)];
+  const condicoes = [eq(clientes.empresaId, empresaId), isNull(clientes.inativoNoBlingEm)];
   if (termo) {
     condicoes.push(sql`${clientes.busca} like '%' || f_unaccent(${escaparLike(termo)}) || '%'`);
   }
@@ -240,11 +241,12 @@ export async function imagemDaArte(
   return linha ?? null;
 }
 
+// Produtos inativos ou excluídos no Bling ficam de fora; `buscarProduto` ainda os encontra.
 export function listarProdutos(db: Banco, empresaId: string): Promise<Opcao[]> {
   return db
     .select({ id: produtos.id, nome: produtos.nome })
     .from(produtos)
-    .where(eq(produtos.empresaId, empresaId))
+    .where(and(eq(produtos.empresaId, empresaId), isNull(produtos.inativoNoBlingEm)))
     .orderBy(asc(ordemProduto), asc(produtos.id));
 }
 

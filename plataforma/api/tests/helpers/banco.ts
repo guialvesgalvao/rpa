@@ -21,7 +21,7 @@ export function criarBancoTeste() {
 // Limpa os dados entre arquivos de teste. `empresas`, `cores` e `maquinas` ficam: vêm de migrações.
 export async function limparTabelas(db: Banco): Promise<void> {
   await db.execute(
-    sql`TRUNCATE arte_maquinas, artes, arquivos, clientes, produtos, op_contadores, bling_conexoes, usuarios, usuario_empresas, sessoes CASCADE`,
+    sql`TRUNCATE arte_maquinas, artes, arquivos, clientes, produtos, op_contadores, bling_conexoes, bling_sincronizacoes, usuarios, usuario_empresas, sessoes CASCADE`,
   );
 }
 

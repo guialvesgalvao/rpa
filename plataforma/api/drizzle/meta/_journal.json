@@ -57,6 +57,13 @@
       "when": 1793841530575,
       "tag": "0007_bling_conexoes",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793889179788,
+      "tag": "0008_bling_sincronizacao_automatica",
+      "breakpoints": true
     }
   ]
 }

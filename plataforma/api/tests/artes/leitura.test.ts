@@ -578,3 +578,56 @@ describe('GET /artes/:id/imagem', () => {
     );
   });
 });
+
+describe('inativos no Bling', () => {
+  it('somem da listagem, da busca e das opções, mas o cliente e as artes continuam acessíveis', async () => {
+    const ativo = await criarCliente('aba', 'Padaria Ativa Ltda');
+    const inativo = await criarCliente('aba', 'Padaria Inativa Ltda');
+    const produtoAtivo = await criarProduto('aba', 'Caixa de Pizza');
+    const produtoInativo = await criarProduto('aba', 'Sacola de Papel', 'SC0001');
+    await criarArte('aba', inativo.id, produtoInativo.id, 'Padrão');
+
+    const marca = new Date();
+    await db
+      .update(clientes)
+      .set({ idBling: 101, inativoNoBlingEm: marca })
+      .where(eq(clientes.id, inativo.id));
+    await db
+      .update(produtos)
+      .set({ idBling: 202, inativoNoBlingEm: marca })
+      .where(eq(produtos.id, produtoInativo.id));
+
+    expect((await pagina('')).itens.map((c) => c.id)).toEqual([ativo.id]);
+    expect((await pagina('?busca=padaria')).itens.map((c) => c.id)).toEqual([ativo.id]);
+    expect((await pagina(`?busca=${inativo.cnpj}`)).itens).toEqual([]);
+
+    const opcoes = z.array(EsquemaOpcao).parse((await get('/v1/empresas/aba/produtos')).json());
+    expect(opcoes.map((p) => p.id)).toEqual([produtoAtivo.id]);
+
+    const doCliente = await get(`/v1/empresas/aba/clientes/${inativo.id}`);
+    expect(doCliente.statusCode).toBe(200);
+    expect(EsquemaCliente.parse(doCliente.json()).id).toBe(inativo.id);
+
+    const produtosDoInativo = await get(`/v1/empresas/aba/clientes/${inativo.id}/produtos`);
+    expect(z.array(EsquemaProdutoDoCliente).parse(produtosDoInativo.json())).toEqual([
+      { id: produtoInativo.id, nome: 'Sacola de Papel', codigo: 'SC0001', quantidadeArtes: 1 },
+    ]);
+    const artesDoInativo = await get(
+      `/v1/empresas/aba/clientes/${inativo.id}/produtos/${produtoInativo.id}/artes`,
+    );
+    expect(artesDoInativo.statusCode).toBe(200);
+    expect(z.array(EsquemaArteDoProduto).parse(artesDoInativo.json())).toHaveLength(1);
+  });
+
+  it('voltam a aparecer quando a marca sai', async () => {
+    const cliente = await criarCliente('aba', 'Padaria Exemplo Ltda');
+    await db
+      .update(clientes)
+      .set({ inativoNoBlingEm: new Date() })
+      .where(eq(clientes.id, cliente.id));
+    expect((await pagina('')).itens).toEqual([]);
+
+    await db.update(clientes).set({ inativoNoBlingEm: null }).where(eq(clientes.id, cliente.id));
+    expect((await pagina('')).itens.map((c) => c.id)).toEqual([cliente.id]);
+  });
+});

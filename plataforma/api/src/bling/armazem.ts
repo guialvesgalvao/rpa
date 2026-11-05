@@ -1,4 +1,4 @@
-import { and, eq, isNotNull, isNull, notInArray, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, isNull, notInArray, sql } from 'drizzle-orm';
 
 import type { Banco } from '../db/cliente.js';
 import { clientes, produtos } from '../db/esquema.js';
@@ -10,7 +10,8 @@ import type {
 
 type Transacao = Parameters<Parameters<Banco['transaction']>[0]>[0];
 
-export type ModoGravacao = 'completa';
+// Completa: varre os ausentes. Incremental: só marca os contatos inativos da janela.
+export type ModoGravacao = DadosSincronizacao['modo'];
 
 // Por que um registro lido do Bling ficou de fora.
 export type MotivoPulado =
@@ -120,6 +121,7 @@ async function salvarClientes(
   tx: Transacao,
   empresaId: string,
   lidos: ClienteSincronizado[],
+  inativos: number[],
   { modo, agora }: { modo: ModoGravacao; agora: Date },
 ): Promise<ContagensGravacao> {
   const contagens = novasContagens();
@@ -224,9 +226,33 @@ async function salvarClientes(
     contagens.atualizados++;
   }
 
-  if (modo === 'completa')
-    contagens.inativados = await marcarAusentes(tx, clientes, empresaId, lidos, agora);
+  contagens.inativados =
+    modo === 'completa'
+      ? await marcarAusentes(tx, clientes, empresaId, lidos, agora)
+      : await marcarInativos(tx, empresaId, inativos, agora);
   return contagens;
+}
+
+// No incremental, os contatos da janela com `situacao ≠ 'A'`. Uma linha já marcada mantém a data.
+async function marcarInativos(
+  tx: Transacao,
+  empresaId: string,
+  ids: number[],
+  agora: Date,
+): Promise<number> {
+  if (ids.length === 0) return 0;
+  const marcadas = await tx
+    .update(clientes)
+    .set({ inativoNoBlingEm: agora })
+    .where(
+      and(
+        eq(clientes.empresaId, empresaId),
+        inArray(clientes.idBling, ids),
+        isNull(clientes.inativoNoBlingEm),
+      ),
+    )
+    .returning({ id: clientes.id });
+  return marcadas.length;
 }
 
 type LinhaProduto = {
@@ -406,7 +432,10 @@ export function criarArmazemPostgres({
       const agora = relogio();
       return db.transaction(async (tx) => {
         const resultado = {
-          clientes: await salvarClientes(tx, empresaId, dados.clientes, { modo, agora }),
+          clientes: await salvarClientes(tx, empresaId, dados.clientes, dados.contatosInativos, {
+            modo,
+            agora,
+          }),
           produtos: await salvarProdutos(tx, empresaId, dados.produtos, { modo, agora }),
         };
         return { ...resultado, avisos: avisosDaGravacao(resultado) };

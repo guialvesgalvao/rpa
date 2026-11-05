@@ -217,3 +217,101 @@ describe('sincronizarBling', () => {
     });
   });
 });
+
+describe('sincronizarBling incremental', () => {
+  const DESDE = new Date('2026-01-05T12:00:00Z');
+  const ATE = new Date('2026-01-05T12:15:00Z');
+  const INCREMENTAL = { tipo: 'incremental', desde: DESDE, ate: ATE } as const;
+  const FILTROS = [
+    'dataAlteracaoInicial',
+    'dataAlteracaoFinal',
+    'dataInclusaoInicial',
+    'dataInclusaoFinal',
+  ];
+
+  // Bling falso que responde conforme o filtro de data: alteração e inclusão trazem listas diferentes.
+  function blingPorJanela() {
+    const alteracao = {
+      produtos: [produto(1), produto(2)],
+      contatos: [
+        { id: 100, nome: 'Empresa Fictícia A', situacao: 'A' },
+        { id: 101, nome: 'Empresa Fictícia Inativa', situacao: 'I' },
+      ],
+    };
+    const inclusao = {
+      produtos: [produto(2), produto(3)],
+      contatos: [
+        { id: 100, nome: 'Empresa Fictícia A', situacao: 'A' },
+        { id: 103, nome: 'Empresa Fictícia Excluída', situacao: 'E' },
+      ],
+    };
+    const chamadas: { url: URL; metodo: string | undefined }[] = [];
+    const fake = (async (entrada: string | URL | Request, init?: RequestInit) => {
+      const url = new URL(String(entrada));
+      chamadas.push({ url, metodo: init?.method });
+      const caminho = url.pathname.replace('/Api/v3', '');
+      const janela = url.searchParams.has('dataAlteracaoInicial')
+        ? alteracao
+        : url.searchParams.has('dataInclusaoInicial')
+          ? inclusao
+          : { produtos: [], contatos: [] };
+      if (caminho === '/produtos') return json({ data: janela.produtos });
+      if (caminho === '/contatos/tipos') return json({ data: BASE.tipos });
+      if (caminho === '/contatos') return json({ data: janela.contatos });
+      return json({ data: BASE.detalhes[100] });
+    }) as typeof fetch;
+    return { cliente: criarClienteBling({ fetch: fake, esperar: async () => {} }), chamadas };
+  }
+
+  it('manda as janelas de alteração e de inclusão em horário de Brasília, só com GET', async () => {
+    const { cliente, chamadas } = blingPorJanela();
+    const dados = await sincronizarBling(cliente, { acesso, modo: INCREMENTAL });
+
+    expect(dados.modo).toBe('incremental');
+    expect(chamadas.every((c) => c.metodo === 'GET')).toBe(true);
+    const listagens = chamadas.filter((c) => /\/(produtos|contatos)$/.test(c.url.pathname));
+    expect(
+      listagens.map((c) => [
+        c.url.pathname.split('/').at(-1),
+        ...FILTROS.map((nome) => c.url.searchParams.get(nome)),
+      ]),
+    ).toEqual([
+      ['produtos', '2026-01-05 09:00:00', '2026-01-05 09:15:00', null, null],
+      ['produtos', null, null, '2026-01-05 09:00:00', '2026-01-05 09:15:00'],
+      ['contatos', '2026-01-05 09:00:00', '2026-01-05 09:15:00', null, null],
+      ['contatos', null, null, '2026-01-05 09:00:00', '2026-01-05 09:15:00'],
+    ]);
+    expect(listagens[0]?.url.searchParams.get('criterio')).toBe('2');
+    expect(listagens[2]?.url.searchParams.get('idTipoContato')).toBe('11');
+  });
+
+  it('une as duas janelas pelo id e lê o detalhe só dos contatos ativos', async () => {
+    const { cliente, chamadas } = blingPorJanela();
+    const dados = await sincronizarBling(cliente, { acesso, modo: INCREMENTAL });
+
+    expect(dados.produtos.map((p) => p.idBling)).toEqual([1, 2, 3]);
+    expect(dados.clientes.map((c) => c.idBling)).toEqual([100]);
+    expect(dados.contatosInativos).toEqual([101, 103]);
+    const detalhes = chamadas.filter((c) => /\/contatos\/\d+$/.test(c.url.pathname));
+    expect(detalhes.map((c) => c.url.pathname.split('/').at(-1))).toEqual(['100']);
+  });
+
+  it('uma janela de mais de 1 ano vira completa, sem filtro de data', async () => {
+    const { cliente, chamadas } = blingFalso(BASE);
+    const dados = await sincronizarBling(cliente, {
+      acesso,
+      modo: { tipo: 'incremental', desde: new Date('2025-01-01T00:00:00Z'), ate: ATE },
+    });
+
+    expect(dados.modo).toBe('completa');
+    expect(chamadas.some((c) => FILTROS.some((nome) => c.url.searchParams.has(nome)))).toBe(false);
+    expect(dados.produtos).toHaveLength(3);
+  });
+
+  it('a completa é o padrão e também separa os contatos inativos', async () => {
+    const { cliente } = blingFalso(BASE);
+    const dados = await sincronizarBling(cliente, { acesso });
+    expect(dados.modo).toBe('completa');
+    expect(dados.contatosInativos).toEqual([101]);
+  });
+});

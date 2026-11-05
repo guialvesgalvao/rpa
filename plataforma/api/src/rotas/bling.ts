@@ -116,7 +116,10 @@ export function rotasBling(
       } catch (erro) {
         throw erroApiDoBling(erro);
       }
-      const estado = execucao.iniciar(empresa, () => oauth.acessoValido(empresa.id));
+      // O botão sempre faz a completa (corrige exclusões e inativações).
+      const estado = execucao.iniciar(empresa, () => oauth.acessoValido(empresa.id), {
+        tipo: 'completa',
+      });
       return reply.code(202).send(estado);
     },
   );

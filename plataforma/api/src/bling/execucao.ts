@@ -3,7 +3,11 @@ import type { EstadoSincronizacaoBling } from '@plataforma/contratos';
 import type { ArmazemSincronizacao } from './armazem.js';
 import { type AcessoBling, ErroBling, ErroBlingNaoAutorizado } from './cliente.js';
 import { ErroBlingNaoConectado } from './oauth.js';
-import type { DadosSincronizacao, OpcoesSincronizacao } from './sincronizacao.js';
+import type {
+  DadosSincronizacao,
+  ModoSincronizacao,
+  OpcoesSincronizacao,
+} from './sincronizacao.js';
 
 export type ExecutarSincronizacao = (opcoes: OpcoesSincronizacao) => Promise<DadosSincronizacao>;
 
@@ -12,7 +16,11 @@ export type EmpresaSincronizacao = { id: string; slug: string };
 
 export type ExecucaoSincronizacao = {
   // Com um job da empresa em andamento, devolve o estado dele sem iniciar outro.
-  iniciar(empresa: EmpresaSincronizacao, acesso: AcessoBling): EstadoSincronizacaoBling;
+  iniciar(
+    empresa: EmpresaSincronizacao,
+    acesso: AcessoBling,
+    modo: ModoSincronizacao,
+  ): EstadoSincronizacaoBling;
   estado(empresaSlug: string): EstadoSincronizacaoBling;
   // Aborta os jobs em andamento e espera terminarem (fechamento da API).
   encerrar(): Promise<void>;
@@ -58,18 +66,20 @@ export function criarExecucaoSincronizacao({
     { id: empresaId, slug: empresa }: EmpresaSincronizacao,
     iniciadaEm: string,
     acesso: AcessoBling,
+    modo: ModoSincronizacao,
     controle: AbortController,
   ): Promise<void> {
     const sinal = controle.signal;
     try {
       const dados = await sincronizar({
         acesso,
+        modo,
         sinal,
         aoProgredir: ({ etapa, lidos, total }) =>
           estados.set(empresa, { situacao: 'em_andamento', iniciadaEm, etapa, lidos, total }),
       });
       sinal.throwIfAborted();
-      const gravado = await armazem.salvar(empresaId, dados, { modo: 'completa' });
+      const gravado = await armazem.salvar(empresaId, dados, { modo: dados.modo });
       const concluida = relogio();
       // Contagens do que foi gravado (inseridos + atualizados), não do que foi lido.
       estados.set(empresa, {
@@ -104,7 +114,7 @@ export function criarExecucaoSincronizacao({
   return {
     estado,
 
-    iniciar(empresa, acesso) {
+    iniciar(empresa, acesso, modo) {
       const { slug } = empresa;
       if (jobs.has(slug)) return estado(slug);
       const iniciadaEm = relogio().toISOString();
@@ -120,7 +130,7 @@ export function criarExecucaoSincronizacao({
       const job: Job = { controle };
       jobs.set(slug, job);
       // Sem `await`: `rodar` nunca rejeita (o `catch` registra a falha no estado).
-      job.termino = rodar(empresa, iniciadaEm, acesso, controle);
+      job.termino = rodar(empresa, iniciadaEm, acesso, modo, controle);
       return estado(slug);
     },
 

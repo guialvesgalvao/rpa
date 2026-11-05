@@ -34,11 +34,15 @@ async function empresaId(slug: string) {
   return linha.id;
 }
 
-const salvar = (empresa: string, dados: Partial<DadosSincronizacao>) =>
+const salvar = (
+  empresa: string,
+  dados: Partial<DadosSincronizacao>,
+  modo: DadosSincronizacao['modo'] = 'completa',
+) =>
   criarArmazemPostgres({ db, relogio: relogio.agora }).salvar(
     empresa,
-    { produtos: [], clientes: [], avisos: [], ...dados },
-    { modo: 'completa' },
+    { modo, produtos: [], clientes: [], contatosInativos: [], avisos: [], ...dados },
+    { modo },
   );
 
 const cliente = (
@@ -344,5 +348,53 @@ describe('armazém Postgres', () => {
       { idBling: 101, razaoSocial: 'Cliente 101 Ltda' },
     ]);
     expect(await db.$count(produtos)).toBe(0);
+  });
+});
+
+describe('armazém Postgres no incremental', () => {
+  it('grava os da janela, marca os contatos inativos e não marca ausentes', async () => {
+    await salvar(roma, {
+      clientes: [cliente(101, CNPJ_A), cliente(102, CNPJ_B)],
+      produtos: [produto(201, 'SKU1'), produto(202, 'SKU2')],
+    });
+    relogio.avancar(60_000);
+    const marca = relogio.agora();
+
+    const resultado = await salvar(
+      roma,
+      {
+        clientes: [cliente(103, CNPJ_C)],
+        produtos: [produto(201, 'SKU1', 'Renomeado')],
+        contatosInativos: [102, 999],
+      },
+      'incremental',
+    );
+
+    expect(resultado.clientes).toEqual({
+      inseridos: 1,
+      atualizados: 0,
+      inativados: 1,
+      pulados: {},
+    });
+    expect(resultado.produtos).toEqual({
+      inseridos: 0,
+      atualizados: 1,
+      inativados: 0,
+      pulados: {},
+    });
+    expect(
+      (await linhasClientes(roma)).map((c) => [c.idBling, c.inativoNoBlingEm?.toISOString()]),
+    ).toEqual([
+      [101, undefined],
+      [102, marca.toISOString()],
+      [103, undefined],
+    ]);
+    // O produto 202 e o cliente 101 não vieram no incremental e continuam sem marca.
+    expect((await linhasProdutos(roma)).every((p) => p.inativoNoBlingEm === null)).toBe(true);
+
+    // Reativado: volta entre os ativos da janela e a marca sai.
+    const voltou = await salvar(roma, { clientes: [cliente(102, CNPJ_B)] }, 'incremental');
+    expect(voltou.clientes).toMatchObject({ atualizados: 1, inativados: 0 });
+    expect((await linhasClientes(roma)).every((c) => c.inativoNoBlingEm === null)).toBe(true);
   });
 });

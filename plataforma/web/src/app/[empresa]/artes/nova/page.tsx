@@ -14,7 +14,7 @@ export default async function NovaArte({
   searchParams,
 }: PageProps<'/[empresa]/artes/nova'>) {
   const { empresa } = await params;
-  const { cliente: clienteId } = await searchParams;
+  const { cliente: clienteId, produto } = await searchParams;
   if (typeof clienteId !== 'string') notFound();
 
   const [cliente, opcoes] = await Promise.all([
@@ -29,7 +29,12 @@ export default async function NovaArte({
       </p>
       <div className="card">
         <h2>Nova arte · {cliente.nomeExibicao}</h2>
-        <FormNovaArte empresa={empresa} clienteId={cliente.id} {...opcoes} />
+        <FormNovaArte
+          empresa={empresa}
+          clienteId={cliente.id}
+          produtoInicial={typeof produto === 'string' ? produto : undefined}
+          {...opcoes}
+        />
       </div>
     </div>
   );

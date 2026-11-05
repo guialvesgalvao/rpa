@@ -7,6 +7,7 @@ import { criarArmazemPostgres } from './bling/armazem.js';
 import { criarCifra } from './bling/cifra.js';
 import { criarClienteBling } from './bling/cliente.js';
 import { criarConexoesBling } from './bling/conexoes.js';
+import { criarEstadoSincronizacao } from './bling/estado.js';
 import { criarExecucaoSincronizacao } from './bling/execucao.js';
 import { criarOAuthBling } from './bling/oauth.js';
 import { sincronizarBling } from './bling/sincronizacao.js';
@@ -80,6 +81,7 @@ function criarServicosBling(
   });
   const conexoes = criarConexoesBling({ db, cifra: criarCifra(bling.chaveTokens), relogio });
   const oauth = criarOAuthBling({ config: bling, cliente, conexoes, jwtSegredo, relogio });
+  const estado = criarEstadoSincronizacao({ db, relogio });
   const execucao = criarExecucaoSincronizacao({
     sincronizar: (opcoes) => sincronizarBling(cliente, opcoes),
     armazem: criarArmazemPostgres({ db, relogio }),
@@ -90,6 +92,7 @@ function criarServicosBling(
         { erro: erro instanceof Error ? erro.name : 'desconhecido' },
         'Falha na sincronização do Bling',
       ),
+    aoConcluir: (empresa, resultado) => estado.registrar(empresa.id, resultado),
   });
-  return { oauth, execucao };
+  return { oauth, execucao, estado, automatica: bling.automatica };
 }

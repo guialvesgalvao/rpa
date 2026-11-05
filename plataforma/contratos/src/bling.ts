@@ -48,8 +48,35 @@ export const EsquemaEstadoSincronizacaoBling = z.discriminatedUnion('situacao', 
   }),
 ]);
 
+// Resultado de um ciclo (do botão ou do agendador), gravado no banco. Só contagens, nunca dados do Bling.
+// `nao_conectado`: a empresa não tem conexão válida com o Bling (o ciclo nem começou, ou a conexão caiu).
+export const EsquemaResultadoSincronizacaoBling = z.object({
+  tipo: z.enum(['completa', 'incremental']),
+  origem: z.enum(['agendador', 'botao']),
+  situacao: z.enum(['concluida', 'falhou', 'nao_conectado']),
+  iniciadaEm: z.iso.datetime(),
+  concluidaEm: z.iso.datetime(),
+  produtos: z.number().int().min(0),
+  clientes: z.number().int().min(0),
+  avisos: z.array(z.string()),
+  erro: z.object({ codigo: z.string(), mensagem: z.string() }).optional(),
+});
+
+// Resposta de `GET /v1/empresas/:empresa/bling/sincronizacao/automatica`. `proximaCompletaEm` é `null` com a
+// automática desligada ou antes da primeira completa.
+export const EsquemaSincronizacaoAutomaticaBling = z.object({
+  ligada: z.boolean(),
+  intervaloMinutos: z.number().int().min(1),
+  completaDias: z.number().int().min(1),
+  ultima: EsquemaResultadoSincronizacaoBling.nullable(),
+  ultimaCompletaEm: z.iso.datetime().nullable(),
+  proximaCompletaEm: z.iso.datetime().nullable(),
+});
+
 export type EmpresaSincronizacaoBling = (typeof EMPRESAS_SINCRONIZACAO_BLING)[number];
 export type ConexaoBling = z.infer<typeof EsquemaConexaoBling>;
 export type EtapaSincronizacaoBling = z.infer<typeof EsquemaEtapaSincronizacaoBling>;
 export type ResumoSincronizacaoBling = z.infer<typeof EsquemaResumoSincronizacaoBling>;
 export type EstadoSincronizacaoBling = z.infer<typeof EsquemaEstadoSincronizacaoBling>;
+export type ResultadoSincronizacaoBling = z.infer<typeof EsquemaResultadoSincronizacaoBling>;
+export type SincronizacaoAutomaticaBling = z.infer<typeof EsquemaSincronizacaoAutomaticaBling>;

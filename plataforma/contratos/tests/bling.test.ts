@@ -4,7 +4,9 @@ import {
   EMPRESAS_SINCRONIZACAO_BLING,
   EsquemaConexaoBling,
   EsquemaEstadoSincronizacaoBling,
+  EsquemaResultadoSincronizacaoBling,
   EsquemaResumoSincronizacaoBling,
+  EsquemaSincronizacaoAutomaticaBling,
   podeSincronizarBling,
 } from '../src/index.ts';
 
@@ -129,5 +131,93 @@ describe('EsquemaEstadoSincronizacaoBling', () => {
         concluidaEm: '2026-11-04T12:01:00.000Z',
       }).success,
     ).toBe(false);
+  });
+});
+
+const resultado = {
+  tipo: 'incremental',
+  origem: 'agendador',
+  situacao: 'concluida',
+  iniciadaEm: '2026-11-05T12:00:00.000Z',
+  concluidaEm: '2026-11-05T12:00:20.000Z',
+  produtos: 1,
+  clientes: 3,
+  avisos: ['1 cliente sem CNPJ válido ficou de fora.'],
+};
+
+describe('EsquemaResultadoSincronizacaoBling', () => {
+  it('aceita sucesso, falha com erro e não conectado', () => {
+    expect(EsquemaResultadoSincronizacaoBling.parse(resultado)).toEqual(resultado);
+    const falha = {
+      ...resultado,
+      tipo: 'completa',
+      origem: 'botao',
+      situacao: 'falhou',
+      produtos: 0,
+      clientes: 0,
+      avisos: [],
+      erro: { codigo: 'bling_indisponivel', mensagem: 'O Bling não respondeu.' },
+    };
+    expect(EsquemaResultadoSincronizacaoBling.parse(falha)).toEqual(falha);
+    expect(
+      EsquemaResultadoSincronizacaoBling.safeParse({ ...resultado, situacao: 'nao_conectado' })
+        .success,
+    ).toBe(true);
+  });
+
+  it('recusa tipo, origem e situação desconhecidos, contagem inválida e data fora do ISO', () => {
+    for (const invalido of [
+      { tipo: 'parcial' },
+      { origem: 'cli' },
+      { situacao: 'em_andamento' },
+      { produtos: -1 },
+      { clientes: 0.5 },
+      { iniciadaEm: '05/11/2026' },
+      { erro: { codigo: 'x' } },
+    ])
+      expect(
+        EsquemaResultadoSincronizacaoBling.safeParse({ ...resultado, ...invalido }).success,
+      ).toBe(false);
+  });
+});
+
+describe('EsquemaSincronizacaoAutomaticaBling', () => {
+  const status = {
+    ligada: true,
+    intervaloMinutos: 15,
+    completaDias: 3,
+    ultima: resultado,
+    ultimaCompletaEm: '2026-11-04T10:00:00.000Z',
+    proximaCompletaEm: '2026-11-07T10:00:00.000Z',
+  };
+
+  it('aceita o status com e sem sincronização anterior', () => {
+    expect(EsquemaSincronizacaoAutomaticaBling.parse(status)).toEqual(status);
+    const nunca = {
+      ...status,
+      ligada: false,
+      ultima: null,
+      ultimaCompletaEm: null,
+      proximaCompletaEm: null,
+    };
+    expect(EsquemaSincronizacaoAutomaticaBling.parse(nunca)).toEqual(nunca);
+  });
+
+  it('recusa campos ausentes, intervalo zero e resultado fora do contrato', () => {
+    expect(
+      EsquemaSincronizacaoAutomaticaBling.safeParse({ ...status, ligada: 'sim' }).success,
+    ).toBe(false);
+    expect(
+      EsquemaSincronizacaoAutomaticaBling.safeParse({ ...status, intervaloMinutos: 0 }).success,
+    ).toBe(false);
+    expect(
+      EsquemaSincronizacaoAutomaticaBling.safeParse({
+        ...status,
+        ultima: { ...resultado, situacao: 'x' },
+      }).success,
+    ).toBe(false);
+    const semProxima: Partial<typeof status> = { ...status };
+    delete semProxima.proximaCompletaEm;
+    expect(EsquemaSincronizacaoAutomaticaBling.safeParse(semProxima).success).toBe(false);
   });
 });

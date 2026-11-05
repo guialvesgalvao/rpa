@@ -1,4 +1,4 @@
-import type { EstadoSincronizacaoBling } from '@plataforma/contratos';
+import type { EstadoSincronizacaoBling, ResultadoSincronizacaoBling } from '@plataforma/contratos';
 
 import type { ArmazemSincronizacao } from './armazem.js';
 import { type AcessoBling, ErroBling, ErroBlingNaoAutorizado } from './cliente.js';
@@ -14,14 +14,19 @@ export type ExecutarSincronizacao = (opcoes: OpcoesSincronizacao) => Promise<Dad
 // O estado em memória é por slug; o armazém grava pelo id.
 export type EmpresaSincronizacao = { id: string; slug: string };
 
+export type OrigemSincronizacao = ResultadoSincronizacaoBling['origem'];
+
 export type ExecucaoSincronizacao = {
   // Com um job da empresa em andamento, devolve o estado dele sem iniciar outro.
   iniciar(
     empresa: EmpresaSincronizacao,
     acesso: AcessoBling,
     modo: ModoSincronizacao,
+    origem: OrigemSincronizacao,
   ): EstadoSincronizacaoBling;
   estado(empresaSlug: string): EstadoSincronizacaoBling;
+  // Promessa do job em andamento da empresa (resolve depois do `aoConcluir`); `undefined` sem job.
+  termino(empresaSlug: string): Promise<void> | undefined;
   // Aborta os jobs em andamento e espera terminarem (fechamento da API).
   encerrar(): Promise<void>;
 };
@@ -52,24 +57,33 @@ export function criarExecucaoSincronizacao({
   armazem,
   relogio = () => new Date(),
   aoFalhar = () => {},
+  aoConcluir = async () => {},
 }: {
   sincronizar: ExecutarSincronizacao;
   armazem: ArmazemSincronizacao;
   relogio?: () => Date;
-  // Só para erros inesperados (`erro_interno`); nunca recebe tokens nem dados do Bling.
+  // Só para erros inesperados (`erro_interno`, ou falha do `aoConcluir`); nunca recebe tokens nem dados do Bling.
   aoFalhar?: (erro: unknown) => void;
+  // Fim do job, com sucesso ou falha (nunca no aborto do fechamento da API): grava o resultado no banco.
+  aoConcluir?: (
+    empresa: EmpresaSincronizacao,
+    resultado: ResultadoSincronizacaoBling,
+  ) => Promise<void>;
 }): ExecucaoSincronizacao {
   const estados = new Map<string, EstadoSincronizacaoBling>();
   const jobs = new Map<string, Job>();
 
   async function rodar(
-    { id: empresaId, slug: empresa }: EmpresaSincronizacao,
+    empresaAlvo: EmpresaSincronizacao,
     iniciadaEm: string,
     acesso: AcessoBling,
     modo: ModoSincronizacao,
+    origem: OrigemSincronizacao,
     controle: AbortController,
   ): Promise<void> {
+    const { id: empresaId, slug: empresa } = empresaAlvo;
     const sinal = controle.signal;
+    let resultado: ResultadoSincronizacaoBling | undefined;
     try {
       const dados = await sincronizar({
         acesso,
@@ -80,28 +94,48 @@ export function criarExecucaoSincronizacao({
       });
       sinal.throwIfAborted();
       const gravado = await armazem.salvar(empresaId, dados, { modo: dados.modo });
-      const concluida = relogio();
       // Contagens do que foi gravado (inseridos + atualizados), não do que foi lido.
-      estados.set(empresa, {
+      const resumo = {
+        empresa,
+        iniciadaEm,
+        concluidaEm: relogio().toISOString(),
+        produtos: gravado.produtos.inseridos + gravado.produtos.atualizados,
+        clientes: gravado.clientes.inseridos + gravado.clientes.atualizados,
+        avisos: [...dados.avisos, ...gravado.avisos],
+      };
+      estados.set(empresa, { situacao: 'concluida', resumo });
+      resultado = {
+        tipo: dados.modo,
+        origem,
         situacao: 'concluida',
-        resumo: {
-          empresa,
-          iniciadaEm,
-          concluidaEm: concluida.toISOString(),
-          produtos: gravado.produtos.inseridos + gravado.produtos.atualizados,
-          clientes: gravado.clientes.inseridos + gravado.clientes.atualizados,
-          avisos: [...dados.avisos, ...gravado.avisos],
-        },
-      });
+        iniciadaEm,
+        concluidaEm: resumo.concluidaEm,
+        produtos: resumo.produtos,
+        clientes: resumo.clientes,
+        avisos: resumo.avisos,
+      };
     } catch (erro) {
       const estadoErro = erroDaSincronizacao(erro);
       if (estadoErro.codigo === 'erro_interno' && !sinal.aborted) aoFalhar(erro);
-      estados.set(empresa, {
-        situacao: 'falhou',
-        iniciadaEm,
-        concluidaEm: relogio().toISOString(),
-        erro: estadoErro,
-      });
+      const concluidaEm = relogio().toISOString();
+      estados.set(empresa, { situacao: 'falhou', iniciadaEm, concluidaEm, erro: estadoErro });
+      if (!sinal.aborted)
+        resultado = {
+          tipo: modo.tipo,
+          origem,
+          situacao: estadoErro.codigo === 'bling_nao_conectado' ? 'nao_conectado' : 'falhou',
+          iniciadaEm,
+          concluidaEm,
+          produtos: 0,
+          clientes: 0,
+          avisos: [],
+          erro: estadoErro,
+        };
+    }
+    try {
+      if (resultado) await aoConcluir(empresaAlvo, resultado);
+    } catch (erro) {
+      aoFalhar(erro);
     } finally {
       if (jobs.get(empresa)?.controle === controle) jobs.delete(empresa);
     }
@@ -114,7 +148,9 @@ export function criarExecucaoSincronizacao({
   return {
     estado,
 
-    iniciar(empresa, acesso, modo) {
+    termino: (empresaSlug) => jobs.get(empresaSlug)?.termino,
+
+    iniciar(empresa, acesso, modo, origem) {
       const { slug } = empresa;
       if (jobs.has(slug)) return estado(slug);
       const iniciadaEm = relogio().toISOString();
@@ -130,7 +166,7 @@ export function criarExecucaoSincronizacao({
       const job: Job = { controle };
       jobs.set(slug, job);
       // Sem `await`: `rodar` nunca rejeita (o `catch` registra a falha no estado).
-      job.termino = rodar(empresa, iniciadaEm, acesso, modo, controle);
+      job.termino = rodar(empresa, iniciadaEm, acesso, modo, origem, controle);
       return estado(slug);
     },
 

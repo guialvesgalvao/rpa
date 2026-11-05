@@ -5,6 +5,7 @@ import {
   EsquemaErro,
   EsquemaEstadoSincronizacaoBling,
   EsquemaRespostaEntrar,
+  EsquemaSincronizacaoAutomaticaBling,
 } from '@plataforma/contratos';
 import { eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
@@ -12,7 +13,14 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vites
 
 import { criarApp } from '../../src/app.js';
 import { gerarCnpj } from '../../src/cli/semear-dev.js';
-import { blingConexoes, clientes, empresas, produtos } from '../../src/db/esquema.js';
+import type { ConfigSincronizacaoAutomatica } from '../../src/config.js';
+import {
+  blingConexoes,
+  blingSincronizacoes,
+  clientes,
+  empresas,
+  produtos,
+} from '../../src/db/esquema.js';
 import { criarUsuario } from '../../src/usuarios/servico.js';
 import { SEGREDO_TESTE } from '../helpers/app.js';
 import { criarBancoTeste, limparTabelas } from '../helpers/banco.js';
@@ -28,6 +36,7 @@ const CONFIG = {
   clientSecret: 'client-secret-ficticio',
   redirectUri: 'http://localhost:3001/v1/bling/oauth/retorno',
   chaveTokens: randomBytes(32).toString('base64'),
+  automatica: { ligada: false, intervaloMinutos: 15, completaDias: 3 },
 };
 
 const { db, fechar } = criarBancoTeste();
@@ -86,7 +95,7 @@ let app: FastifyInstance;
 let bling: ReturnType<typeof blingFalso>;
 let logs: string[];
 
-function montarApp(comBling = true) {
+function montarApp(comBling = true, automatica: ConfigSincronizacaoAutomatica = CONFIG.automatica) {
   logs = [];
   bling = blingFalso();
   return criarApp({
@@ -94,7 +103,7 @@ function montarApp(comBling = true) {
     jwtSegredo: SEGREDO_TESTE,
     logger: { level: 'trace', stream: { write: (linha: string) => logs.push(linha) } },
     ...(comBling && {
-      bling: { ...CONFIG, fetch: bling.fetch, esperar: async () => {} },
+      bling: { ...CONFIG, automatica, fetch: bling.fetch, esperar: async () => {} },
     }),
   });
 }
@@ -121,7 +130,7 @@ async function entrar(
 
 const chamar = (
   metodo: 'GET' | 'POST',
-  rota: 'conexao' | 'sincronizacao',
+  rota: 'conexao' | 'sincronizacao' | 'sincronizacao/automatica',
   token: string | null,
   empresa = 'roma',
 ) =>
@@ -197,6 +206,7 @@ describe('sem configuração do Bling', () => {
       ['POST', 'conexao'],
       ['POST', 'sincronizacao'],
       ['GET', 'sincronizacao'],
+      ['GET', 'sincronizacao/automatica'],
     ] as const) {
       const resposta = await chamar(metodo, rota, admin);
       expect(resposta.statusCode).toBe(503);
@@ -316,6 +326,88 @@ describe('sincronização', () => {
     await app.close();
     expect(await db.$count(produtos)).toBe(0);
     expect(await db.$count(clientes)).toBe(0);
+  });
+});
+
+describe('sincronização automática: status', () => {
+  const status = async (token: string) => {
+    const resposta = await chamar('GET', 'sincronizacao/automatica', token);
+    expect(resposta.statusCode).toBe(200);
+    return EsquemaSincronizacaoAutomaticaBling.parse(resposta.json());
+  };
+
+  it('tem as mesmas guardas das outras rotas', async () => {
+    expect((await chamar('GET', 'sincronizacao/automatica', null)).statusCode).toBe(401);
+    const arte = await entrar('arte@exemplo.com', 'arte_finalista', ['roma']);
+    expect((await chamar('GET', 'sincronizacao/automatica', arte)).statusCode).toBe(403);
+    const daAba = await chamar('GET', 'sincronizacao/automatica', admin, 'aba');
+    expect(codigoErro(daAba)).toBe('sincronizacao_indisponivel');
+  });
+
+  it('antes de qualquer sincronização: a configuração e nada mais, sem chamar o Bling', async () => {
+    expect(await status(admin)).toEqual({
+      ligada: false,
+      intervaloMinutos: 15,
+      completaDias: 3,
+      ultima: null,
+      ultimaCompletaEm: null,
+      proximaCompletaEm: null,
+    });
+    expect(bling.chamadas).toHaveLength(0);
+  });
+
+  it('o botão registra o resultado com origem botao e a completa', async () => {
+    await conectar(admin);
+    await chamar('POST', 'sincronizacao', admin);
+    const concluida = await estadoAte(admin, 'concluida');
+    const resumo = (concluida as { resumo: { iniciadaEm: string; concluidaEm: string } }).resumo;
+
+    const lido = await vi.waitFor(async () => {
+      const atual = await status(admin);
+      expect(atual.ultima).not.toBeNull();
+      return atual;
+    });
+    expect(lido).toEqual({
+      ligada: false,
+      intervaloMinutos: 15,
+      completaDias: 3,
+      ultima: {
+        tipo: 'completa',
+        origem: 'botao',
+        situacao: 'concluida',
+        iniciadaEm: resumo.iniciadaEm,
+        concluidaEm: resumo.concluidaEm,
+        produtos: 2,
+        clientes: 1,
+        avisos: [],
+      },
+      ultimaCompletaEm: resumo.iniciadaEm,
+      // Desligada: sem próxima completa automática.
+      proximaCompletaEm: null,
+    });
+    const [linha] = await db.select().from(blingSincronizacoes);
+    expect(linha?.incrementalDesde?.toISOString()).toBe(resumo.iniciadaEm);
+  });
+
+  it('ligada: mostra o intervalo e a próxima completa', async () => {
+    await app.close();
+    app = montarApp(true, { ligada: true, intervaloMinutos: 30, completaDias: 2 });
+    const [roma] = await db.select().from(empresas).where(eq(empresas.slug, 'roma'));
+    await db.insert(blingSincronizacoes).values({
+      empresaId: roma!.id,
+      ultimaCompletaEm: new Date('2026-11-04T10:00:00.000Z'),
+      // Fora do contrato: lido como sem resultado.
+      ultimoResultado: { situacao: 'desconhecida' },
+    });
+
+    expect(await status(admin)).toEqual({
+      ligada: true,
+      intervaloMinutos: 30,
+      completaDias: 2,
+      ultima: null,
+      ultimaCompletaEm: '2026-11-04T10:00:00.000Z',
+      proximaCompletaEm: '2026-11-06T10:00:00.000Z',
+    });
   });
 });
 

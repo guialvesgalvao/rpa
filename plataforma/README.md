@@ -156,12 +156,13 @@ Cria os usuários `admin.dev@exemplo.com` e `finalista.dev@exemplo.com` (senha `
 
 Leitura de **produtos ativos** e **contatos ativos do tipo Cliente** (com o detalhe de cada um) pela API v3 do Bling, só com GET, gravada nas tabelas `clientes` e `produtos` (as mesmas das artes). Só o admin das empresas em `EMPRESAS_SINCRONIZACAO_BLING` (`contratos/src/bling.ts`, hoje só `roma`) pode usar; o app chama pelo botão "Sincronizar dados" em Configurações.
 
-| Rota                                             | Resposta                                                                             |
-| ------------------------------------------------ | ------------------------------------------------------------------------------------ |
-| `POST /v1/empresas/:empresa/bling/conexao`       | `{ urlAutorizacao }` para abrir no navegador                                         |
-| `POST /v1/empresas/:empresa/bling/sincronizacao` | `202` com o estado do job (inicia um, ou devolve o que já está rodando)              |
-| `GET /v1/empresas/:empresa/bling/sincronizacao`  | estado: `ociosa`, `em_andamento` (etapa e progresso), `concluida` (resumo), `falhou` |
-| `GET /v1/bling/oauth/retorno` (pública, sem log) | página "Bling conectado" ou a falha; é o link de redirecionamento do app do Bling    |
+| Rota                                                       | Resposta                                                                                         |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `POST /v1/empresas/:empresa/bling/conexao`                 | `{ urlAutorizacao }` para abrir no navegador                                                     |
+| `POST /v1/empresas/:empresa/bling/sincronizacao`           | `202` com o estado do job (inicia um, ou devolve o que já está rodando)                          |
+| `GET /v1/empresas/:empresa/bling/sincronizacao`            | estado: `ociosa`, `em_andamento` (etapa e progresso), `concluida` (resumo), `falhou`             |
+| `GET /v1/empresas/:empresa/bling/sincronizacao/automatica` | status da automática: ligada, intervalo, último resultado e próxima completa (não chama o Bling) |
+| `GET /v1/bling/oauth/retorno` (pública, sem log)           | página "Bling conectado" ou a falha; é o link de redirecionamento do app do Bling                |
 
 Erros: `503 bling_nao_configurado` (sem as variáveis), `409 bling_nao_conectado` (autorizar de novo), `502 bling_indisponivel`, `403 sincronizacao_indisponivel` (empresa fora da lista).
 
@@ -178,6 +179,7 @@ Como a gravação funciona (tudo numa transação; uma falha no meio desfaz tudo
 - **Ficam de fora**, com um aviso agregado por motivo no resumo (nunca com nome nem documento): clientes sem CNPJ válido (pessoa física, sem documento ou dígitos errados; validado pela função `cnpj_valido` do banco), registros sem nome, CNPJ ou `codigo` repetido (fica o vínculo existente ou, sem vínculo, o primeiro lido; uma linha já ligada que mudaria para um valor em uso fica como estava) e produtos com nome repetido (a unicidade sem acento nem caixa de `produtos`).
 - **Inativos:** na sincronização completa, uma linha com `id_bling` que não veio do Bling (inativada ou excluída lá) recebe `inativo_no_bling_em`; ela some da busca de clientes e da lista de produtos, mas continua no banco, com as artes, e as rotas por id ainda a encontram. Se voltar a ficar ativa no Bling, a marca sai.
 - **Resumo:** `produtos` e `clientes` contam as linhas gravadas (inseridas ou que mudaram), não as lidas.
+- **Último resultado:** cada sincronização (botão ou agendador) grava em `bling_sincronizacoes` o tipo (`completa`/`incremental`), a origem (`botao`/`agendador`), a situação (`concluida`, `falhou`, `nao_conectado`), as contagens e os avisos. Só um sucesso avança a janela do próximo incremental (o início do ciclo) e, na completa, a `ultima_completa_em`; uma falha não avança nada. O status sai em `GET …/bling/sincronizacao/automatica`, com `proximaCompletaEm = ultimaCompletaEm + BLING_COMPLETA_DIAS` (nula com a automática desligada ou antes da primeira completa).
 
 **O banco local passa a ter dados reais de clientes (nomes, CNPJ)**: nada disso vai para chat, log nem fixture. Trocar `BLING_CHAVE_TOKENS` invalida a conexão gravada (é preciso autorizar de novo).
 
@@ -195,6 +197,9 @@ Nesta etapa, **produção fica desligada**: sem `BLING_*` no Railway, as rotas r
 | `BLING_CLIENT_ID`, `BLING_CLIENT_SECRET` | —                                             | app cadastrado no Bling (opcionais; as quatro `BLING_*` juntas ou nenhuma) |
 | `BLING_REDIRECT_URI`                     | —                                             | link de redirecionamento cadastrado no app do Bling                        |
 | `BLING_CHAVE_TOKENS`                     | —                                             | 32 bytes em base64; cifra os tokens do Bling no banco                      |
+| `BLING_SINCRONIZACAO_AUTOMATICA`         | `false`                                       | `true` liga o agendador da sincronização (exige as quatro `BLING_*`)       |
+| `BLING_INTERVALO_MINUTOS`                | `15`                                          | minutos entre o fim de um ciclo e o próximo (5 a 1440)                     |
+| `BLING_COMPLETA_DIAS`                    | `3`                                           | dias entre duas sincronizações completas (1 a 30)                          |
 
 Site (`web/`), obrigatórias em produção:
 

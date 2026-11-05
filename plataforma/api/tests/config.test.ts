@@ -78,6 +78,7 @@ describe('lerConfig: Bling', () => {
       clientSecret: BLING.BLING_CLIENT_SECRET,
       redirectUri: BLING.BLING_REDIRECT_URI,
       chaveTokens: BLING.BLING_CHAVE_TOKENS,
+      automatica: { ligada: false, intervaloMinutos: 15, completaDias: 3 },
     });
   });
 
@@ -97,5 +98,56 @@ describe('lerConfig: Bling', () => {
     const ler = () => lerConfig({ ...OBRIGATORIAS, ...BLING, BLING_CHAVE_TOKENS: curta });
     expect(ler).toThrow(/BLING_CHAVE_TOKENS precisa ter 32 bytes/);
     expect(ler).not.toThrow(curta);
+  });
+});
+
+describe('lerConfig: sincronização automática do Bling', () => {
+  const BLING = {
+    BLING_CLIENT_ID: 'client-id-ficticio',
+    BLING_CLIENT_SECRET: 'client-secret-ficticio',
+    BLING_REDIRECT_URI: 'http://localhost:3001/v1/bling/oauth/retorno',
+    BLING_CHAVE_TOKENS: Buffer.alloc(32).toString('base64'),
+  };
+  const automatica = (env: Record<string, string>) =>
+    lerConfig({ ...OBRIGATORIAS, ...BLING, ...env }).bling?.automatica;
+
+  it('fica desligada por padrão, inclusive com a variável vazia', () => {
+    expect(automatica({})).toEqual({ ligada: false, intervaloMinutos: 15, completaDias: 3 });
+    expect(automatica({ BLING_SINCRONIZACAO_AUTOMATICA: '' })?.ligada).toBe(false);
+    expect(automatica({ BLING_SINCRONIZACAO_AUTOMATICA: 'false' })?.ligada).toBe(false);
+  });
+
+  it('lê a variável ligada, o intervalo e a completa', () => {
+    expect(
+      automatica({
+        BLING_SINCRONIZACAO_AUTOMATICA: 'true',
+        BLING_INTERVALO_MINUTOS: '5',
+        BLING_COMPLETA_DIAS: '30',
+      }),
+    ).toEqual({ ligada: true, intervaloMinutos: 5, completaDias: 30 });
+    expect(automatica({ BLING_INTERVALO_MINUTOS: '1440', BLING_COMPLETA_DIAS: '1' })).toMatchObject(
+      { intervaloMinutos: 1440, completaDias: 1 },
+    );
+  });
+
+  it('recusa valores fora dos limites ou que não são true/false', () => {
+    for (const [nome, valor, mensagem] of [
+      ['BLING_INTERVALO_MINUTOS', '4', /BLING_INTERVALO_MINUTOS precisa ser de 5 a 1440/],
+      ['BLING_INTERVALO_MINUTOS', '1441', /BLING_INTERVALO_MINUTOS/],
+      ['BLING_INTERVALO_MINUTOS', '7.5', /BLING_INTERVALO_MINUTOS/],
+      ['BLING_COMPLETA_DIAS', '0', /BLING_COMPLETA_DIAS precisa ser de 1 a 30/],
+      ['BLING_COMPLETA_DIAS', '31', /BLING_COMPLETA_DIAS/],
+      ['BLING_SINCRONIZACAO_AUTOMATICA', 'sim', /true ou false/],
+    ] as const)
+      expect(() => automatica({ [nome]: valor })).toThrow(mensagem);
+  });
+
+  it('ligada sem as quatro BLING_* é erro de configuração', () => {
+    expect(() => lerConfig({ ...OBRIGATORIAS, BLING_SINCRONIZACAO_AUTOMATICA: 'true' })).toThrow(
+      /BLING_SINCRONIZACAO_AUTOMATICA=true exige BLING_CLIENT_ID/,
+    );
+    expect(lerConfig({ ...OBRIGATORIAS, BLING_SINCRONIZACAO_AUTOMATICA: 'false' }).bling).toBe(
+      undefined,
+    );
   });
 });

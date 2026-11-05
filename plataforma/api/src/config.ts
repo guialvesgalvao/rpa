@@ -35,6 +35,26 @@ const schema = z
     BLING_CHAVE_TOKENS: opcional(
       z.string().trim().refine(chaveValida, 'BLING_CHAVE_TOKENS precisa ter 32 bytes em base64'),
     ),
+    // Sincronização automática (agendador dentro da API): desligada por padrão.
+    BLING_SINCRONIZACAO_AUTOMATICA: opcional(
+      z.enum(['true', 'false'], {
+        error: 'BLING_SINCRONIZACAO_AUTOMATICA precisa ser true ou false',
+      }),
+    ),
+    BLING_INTERVALO_MINUTOS: opcional(
+      z.coerce
+        .number()
+        .int()
+        .min(5, 'BLING_INTERVALO_MINUTOS precisa ser de 5 a 1440')
+        .max(1440, 'BLING_INTERVALO_MINUTOS precisa ser de 5 a 1440'),
+    ),
+    BLING_COMPLETA_DIAS: opcional(
+      z.coerce
+        .number()
+        .int()
+        .min(1, 'BLING_COMPLETA_DIAS precisa ser de 1 a 30')
+        .max(30, 'BLING_COMPLETA_DIAS precisa ser de 1 a 30'),
+    ),
   })
   .superRefine((env, ctx) => {
     const ausentes = VARIAVEIS_BLING.filter((nome) => env[nome] === undefined);
@@ -43,7 +63,18 @@ const schema = z
         code: 'custom',
         message: `Configuração do Bling incompleta; faltam: ${ausentes.join(', ')}`,
       });
+    else if (ausentes.length > 0 && env.BLING_SINCRONIZACAO_AUTOMATICA === 'true')
+      ctx.addIssue({
+        code: 'custom',
+        message: `BLING_SINCRONIZACAO_AUTOMATICA=true exige ${VARIAVEIS_BLING.join(', ')}`,
+      });
   });
+
+export type ConfigSincronizacaoAutomatica = {
+  ligada: boolean;
+  intervaloMinutos: number;
+  completaDias: number;
+};
 
 export type ConfigBling = {
   clientId: string;
@@ -51,6 +82,7 @@ export type ConfigBling = {
   redirectUri: string;
   // Base64 de 32 bytes (AES-256-GCM dos tokens no banco).
   chaveTokens: string;
+  automatica: ConfigSincronizacaoAutomatica;
 };
 
 export type Config = {
@@ -81,6 +113,11 @@ export function lerConfig(env: NodeJS.ProcessEnv = process.env): Config {
       clientSecret: parsed.BLING_CLIENT_SECRET,
       redirectUri: parsed.BLING_REDIRECT_URI,
       chaveTokens: parsed.BLING_CHAVE_TOKENS,
+      automatica: {
+        ligada: parsed.BLING_SINCRONIZACAO_AUTOMATICA === 'true',
+        intervaloMinutos: parsed.BLING_INTERVALO_MINUTOS ?? 15,
+        completaDias: parsed.BLING_COMPLETA_DIAS ?? 3,
+      },
     };
   return config;
 }

@@ -2,6 +2,7 @@ import {
   type ConexaoBling,
   EMPRESAS_SINCRONIZACAO_BLING,
   type EstadoSincronizacaoBling,
+  type SincronizacaoAutomaticaBling,
 } from '@plataforma/contratos';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
@@ -9,12 +10,21 @@ import { z } from 'zod';
 import { idDaEmpresa } from '../artes/repositorio.js';
 import { usuarioDe } from '../plugins/autenticacao.js';
 import { ErroBling, ErroBlingConcessaoInvalida, ErroBlingNaoAutorizado } from '../bling/cliente.js';
+import type { EstadoSincronizacao } from '../bling/estado.js';
 import type { ExecucaoSincronizacao } from '../bling/execucao.js';
 import { ErroBlingNaoConectado, ErroBlingStateInvalido, type OAuthBling } from '../bling/oauth.js';
+import type { ConfigSincronizacaoAutomatica } from '../config.js';
 import type { Banco } from '../db/cliente.js';
 import { ErroApi } from '../erros.js';
 
-export type ServicosBling = { oauth: OAuthBling; execucao: ExecucaoSincronizacao };
+export type ServicosBling = {
+  oauth: OAuthBling;
+  execucao: ExecucaoSincronizacao;
+  estado: EstadoSincronizacao;
+  automatica: ConfigSincronizacaoAutomatica;
+};
+
+const DIA_MS = 24 * 60 * 60 * 1000;
 
 const MENSAGEM_NAO_CONECTADO =
   'A empresa não está conectada ao Bling. Autorize o acesso e tente de novo.';
@@ -117,9 +127,12 @@ export function rotasBling(
         throw erroApiDoBling(erro);
       }
       // O botão sempre faz a completa (corrige exclusões e inativações).
-      const estado = execucao.iniciar(empresa, () => oauth.acessoValido(empresa.id), {
-        tipo: 'completa',
-      });
+      const estado = execucao.iniciar(
+        empresa,
+        () => oauth.acessoValido(empresa.id),
+        { tipo: 'completa' },
+        'botao',
+      );
       return reply.code(202).send(estado);
     },
   );
@@ -131,6 +144,30 @@ export function rotasBling(
       const { execucao } = servicos();
       const empresa = await empresaDe(request);
       return execucao.estado(empresa.slug);
+    },
+  );
+
+  // Status da sincronização automática, lido do banco; não chama o Bling.
+  app.get(
+    '/v1/empresas/:empresa/bling/sincronizacao/automatica',
+    { preHandler },
+    async (request): Promise<SincronizacaoAutomaticaBling> => {
+      const { estado, automatica } = servicos();
+      const empresa = await empresaDe(request);
+      const salvo = await estado.ler(empresa.id);
+      const ultimaCompletaEm = salvo.ultimaCompletaEm;
+      return {
+        ligada: automatica.ligada,
+        intervaloMinutos: automatica.intervaloMinutos,
+        completaDias: automatica.completaDias,
+        ultima: salvo.ultimoResultado,
+        ultimaCompletaEm: ultimaCompletaEm?.toISOString() ?? null,
+        // Sem o agendador ligado, não há próxima completa automática.
+        proximaCompletaEm:
+          automatica.ligada && ultimaCompletaEm
+            ? new Date(ultimaCompletaEm.getTime() + automatica.completaDias * DIA_MS).toISOString()
+            : null,
+      };
     },
   );
 

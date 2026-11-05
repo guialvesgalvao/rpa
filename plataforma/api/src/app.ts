@@ -23,6 +23,7 @@ import { rotasBling, type ServicosBling } from './rotas/bling.js';
 import { rotasClientes } from './rotas/clientes.js';
 import { rotasOp } from './rotas/op.js';
 import { rotasOpcoes } from './rotas/opcoes.js';
+import { rotasTarefas } from './rotas/tarefas.js';
 
 export type DepsApp = Pick<FastifyServerOptions, 'logger'> & {
   db: Banco;
@@ -61,6 +62,7 @@ export function criarApp({
   rotasOpcoes(app, { db });
   rotasArtes(app, { db });
   rotasOp(app, { db });
+  rotasTarefas(app, { db });
   const servicosBling = bling && criarServicosBling(app, { db, jwtSegredo, relogio, bling });
   rotasBling(app, { db, bling: servicosBling });
   if (servicosBling) {

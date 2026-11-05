@@ -291,3 +291,90 @@ export const arteMaquinas = pgTable(
   },
   (t) => [primaryKey({ columns: [t.arteId, t.maquinaId] })],
 );
+
+// Tarefas de desenvolvimento de arte (ver `contratos/src/tarefas.ts`). A lista de status se repete nos
+// CHECKs abaixo; ao mudar, mude os dois.
+const STATUS_TAREFA_SQL = sql.raw(
+  `('nao_iniciada', 'em_desenvolvimento', 'aguardando_cliente', 'concluida', 'cancelada')`,
+);
+
+export const tarefasArte = pgTable(
+  'tarefas_arte',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    empresaId: uuid('empresa_id')
+      .notNull()
+      .references(() => empresas.id),
+    clienteId: uuid('cliente_id').notNull(),
+    produtoId: uuid('produto_id').notNull(),
+    // Quem criou a tarefa; é quem a vê em "Minhas tarefas".
+    responsavelId: uuid('responsavel_id').references(() => usuarios.id, { onDelete: 'set null' }),
+    status: text('status').notNull().default('nao_iniciada'),
+    // A arte cadastrada na conclusão. Não pode ser removida enquanto a tarefa existir.
+    arteId: uuid('arte_id').references(() => artes.id, { onDelete: 'restrict' }),
+    criadoEm: instante('criado_em').notNull().defaultNow(),
+    atualizadoEm: instante('atualizado_em').notNull().defaultNow(),
+  },
+  (t) => [
+    foreignKey({
+      name: 'tarefas_arte_cliente_empresa_fk',
+      columns: [t.clienteId, t.empresaId],
+      foreignColumns: [clientes.id, clientes.empresaId],
+    }),
+    foreignKey({
+      name: 'tarefas_arte_produto_empresa_fk',
+      columns: [t.produtoId, t.empresaId],
+      foreignColumns: [produtos.id, produtos.empresaId],
+    }),
+    check('tarefas_arte_status_valido', sql`${t.status} in ${STATUS_TAREFA_SQL}`),
+    // "Para ser concluída, deve ter todos os campos cadastrados": a arte existe.
+    check(
+      'tarefas_arte_concluida_com_arte',
+      sql`${t.status} <> 'concluida' or ${t.arteId} is not null`,
+    ),
+    index('tarefas_arte_empresa_status_idx').on(t.empresaId, t.status),
+    index('tarefas_arte_responsavel_idx').on(t.responsavelId),
+  ],
+);
+
+export const tarefasArteComentarios = pgTable(
+  'tarefas_arte_comentarios',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tarefaId: uuid('tarefa_id')
+      .notNull()
+      .references(() => tarefasArte.id, { onDelete: 'cascade' }),
+    autorId: uuid('autor_id').references(() => usuarios.id, { onDelete: 'set null' }),
+    texto: text('texto').notNull(),
+    criadoEm: instante('criado_em').notNull().defaultNow(),
+  },
+  (t) => [
+    check(
+      'tarefas_arte_comentarios_texto_valido',
+      sql`btrim(${t.texto}) <> '' and char_length(${t.texto}) <= 2000`,
+    ),
+    index('tarefas_arte_comentarios_tarefa_idx').on(t.tarefaId, t.criadoEm),
+  ],
+);
+
+export const tarefasArteHistorico = pgTable(
+  'tarefas_arte_historico',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tarefaId: uuid('tarefa_id')
+      .notNull()
+      .references(() => tarefasArte.id, { onDelete: 'cascade' }),
+    // Nulo na criação da tarefa.
+    statusAnterior: text('status_anterior'),
+    statusNovo: text('status_novo').notNull(),
+    autorId: uuid('autor_id').references(() => usuarios.id, { onDelete: 'set null' }),
+    criadoEm: instante('criado_em').notNull().defaultNow(),
+  },
+  (t) => [
+    check(
+      'tarefas_arte_historico_status_valido',
+      sql`(${t.statusAnterior} is null or ${t.statusAnterior} in ${STATUS_TAREFA_SQL}) and ${t.statusNovo} in ${STATUS_TAREFA_SQL}`,
+    ),
+    index('tarefas_arte_historico_tarefa_idx').on(t.tarefaId, t.criadoEm),
+  ],
+);

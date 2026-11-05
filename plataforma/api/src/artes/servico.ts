@@ -36,17 +36,19 @@ export type EdicaoArte = {
   removerImagem?: boolean;
 };
 
-type Transacao = Parameters<Parameters<Banco['transaction']>[0]>[0];
+export type Transacao = Parameters<Parameters<Banco['transaction']>[0]>[0];
 
 const invalida = (mensagem: string) => new ErroApi(422, 'validacao', mensagem);
 
 // O Drizzle embrulha o erro do Postgres em `cause`.
-function violouUnico(erro: unknown): boolean {
+const codigoPostgres = (erro: unknown): string | undefined => {
   const comCausa = erro as { code?: string; cause?: { code?: string } };
-  return (comCausa.cause?.code ?? comCausa.code) === '23505';
-}
+  return comCausa.cause?.code ?? comCausa.code;
+};
 
-const duplicada = (nome: string) =>
+export const violouUnico = (erro: unknown): boolean => codigoPostgres(erro) === '23505';
+
+export const duplicada = (nome: string) =>
   new ErroApi(409, 'arte_duplicada', `Já existe uma arte '${nome}' para este produto`);
 
 async function conferirReferencias(
@@ -140,41 +142,44 @@ export async function obterArte(
   };
 }
 
+// Grava a arte, os arquivos e as máquinas dentro de uma transação já aberta; devolve o id. A unicidade do nome
+// estoura como erro do Postgres: quem chama a converte com `violouUnico`/`duplicada`.
+export async function inserirArte(tx: Transacao, entrada: NovaArte): Promise<string> {
+  if (!entrada.pdf && !entrada.imagem) throw invalida('Envie ao menos um arquivo.');
+  const maquinaIds = [...new Set(entrada.maquinaIds)];
+  await conferirReferencias(tx, entrada.empresaId, { ...entrada, maquinaIds });
+  const pdfId = entrada.pdf ? await gravarArquivo(tx, entrada.pdf) : null;
+  const imagemId = entrada.imagem ? await gravarArquivo(tx, entrada.imagem) : null;
+  const [arte] = await tx
+    .insert(artes)
+    .values({
+      empresaId: entrada.empresaId,
+      clienteId: entrada.clienteId,
+      produtoId: entrada.produtoId,
+      nome: nomeOuPadrao(entrada.nome),
+      corId: entrada.corId,
+      pdfId,
+      imagemId,
+      criadoPor: entrada.usuarioId,
+      atualizadoPor: entrada.usuarioId,
+    })
+    .returning({ id: artes.id });
+  if (!arte) throw new Error('Arte não criada.');
+  await tx
+    .insert(arteMaquinas)
+    .values(maquinaIds.map((maquinaId) => ({ arteId: arte.id, maquinaId })));
+  return arte.id;
+}
+
 export async function criarArte(db: Banco, entrada: NovaArte): Promise<Arte> {
   if (!entrada.pdf && !entrada.imagem) throw invalida('Envie ao menos um arquivo.');
-  const nome = nomeOuPadrao(entrada.nome);
-  const maquinaIds = [...new Set(entrada.maquinaIds)];
-
   try {
-    const arteId = await db.transaction(async (tx) => {
-      await conferirReferencias(tx, entrada.empresaId, { ...entrada, maquinaIds });
-      const pdfId = entrada.pdf ? await gravarArquivo(tx, entrada.pdf) : null;
-      const imagemId = entrada.imagem ? await gravarArquivo(tx, entrada.imagem) : null;
-      const [arte] = await tx
-        .insert(artes)
-        .values({
-          empresaId: entrada.empresaId,
-          clienteId: entrada.clienteId,
-          produtoId: entrada.produtoId,
-          nome,
-          corId: entrada.corId,
-          pdfId,
-          imagemId,
-          criadoPor: entrada.usuarioId,
-          atualizadoPor: entrada.usuarioId,
-        })
-        .returning({ id: artes.id });
-      if (!arte) throw new Error('Arte não criada.');
-      await tx
-        .insert(arteMaquinas)
-        .values(maquinaIds.map((maquinaId) => ({ arteId: arte.id, maquinaId })));
-      return arte.id;
-    });
+    const arteId = await db.transaction((tx) => inserirArte(tx, entrada));
     const criada = await obterArte(db, entrada.empresaId, arteId);
     if (!criada) throw new Error('Arte não criada.');
     return criada;
   } catch (erro) {
-    if (violouUnico(erro)) throw duplicada(nome);
+    if (violouUnico(erro)) throw duplicada(nomeOuPadrao(entrada.nome));
     throw erro;
   }
 }
@@ -249,16 +254,29 @@ export async function atualizarArte(db: Banco, entrada: EdicaoArte): Promise<Art
   }
 }
 
-// Remove a arte e seus arquivos numa transação; `false` quando a arte não existe na empresa.
+// Remove a arte e seus arquivos numa transação; `false` quando a arte não existe na empresa. A arte cadastrada
+// na conclusão de uma tarefa não sai enquanto a tarefa existir (FK `tarefas_arte.arte_id`).
 export async function removerArte(db: Banco, empresaId: string, arteId: string): Promise<boolean> {
-  return db.transaction(async (tx) => {
-    const [arte] = await tx
-      .delete(artes)
-      .where(and(eq(artes.id, arteId), eq(artes.empresaId, empresaId)))
-      .returning({ pdfId: artes.pdfId, imagemId: artes.imagemId });
-    if (!arte) return false;
-    const ids = [arte.pdfId, arte.imagemId].filter((id): id is string => id !== null);
-    if (ids.length) await tx.delete(arquivos).where(inArray(arquivos.id, ids));
-    return true;
-  });
+  try {
+    return await db.transaction(async (tx) => {
+      const [arte] = await tx
+        .delete(artes)
+        .where(and(eq(artes.id, arteId), eq(artes.empresaId, empresaId)))
+        .returning({ pdfId: artes.pdfId, imagemId: artes.imagemId });
+      if (!arte) return false;
+      const ids = [arte.pdfId, arte.imagemId].filter((id): id is string => id !== null);
+      if (ids.length) await tx.delete(arquivos).where(inArray(arquivos.id, ids));
+      return true;
+    });
+  } catch (erro) {
+    // 23001: ON DELETE RESTRICT; 23503: FK em geral.
+    if (['23001', '23503'].includes(codigoPostgres(erro) ?? '')) {
+      throw new ErroApi(
+        409,
+        'arte_em_tarefa',
+        'Esta arte veio de uma tarefa de desenvolvimento e não pode ser removida.',
+      );
+    }
+    throw erro;
+  }
 }

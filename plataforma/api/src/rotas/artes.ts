@@ -14,7 +14,7 @@ import type { Banco } from '../db/cliente.js';
 import { ErroApi } from '../erros.js';
 import { usuarioDe } from '../plugins/autenticacao.js';
 
-type CamposArte = {
+export type CamposArte = {
   produtoId?: string;
   nome?: string;
   corId?: string;
@@ -49,7 +49,8 @@ const arquivoGrande = (campo: TipoArquivo) =>
   );
 
 // Lê o multipart em memória, com o limite de cada arquivo (413) e o tipo conferido pelos primeiros bytes (415).
-async function lerCampos(request: FastifyRequest): Promise<CamposArte> {
+// Também usado pela conclusão de tarefa (`rotas/tarefas.ts`), que registra o próprio parser multipart.
+export async function lerCampos(request: FastifyRequest): Promise<CamposArte> {
   const campos: CamposArte = { removerPdf: false, removerImagem: false };
   const maquinaIds: string[] = [];
   let enviouMaquinas = false;
@@ -114,20 +115,34 @@ async function lerCampos(request: FastifyRequest): Promise<CamposArte> {
   return campos;
 }
 
-function exigirIds(campos: CamposArte): void {
+export function exigirIds(campos: CamposArte): void {
   const invalidos = [campos.produtoId, campos.corId, ...(campos.maquinaIds ?? [])].filter(
     (id) => id && !ehUuid(id),
   );
   if (invalidos.length) throw new ErroApi(422, 'validacao', 'Identificador inválido.');
 }
 
+// As mesmas regras do site e do app (`validarNovaArte`); o primeiro erro vira 422.
+export function conferirNovaArte(campos: CamposArte, produtoId: string): void {
+  const erros = validarNovaArte({
+    produtoId,
+    nome: campos.nome,
+    corId: campos.corId ?? '',
+    maquinaIds: campos.maquinaIds ?? [],
+    pdf: campos.pdf && { tamanho: campos.pdf.conteudo.length, tipo: 'pdf' },
+    imagem: campos.imagem && { tamanho: campos.imagem.conteudo.length, tipo: 'imagem' },
+  });
+  const primeiroErro = Object.values(erros)[0];
+  if (primeiroErro) throw new ErroApi(422, 'validacao', primeiroErro);
+}
+
+// Limites do parser multipart: o teto é o do maior arquivo; a imagem tem o limite próprio conferido acima.
+export const LIMITES_MULTIPART = { fileSize: LIMITES.pdfBytes, files: 2, fields: 20, parts: 30 };
+
 export function rotasArtes(app: FastifyInstance, { db }: { db: Banco }): void {
   // Registro encapsulado: o parser multipart vale só para estas rotas.
   void app.register(async (escopo) => {
-    await escopo.register(multipart, {
-      // O teto do parser é o do maior arquivo; a imagem tem o limite próprio conferido acima.
-      limits: { fileSize: LIMITES.pdfBytes, files: 2, fields: 20, parts: 30 },
-    });
+    await escopo.register(multipart, { limits: LIMITES_MULTIPART });
 
     const comEmpresa = [
       escopo.autenticacao.exigirUsuario,
@@ -157,16 +172,7 @@ export function rotasArtes(app: FastifyInstance, { db }: { db: Banco }): void {
 
         const campos = await lerCampos(request);
         exigirIds(campos);
-        const erros = validarNovaArte({
-          produtoId: campos.produtoId ?? '',
-          nome: campos.nome,
-          corId: campos.corId ?? '',
-          maquinaIds: campos.maquinaIds ?? [],
-          pdf: campos.pdf && { tamanho: campos.pdf.conteudo.length, tipo: 'pdf' },
-          imagem: campos.imagem && { tamanho: campos.imagem.conteudo.length, tipo: 'imagem' },
-        });
-        const primeiroErro = Object.values(erros)[0];
-        if (primeiroErro) throw new ErroApi(422, 'validacao', primeiroErro);
+        conferirNovaArte(campos, campos.produtoId ?? '');
 
         const arte = await criarArte(db, {
           empresaId,

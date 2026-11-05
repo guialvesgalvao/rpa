@@ -32,7 +32,10 @@ jobs:
       - run: npm run format:check
       - run: npx playwright install chromium
       - run: npm test
+      # URL pública da API da plataforma (Railway), embutida no app pelo scripts/build-app.mjs.
       - run: npm run app:build
+        env:
+          RPA_API_URL: https://rpa-production-f552.up.railway.app
       - run: npx electron-builder --win --publish never
       # Um único passo cria o Release com os 3 arquivos; o upload paralelo do electron-builder
       # chegou a criar dois Releases para a mesma tag.

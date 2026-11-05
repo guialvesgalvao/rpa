@@ -510,3 +510,112 @@ footer {
   font-weight: 600;
   margin-top: 4px;
 }
+
+/* Tarefas de desenvolvimento de arte. */
+.submenu {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.submenu:empty {
+  display: none;
+}
+.botao:not(.primary) {
+  padding: 10px 18px;
+  font-size: 13px;
+  color: var(--text);
+  border: 1px solid var(--border);
+  background: var(--card);
+}
+.botao:not(.primary):hover {
+  border-color: var(--cor-primaria);
+  color: var(--cor-primaria);
+}
+.filtro {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.filtro label,
+.campo > label[for='status-tarefa'] {
+  font-size: 13px;
+  font-weight: 700;
+}
+.filtro select,
+#status-tarefa {
+  font: inherit;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: #fff;
+}
+.selo-tarefa {
+  flex: none;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.selo-tarefa[data-status='em_desenvolvimento'] {
+  color: var(--run);
+  border-color: var(--run);
+}
+.selo-tarefa[data-status='aguardando_cliente'] {
+  color: #9a6a00;
+  border-color: #9a6a00;
+}
+.selo-tarefa[data-status='concluida'] {
+  color: var(--ok);
+  border-color: var(--ok);
+}
+.selo-tarefa[data-status='cancelada'] {
+  text-decoration: line-through;
+}
+.info-tarefa {
+  display: grid;
+  grid-template-columns: minmax(110px, max-content) 1fr;
+  gap: 8px 16px;
+  margin: 12px 0 16px;
+}
+.info-tarefa dt {
+  color: var(--muted);
+  font-size: 13px;
+}
+.info-tarefa dd {
+  margin: 0;
+}
+.comentarios {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.comentarios li {
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+.texto-comentario {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin-top: 2px;
+}
+.tabela-historico {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.tabela-historico th,
+.tabela-historico td {
+  text-align: left;
+  padding: 8px 6px;
+  border-bottom: 1px solid var(--border);
+}
+.tabela-historico th {
+  font-size: 12px;
+  color: var(--muted);
+}

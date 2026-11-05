@@ -20,6 +20,12 @@ type Props = {
   produtos: Opcao[];
   cores: Opcao[];
   maquinas: Opcao[];
+  // Produto já escolhido ao abrir (ex.: o do "Novo trabalho de arte").
+  produtoInicial?: string;
+  // O produto não muda (conclusão de tarefa: é o da tarefa).
+  produtoFixo?: boolean;
+  // Envio no lugar do cadastro comum (ex.: concluir a tarefa): rota do proxy e página de destino.
+  envio?: { url: string; destino: string };
 };
 
 type Selecionado = { arquivo: File; entrada: NonNullable<EntradaArquivo> };
@@ -41,9 +47,20 @@ function Erro({ texto }: { texto?: string }) {
   ) : null;
 }
 
-export function FormNovaArte({ empresa, clienteId, produtos, cores, maquinas }: Props) {
+export function FormNovaArte({
+  empresa,
+  clienteId,
+  produtos,
+  cores,
+  maquinas,
+  produtoInicial,
+  produtoFixo,
+  envio,
+}: Props) {
   const roteador = useRouter();
-  const [produtoId, setProdutoId] = useState('');
+  const [produtoId, setProdutoId] = useState(
+    produtoInicial && produtos.some((p) => p.id === produtoInicial) ? produtoInicial : '',
+  );
   const [nome, setNome] = useState('');
   const [corId, setCorId] = useState('');
   const [maquinaIds, setMaquinaIds] = useState<string[]>([]);
@@ -81,7 +98,7 @@ export function FormNovaArte({ empresa, clienteId, produtos, cores, maquinas }: 
     setEnviando(true);
     try {
       const resposta = await fetch(
-        `/api/v1/empresas/${encodeURIComponent(empresa)}/clientes/${clienteId}/artes`,
+        envio?.url ?? `/api/v1/empresas/${encodeURIComponent(empresa)}/clientes/${clienteId}/artes`,
         { method: 'POST', body: corpo },
       );
       if (resposta.status === 401) {
@@ -89,15 +106,20 @@ export function FormNovaArte({ empresa, clienteId, produtos, cores, maquinas }: 
         return;
       }
       if (resposta.ok) {
-        roteador.push(`/${empresa}/artes/clientes/${clienteId}?cadastrada=1`);
+        roteador.push(envio?.destino ?? `/${empresa}/artes/clientes/${clienteId}?cadastrada=1`);
         return;
       }
       const falha = EsquemaErro.safeParse(await resposta.json().catch(() => null));
       const mensagem = falha.success
         ? falha.data.erro.mensagem
         : 'Não foi possível cadastrar a arte. Tente novamente.';
-      const campo: CampoNovaArte | null =
-        resposta.status === 409 ? 'nome' : [413, 415].includes(resposta.status) ? 'arquivos' : null;
+      // Nome repetido vai ao lado do Nome; outros conflitos (ex.: tarefa já com arte), no aviso geral.
+      const duplicada = falha.success && falha.data.erro.codigo === 'arte_duplicada';
+      const campo: CampoNovaArte | null = duplicada
+        ? 'nome'
+        : [413, 415].includes(resposta.status)
+          ? 'arquivos'
+          : null;
       if (campo) setErros({ [campo]: mensagem });
       else setErroGeral(mensagem);
     } catch {
@@ -121,6 +143,7 @@ export function FormNovaArte({ empresa, clienteId, produtos, cores, maquinas }: 
           id="produto"
           value={produtoId}
           onChange={(e) => setProdutoId(e.target.value)}
+          disabled={produtoFixo}
           aria-invalid={Boolean(erros.produtoId)}
         >
           <option value="">Selecione…</option>

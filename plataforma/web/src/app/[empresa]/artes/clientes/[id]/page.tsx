@@ -2,7 +2,12 @@ import { rotuloArtes } from '@plataforma/contratos';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
-import { clienteDaEmpresa, produtosDoCliente } from '../../../../../servidor/artes';
+import { NovoTrabalhoArte } from '../../../../../componentes/NovoTrabalhoArte';
+import {
+  clienteDaEmpresa,
+  produtosDaEmpresa,
+  produtosDoCliente,
+} from '../../../../../servidor/artes';
 
 export const metadata: Metadata = {
   title: 'Cliente · Plataforma RPA',
@@ -14,9 +19,10 @@ export default async function PaginaCliente({
 }: PageProps<'/[empresa]/artes/clientes/[id]'>) {
   const { empresa, id } = await params;
   const { cadastrada } = await searchParams;
-  const [cliente, produtos] = await Promise.all([
+  const [cliente, produtos, catalogo] = await Promise.all([
     clienteDaEmpresa(empresa, id),
     produtosDoCliente(empresa, id),
+    produtosDaEmpresa(empresa),
   ]);
 
   return (
@@ -32,11 +38,10 @@ export default async function PaginaCliente({
       <div className="card">
         <h2>{cliente.nomeExibicao}</h2>
         {cliente.nomeFantasia && <div className="hint">{cliente.razaoSocial}</div>}
-        <div className="actions">
-          <Link className="botao primary" href={`/${empresa}/artes/nova?cliente=${cliente.id}`}>
-            Cadastrar nova arte
-          </Link>
-        </div>
+      </div>
+      <div className="card">
+        <h2>Novo trabalho de arte</h2>
+        <NovoTrabalhoArte empresa={empresa} clienteId={cliente.id} catalogo={catalogo} />
       </div>
       <div className="card">
         <h2>Produtos com arte</h2>

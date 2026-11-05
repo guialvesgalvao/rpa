@@ -2,11 +2,19 @@ import 'server-only';
 
 import {
   EsquemaCliente,
+  EsquemaEventoTarefa,
   EsquemaOpcao,
   EsquemaProdutoDoCliente,
+  EsquemaTarefa,
+  EsquemaTarefaDetalhe,
   type Cliente,
+  type EscopoTarefas,
+  type EventoTarefa,
   type Opcao,
   type ProdutoDoCliente,
+  type StatusTarefa,
+  type Tarefa,
+  type TarefaDetalhe,
 } from '@plataforma/contratos';
 import { cookies } from 'next/headers';
 import { notFound, redirect } from 'next/navigation';
@@ -59,3 +67,25 @@ export async function opcoesNovaArte(empresa: string): Promise<OpcoesNovaArte> {
   ]);
   return { produtos, cores, maquinas };
 }
+
+// Catálogo da empresa (os produtos do Bling): o mesmo para todos os clientes.
+export const produtosDaEmpresa = (empresa: string): Promise<Opcao[]> =>
+  lerDaApi(`${base(empresa)}/produtos`, z.array(EsquemaOpcao));
+
+export function tarefasDaEmpresa(
+  empresa: string,
+  consulta: { escopo: EscopoTarefas; status?: StatusTarefa },
+): Promise<Tarefa[]> {
+  const params = new URLSearchParams({ escopo: consulta.escopo });
+  if (consulta.status) params.set('status', consulta.status);
+  return lerDaApi(`${base(empresa)}/tarefas?${params}`, z.array(EsquemaTarefa));
+}
+
+export const tarefaDaEmpresa = (empresa: string, id: string): Promise<TarefaDetalhe> =>
+  lerDaApi(`${base(empresa)}/tarefas/${encodeURIComponent(id)}`, EsquemaTarefaDetalhe);
+
+export const historicoDaTarefa = (empresa: string, id: string): Promise<EventoTarefa[]> =>
+  lerDaApi(
+    `${base(empresa)}/tarefas/${encodeURIComponent(id)}/historico`,
+    z.array(EsquemaEventoTarefa),
+  );

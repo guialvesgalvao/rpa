@@ -3,9 +3,14 @@ import { describe, expect, it } from 'vitest';
 import {
   MAX_PEDIDOS_OP,
   validarCnpj,
+  validarComentario,
+  validarConclusao,
+  validarConsultaTarefas,
   validarItemOp,
   validarItensOp,
   validarLogin,
+  validarMudancaStatus,
+  validarNovaTarefa,
   validarNumerosOp,
   validarSelecao,
   validarSlug,
@@ -210,5 +215,49 @@ describe('validarItensOp', () => {
     ]) {
       expect(() => validarItensOp(entrada)).toThrow('Seleção de produtos inválida.');
     }
+  });
+});
+
+describe('tarefas de arte', () => {
+  const id = '3f0c6d2e-8a41-4b5e-9d3a-1c2b3d4e5f60';
+
+  it('nova tarefa: cliente e produto por id', () => {
+    expect(validarNovaTarefa({ clienteId: id, produtoId: id })).toEqual({
+      clienteId: id,
+      produtoId: id,
+    });
+    expect(() => validarNovaTarefa({ clienteId: id, produtoId: 'x' })).toThrow(
+      'Cliente ou produto inválido.',
+    );
+  });
+
+  it('filtro: escopo e status conhecidos', () => {
+    expect(validarConsultaTarefas({ escopo: 'minhas', status: 'concluida' })).toEqual({
+      escopo: 'minhas',
+      status: 'concluida',
+    });
+    for (const entrada of [{ escopo: 'outras' }, { escopo: 'todas', status: 'pausada' }, null]) {
+      expect(() => validarConsultaTarefas(entrada)).toThrow('Filtro de tarefas inválido.');
+    }
+  });
+
+  it('status: id e status conhecidos', () => {
+    expect(validarMudancaStatus({ id, status: 'cancelada' })).toEqual({ id, status: 'cancelada' });
+    expect(() => validarMudancaStatus({ id, status: 'pausada' })).toThrow('Status inválido.');
+  });
+
+  it('comentário: aparado, nem vazio nem longo demais', () => {
+    expect(validarComentario({ id, texto: '  ok ' })).toEqual({ id, texto: 'ok' });
+    for (const texto of ['  ', 'x'.repeat(2001)]) {
+      expect(() => validarComentario({ id, texto })).toThrow('Escreva um comentário');
+    }
+  });
+
+  it('conclusão: os campos do cadastro, sem o cliente e com a tarefa', () => {
+    const entrada = { tarefaId: id, produtoId: id, nome: '', corId: id, maquinaIds: [id] };
+    expect(validarConclusao(entrada)).toEqual(entrada);
+    expect(() => validarConclusao({ ...entrada, tarefaId: 'x' })).toThrow(
+      'Dados da arte inválidos.',
+    );
   });
 });

@@ -82,7 +82,7 @@ const topo = $('topo');
 const areaApp = $('app');
 const faixaOffline = $('offline');
 const artesOffline = $('artes-offline');
-const artes = criarArtes($('artes-raiz'), window.rpa.artes);
+const artes = criarArtes($('artes-raiz'), window.rpa.artes, window.rpa.tarefas);
 const opTela = criarOp({
   api: window.rpa.op,
   artes: window.rpa.artes,
@@ -555,7 +555,7 @@ function aplicarSessao(sessao: SessaoTela) {
   }
   if (empresaMontada === chaveEmpresa) return;
   empresaMontada = chaveEmpresa;
-  artes.reiniciar();
+  artes.reiniciar(sessao.perfil);
   opTela.reiniciar();
   limparFatura();
   atualizarContagem();

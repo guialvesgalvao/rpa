@@ -36,6 +36,16 @@ const api: RpaApi = {
     escolherArquivo: (tipo) => ipcRenderer.invoke(CHANNELS.artesEscolherArquivo, tipo),
     cadastrar: (entrada) => ipcRenderer.invoke(CHANNELS.artesCadastrar, entrada),
   },
+  tarefas: {
+    criar: (clienteId, produtoId) =>
+      ipcRenderer.invoke(CHANNELS.tarefasCriar, { clienteId, produtoId }),
+    listar: (consulta) => ipcRenderer.invoke(CHANNELS.tarefasListar, consulta),
+    obter: (id) => ipcRenderer.invoke(CHANNELS.tarefasObter, id),
+    mudarStatus: (id, status) => ipcRenderer.invoke(CHANNELS.tarefasMudarStatus, { id, status }),
+    concluir: (entrada) => ipcRenderer.invoke(CHANNELS.tarefasConcluir, entrada),
+    comentar: (id, texto) => ipcRenderer.invoke(CHANNELS.tarefasComentar, { id, texto }),
+    historico: (id) => ipcRenderer.invoke(CHANNELS.tarefasHistorico, id),
+  },
   op: {
     clientePorCnpj: (cnpj) => ipcRenderer.invoke(CHANNELS.opClientePorCnpj, cnpj),
     artesDoItem: (clienteId, codigo) =>

@@ -131,7 +131,9 @@ describe('inspecionarArquivo', () => {
 
 describe('errosDaRejeicao', () => {
   it('leva o 409 ao campo Nome, 413 e 415 a arquivos e 422 ao erro geral', () => {
-    expect(errosDaRejeicao(new ErroRequisicao(409, 'conflito', "Já existe uma arte 'A'"))).toEqual({
+    expect(
+      errosDaRejeicao(new ErroRequisicao(409, 'arte_duplicada', "Já existe uma arte 'A'")),
+    ).toEqual({
       nome: "Já existe uma arte 'A'",
     });
     expect(errosDaRejeicao(new ErroRequisicao(413, 'arquivo_grande', 'grande'))).toEqual({

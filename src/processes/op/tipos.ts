@@ -12,6 +12,17 @@ export type ItemDaOp = { descricao: string; codigo: string; unidade: string; qua
 
 export type InsumoDaOp = { nome: string; unidade: string; quantidadePorUnidade: number };
 
+/** Marca nas colunas Sim/Não da "Descrição do Processo". */
+export type MarcaProcesso = 'sim' | 'nao';
+
+/** Linha da "Descrição do Processo"; campo ausente sai em branco para preencher à mão. */
+export type LinhaProcessoDaOp = {
+  aplica?: MarcaProcesso;
+  quantidade?: string;
+  responsavel?: string;
+  data?: Date;
+};
+
 /** Tudo o que o PDF de uma OP mostra: uma OP por produto do pedido. */
 export type OrdemProducao = {
   numero: number;
@@ -26,8 +37,12 @@ export type OrdemProducao = {
   previsaoInicial: Date;
   /** Previsão final = data prevista do pedido; ausente, sai em branco. */
   previsaoFinal?: Date;
+  /** "Data entrega de produção", do pré-preenchimento; ausente, sai em branco. */
+  dataEntrega?: Date;
   item: ItemDaOp;
   insumos: InsumoDaOp[];
+  /** Uma linha por passo de `PASSOS_PROCESSO`; ausente (ou linha ausente), sai em branco. */
+  processo?: LinhaProcessoDaOp[];
   observacao?: string;
   /** Ausente: o PDF sai sem o bloco de arte. */
   arte?: ArteDaOp;

@@ -266,11 +266,12 @@ function guardarBusca(empresa: string, lidos: PedidoLido[], telas: PedidoOpTela[
 }
 
 /** Item da última busca com a arte escolhida; recusa pedido, item ou arte que o main não conhece. */
-function itemParaGerar({ numero, indice, arteId }: ItemParaGerarOp): ItemGeracao {
+function itemParaGerar({ numero, indice, arteId, preenchimento }: ItemParaGerarOp): ItemGeracao {
   const guardado = op.pedidos.get(numero);
   const item = guardado?.pedido.itens[indice];
   if (!guardado || !item) throw new Error('Busque os pedidos de novo.');
-  if (!arteId) return { pedido: guardado.pedido, indice };
+  const extra = preenchimento ? { preenchimento } : {};
+  if (!arteId) return { pedido: guardado.pedido, indice, ...extra };
   const arte = guardado.clienteId
     ? op.artes.get(chaveArtes(guardado.clienteId, item.codigo))?.find((a) => a.id === arteId)
     : undefined;
@@ -284,6 +285,7 @@ function itemParaGerar({ numero, indice, arteId }: ItemParaGerarOp): ItemGeracao
       maquinas: arte.maquinas.map((m) => m.nome),
       temImagem: arte.temImagem,
     },
+    ...extra,
   };
 }
 

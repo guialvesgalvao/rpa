@@ -243,3 +243,31 @@ describe('textos', () => {
     expect(nomeDoCliente({ ...p, clienteFantasia: ' ' })).toBe('Cliente Ficticio Ltda');
   });
 });
+
+describe('pré-preenchimento da OP', () => {
+  const preenchimento = { dataEntrega: '2026-11-20', observacao: 'Urgente' };
+
+  it('é mantido ao buscar de novo, mesmo quando a arte escolhida some', () => {
+    const pedidos = [pedido('9001', [item(0, { artes: [A] })])];
+    const anteriores = new Map<string, EscolhaItem>([
+      [chaveItem('9001', 0), { marcado: true, arteId: 'sumiu', preenchimento }],
+    ]);
+    const escolha = montarEscolhas(pedidos, anteriores).get(chaveItem('9001', 0));
+    expect(escolha).toEqual({ marcado: true, arteId: 'a', preenchimento });
+  });
+
+  it('vai normalizado na geração, e sem dados não vai', () => {
+    const pedidos = [pedido('9001', [item(0), item(1)])];
+    const escolhas = new Map<string, EscolhaItem>([
+      [chaveItem('9001', 0), { marcado: true, preenchimento: { observacao: '  Urgente ' } }],
+      [chaveItem('9001', 1), { marcado: true, preenchimento: { observacao: '   ' } }],
+    ]);
+    expect(itensParaGerar(pedidos, escolhas)).toEqual([
+      { numero: '9001', indice: 0, preenchimento: { observacao: 'Urgente' } },
+      { numero: '9001', indice: 1 },
+    ]);
+    expect(resumirSelecao(pedidos, escolhas)).toBe(
+      '2 OP(s) selecionada(s), 2 sem arte, 1 pré-preenchida(s)',
+    );
+  });
+});

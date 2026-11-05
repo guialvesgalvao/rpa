@@ -4,6 +4,7 @@ import { mensagemErro } from '../artes/dom.js';
 import { montarFormulario } from '../artes/formulario.js';
 import { preencherResultado } from '../resultados.js';
 import { renderPedidos } from './dom.js';
+import { montarPreenchimento } from './preenchimento.js';
 import {
   aplicarArtesRecarregadas,
   type ArtesRecarregadas,
@@ -96,6 +97,7 @@ export function criarOp({ api, artes, escolherPasta, abrirPasta }: DepsOp): Tela
       bloqueado: ocupado,
       aoMudar: atualizarControles,
       novaArte: abrirCadastro,
+      preencher: abrirPreenchimento,
     });
   }
 
@@ -168,6 +170,27 @@ export function criarOp({ api, artes, escolherPasta, abrirPasta }: DepsOp): Tela
           { numero: pedido.numero, indice: item.indice },
           minha,
         );
+      },
+    });
+  }
+
+  /** Dados da OP (entrega, processo, observação) guardados na escolha do produto até gerar. */
+  function abrirPreenchimento(pedido: Extract<PedidoOpTela, { situacao: 'ok' }>, item: ItemOpTela) {
+    const escolha = escolhas.get(chaveItem(pedido.numero, item.indice));
+    if (!escolha) return;
+    principal.hidden = true;
+    detalhe.hidden = false;
+    formulario?.encerrar();
+    formulario = montarPreenchimento(detalhe, {
+      titulo: `Pedido ${pedido.numero} · ${item.codigo} — ${item.descricao}`,
+      inicial: escolha.preenchimento,
+      voltar: mostrarPrincipal,
+      salvar: (preenchimento) => {
+        if (preenchimento) escolha.preenchimento = preenchimento;
+        else delete escolha.preenchimento;
+        mostrarPrincipal();
+        desenharLista();
+        atualizarControles();
       },
     });
   }

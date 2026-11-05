@@ -83,6 +83,49 @@ describe('htmlDaOp', () => {
     expect(html.match(/____\/____\/______/g)).toHaveLength(PASSOS_PROCESSO.length);
   });
 
+  it('deixa a data de entrega em branco sem pré-preenchimento e mostra a informada', () => {
+    expect(htmlDaOp(opBase())).toMatch(
+      /Data entrega de produção<\/span><span class="valor">__\/__\/____/,
+    );
+    const op = opBase();
+    op.dataEntrega = new Date(2026, 10, 20);
+    expect(htmlDaOp(op)).toMatch(
+      /Data entrega de produção<\/span><span class="valor">20\/11\/2026/,
+    );
+  });
+
+  it('preenche Sim/Não, quantidade, responsável e data dos passos informados', () => {
+    const op = opBase();
+    op.processo = [
+      {
+        aplica: 'sim',
+        quantidade: '1000',
+        responsavel: 'Operador Ficticio',
+        data: new Date(2026, 10, 3),
+      },
+      { aplica: 'nao' },
+    ];
+    const html = htmlDaOp(op);
+    expect(html).toMatch(
+      /1\) Guilhotina<\/td>\s*<td class="marca">\(X\)<\/td><td class="marca">\( \)<\/td>\s*<td class="qtde">1000<\/td><td class="responsavel">Operador Ficticio<\/td>\s*<td class="data">03\/11\/2026<\/td>/,
+    );
+    expect(html).toMatch(
+      /2\) Off-Set<\/td>\s*<td class="marca">\( \)<\/td><td class="marca">\(X\)/,
+    );
+    // Os passos sem dados (3 a 9) e o 2 (sem data) continuam em branco.
+    expect(html.match(/____\/____\/______/g)).toHaveLength(PASSOS_PROCESSO.length - 1);
+    expect(html.match(/\(X\)/g)).toHaveLength(2);
+  });
+
+  it('escapa o responsável e a quantidade do processo', () => {
+    const op = opBase();
+    op.processo = [{ quantidade: '<1>', responsavel: 'Ana & <b>Bia</b>' }];
+    const html = htmlDaOp(op);
+    expect(html).toContain('&lt;1&gt;');
+    expect(html).toContain('Ana &amp; &lt;b&gt;Bia&lt;/b&gt;');
+    expect(html).not.toContain('<b>Bia</b>');
+  });
+
   it('escapa os textos vindos do pedido e da observação', () => {
     const op = opBase();
     op.item.descricao = '<script>alert(1)</script>';

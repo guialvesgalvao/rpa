@@ -422,9 +422,48 @@
         min-height: 0;
         overflow-wrap: anywhere;
       }
-      button.op-nova-arte {
+      button.op-nova-arte,
+      button.op-preencher {
         padding: 5px 12px;
         font-size: 12px;
+      }
+      /* Formulário "Pré-preencher OP". */
+      input[type='date'] {
+        font: inherit;
+        padding: 6px 8px;
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        background: #fff;
+        color: var(--text);
+      }
+      .op-preenchimento-processo {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+      .op-preenchimento-processo th {
+        text-align: left;
+        font-size: 12px;
+        color: var(--muted);
+        padding: 4px 6px;
+      }
+      .op-preenchimento-processo td {
+        padding: 3px 6px;
+        border-top: 1px solid var(--border);
+      }
+      .op-preenchimento-processo .op-passo {
+        font-weight: 700;
+        white-space: nowrap;
+      }
+      .op-preenchimento-processo select,
+      .op-preenchimento-processo input[type='text'] {
+        font: inherit;
+        padding: 6px 8px;
+      }
+      .op-preenchimento-processo select {
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        background: #fff;
       }
       .pedido-docs {
         display: flex;

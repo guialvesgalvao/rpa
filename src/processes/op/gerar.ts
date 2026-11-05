@@ -1,12 +1,21 @@
 import { criarRastro, primeiraLinha, type Passo } from '../../core/rastro.js';
 import type { ItemOp, PedidoOp } from '../bling/pedido-op.js';
-import type { ImagemOp, OrdemProducao } from './tipos.js';
+import { dataLocal, type PreenchimentoOp } from './preenchimento.js';
+import type { ImagemOp, LinhaProcessoDaOp, OrdemProducao } from './tipos.js';
 
 /** Arte escolhida na tela para o item (cor e máquinas já por nome). */
 export type ArteEscolhida = { id: string; cor: string; maquinas: string[]; temImagem: boolean };
 
-/** Um produto marcado para gerar a OP: o pedido lido, a posição do item nele e a arte, se houver. */
-export type ItemGeracao = { pedido: PedidoOp; indice: number; arte?: ArteEscolhida };
+/**
+ * Um produto marcado para gerar a OP: o pedido lido, a posição do item nele, a arte, se houver, e
+ * os dados pré-preenchidos na tela (data de entrega, processo, observação).
+ */
+export type ItemGeracao = {
+  pedido: PedidoOp;
+  indice: number;
+  arte?: ArteEscolhida;
+  preenchimento?: PreenchimentoOp;
+};
 
 export type StatusOp = 'pendente' | 'processando' | 'ok' | 'erro';
 
@@ -51,8 +60,16 @@ export function montarOrdem(args: {
   logo?: ImagemOp;
   arte?: ArteEscolhida;
   imagem?: ImagemOp;
+  preenchimento?: PreenchimentoOp;
 }): OrdemProducao {
-  const { pedido, item, numero, data, empresa, logo, arte, imagem } = args;
+  const { pedido, item, numero, data, empresa, logo, arte, imagem, preenchimento } = args;
+  const dataEntrega = preenchimento?.dataEntrega && dataLocal(preenchimento.dataEntrega);
+  const processo = preenchimento?.processo?.map(
+    ({ data: dataPasso, ...linha }): LinhaProcessoDaOp => {
+      const dataLinha = dataPasso && dataLocal(dataPasso);
+      return { ...linha, ...(dataLinha ? { data: dataLinha } : {}) };
+    },
+  );
   return {
     numero,
     data,
@@ -62,6 +79,7 @@ export function montarOrdem(args: {
     numeroPedido: pedido.numero,
     previsaoInicial: pedido.dataVenda,
     previsaoFinal: pedido.dataPrevista,
+    ...(dataEntrega ? { dataEntrega } : {}),
     item: {
       descricao: item.descricao,
       codigo: item.codigo,
@@ -69,6 +87,8 @@ export function montarOrdem(args: {
       quantidade: item.quantidade,
     },
     insumos: item.insumos ?? [],
+    ...(processo ? { processo } : {}),
+    ...(preenchimento?.observacao ? { observacao: preenchimento.observacao } : {}),
     arte: arte && { cor: arte.cor, maquinas: arte.maquinas, imagem },
   };
 }
@@ -162,6 +182,7 @@ export async function gerarOps(deps: DepsGerarOps): Promise<ResultadoOp[]> {
         logo,
         arte: geracao.arte,
         imagem,
+        preenchimento: geracao.preenchimento,
       });
       const arquivo = await rastro.etapa(`Gerei o PDF da OP nº ${numero}`, () =>
         deps.salvarPdf(ordem),

@@ -1,3 +1,4 @@
+import { temPreenchimento } from '../../processes/op/preenchimento.js';
 import type { ItemOpTela, PedidoOpTela } from '../api.js';
 import { botao, criar } from '../artes/dom.js';
 import { renderPassos } from '../resultados.js';
@@ -19,6 +20,8 @@ export type DepsListaOp = {
   bloqueado: boolean;
   aoMudar: () => void;
   novaArte: (pedido: PedidoOk, item: ItemOpTela) => void;
+  /** Abre o formulário "Pré-preencher OP" do produto. */
+  preencher: (pedido: PedidoOk, item: ItemOpTela) => void;
 };
 
 const SEM_ARTE = '';
@@ -29,6 +32,16 @@ function linhaDoItem(pedido: PedidoOk, item: ItemOpTela, deps: DepsListaOp): HTM
   const gera = podeGerar(item);
   linha.classList.toggle('desmarcado', !escolha.marcado);
 
+  // Pré-preencher só vale para o produto marcado (o que vai virar OP).
+  const preencher = botao(
+    temPreenchimento(escolha.preenchimento) ? 'Editar dados da OP ✓' : 'Pré-preencher OP',
+    () => deps.preencher(pedido, item),
+    'op-preencher',
+  );
+  const atualizarPreencher = () => {
+    preencher.disabled = deps.bloqueado || !escolha.marcado;
+  };
+
   const rotulo = criar('label', 'check');
   const check = criar('input');
   check.type = 'checkbox';
@@ -37,6 +50,7 @@ function linhaDoItem(pedido: PedidoOk, item: ItemOpTela, deps: DepsListaOp): HTM
   check.addEventListener('change', () => {
     escolha.marcado = check.checked;
     linha.classList.toggle('desmarcado', !check.checked);
+    atualizarPreencher();
     deps.aoMudar();
   });
   const quantidade = `${item.quantidade.toLocaleString('pt-BR')} ${item.unidade}`.trim();
@@ -78,11 +92,16 @@ function linhaDoItem(pedido: PedidoOk, item: ItemOpTela, deps: DepsListaOp): HTM
     nova.disabled = deps.bloqueado;
     arte.append(nova);
   }
+  atualizarPreencher();
+  arte.append(preencher);
   linha.append(arte);
   return linha;
 }
 
-/** Lista Pedido → Produto: checkbox por produto, arte pré-selecionada e cadastro de nova arte. */
+/**
+ * Lista Pedido → Produto: checkbox por produto, arte pré-selecionada, cadastro de nova arte e
+ * pré-preenchimento dos dados da OP.
+ */
 export function renderPedidos(raiz: HTMLElement, deps: DepsListaOp): void {
   const blocos = deps.pedidos.map((pedido) => {
     const bloco = criar('div', 'pedido op-pedido');

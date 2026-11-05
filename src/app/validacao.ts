@@ -1,6 +1,13 @@
 import { z } from 'zod';
 
 import { type PedidoSelecao, TODOS_DOCS } from '../processes/bling/selecao.js';
+import {
+  dataIsoValida,
+  LIMITES_PREENCHIMENTO,
+  normalizarPreenchimento,
+} from '../processes/op/preenchimento.js';
+import { PASSOS_PROCESSO } from '../processes/op/template.js';
+import type { ItemParaGerarOp } from './api.js';
 
 const schema = z.array(
   z.object({
@@ -115,29 +122,48 @@ export function validarNumerosOp(input: unknown): string[] {
   return [...new Set(parsed.data)];
 }
 
+const dataIsoSchema = z.string().refine(dataIsoValida);
+
+const linhaProcessoSchema = z.object({
+  aplica: z.enum(['sim', 'nao']).optional(),
+  quantidade: z.string().max(LIMITES_PREENCHIMENTO.quantidade).optional(),
+  responsavel: z.string().max(LIMITES_PREENCHIMENTO.responsavel).optional(),
+  data: z.union([z.literal(''), dataIsoSchema]).optional(),
+});
+
+const preenchimentoSchema = z.object({
+  dataEntrega: z.union([z.literal(''), dataIsoSchema]).optional(),
+  processo: z.array(linhaProcessoSchema).length(PASSOS_PROCESSO.length).optional(),
+  observacao: z.string().max(LIMITES_PREENCHIMENTO.observacao).optional(),
+});
+
 const itensOpSchema = z
   .array(
     z.object({
       numero: z.string().regex(/^\d{1,12}$/),
       indice: z.number().int().min(0).max(1000),
       arteId: z.uuid().optional(),
+      preenchimento: preenchimentoSchema.optional(),
     }),
   )
   .max(1000);
 
-/** Valida os produtos marcados para gerar a OP; item repetido conta uma vez. */
-export function validarItensOp(
-  input: unknown,
-): { numero: string; indice: number; arteId?: string }[] {
+/**
+ * Valida os produtos marcados para gerar a OP; item repetido conta uma vez. O pré-preenchimento
+ * volta normalizado (sem espaços nem campos vazios) e some se não tiver nenhum dado.
+ */
+export function validarItensOp(input: unknown): ItemParaGerarOp[] {
   const parsed = itensOpSchema.safeParse(input);
   if (!parsed.success) throw new Error('Seleção de produtos inválida.');
   const vistos = new Set<string>();
-  const itens = parsed.data.filter(({ numero, indice }) => {
-    const chave = `${numero}:${indice}`;
-    if (vistos.has(chave)) return false;
+  const itens: ItemParaGerarOp[] = [];
+  for (const { preenchimento, ...item } of parsed.data) {
+    const chave = `${item.numero}:${item.indice}`;
+    if (vistos.has(chave)) continue;
     vistos.add(chave);
-    return true;
-  });
+    const normalizado = normalizarPreenchimento(preenchimento);
+    itens.push(normalizado ? { ...item, preenchimento: normalizado } : item);
+  }
   if (!itens.length) throw new Error('Marque ao menos um produto.');
   return itens;
 }

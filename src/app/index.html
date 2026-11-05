@@ -579,6 +579,128 @@
         flex-wrap: wrap;
         gap: 16px;
       }
+      /* Tarefas de desenvolvimento de arte. */
+      .artes-submenu {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 16px;
+      }
+      .artes-submenu:empty {
+        display: none;
+      }
+      .artes-novo-trabalho {
+        margin-top: 20px;
+        padding-top: 16px;
+        border-top: 1px solid var(--border);
+      }
+      .artes-novo-trabalho .actions {
+        margin-top: 10px;
+      }
+      .tarefas-topo {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+      }
+      .tarefas-filtro,
+      .tarefa-info select {
+        font: inherit;
+        padding: 6px 10px;
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        background: #fff;
+      }
+      .tarefa-item {
+        align-items: center;
+      }
+      .tarefa-item-texto {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 0;
+      }
+      .tarefa-status {
+        flex: none;
+        font-size: 12px;
+        font-weight: 700;
+        padding: 2px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        color: var(--muted);
+        white-space: nowrap;
+      }
+      .tarefa-status[data-status='em_desenvolvimento'] {
+        color: #1d5fa8;
+        border-color: #1d5fa8;
+      }
+      .tarefa-status[data-status='aguardando_cliente'] {
+        color: #9a6a00;
+        border-color: #9a6a00;
+      }
+      .tarefa-status[data-status='concluida'] {
+        color: var(--ok);
+        border-color: var(--ok);
+      }
+      .tarefa-status[data-status='cancelada'] {
+        text-decoration: line-through;
+      }
+      .tarefa-info {
+        display: grid;
+        gap: 8px;
+        margin: 12px 0 16px;
+      }
+      .tarefa-info-linha {
+        display: grid;
+        grid-template-columns: 140px 1fr;
+        gap: 12px;
+        align-items: center;
+      }
+      .tarefa-info-rotulo {
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .tarefa-info-linha > :last-child {
+        justify-self: start;
+      }
+      .tarefa-bloco-comentarios {
+        margin-top: 16px;
+        display: grid;
+        gap: 8px;
+      }
+      .tarefa-bloco-comentarios > button {
+        justify-self: start;
+      }
+      .tarefa-comentarios {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      .tarefa-comentario {
+        padding: 8px 0;
+        border-bottom: 1px solid var(--border);
+      }
+      .tarefa-comentario-texto {
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        margin-top: 2px;
+      }
+      .tarefa-historico {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 8px;
+        font-size: 14px;
+      }
+      .tarefa-historico th,
+      .tarefa-historico td {
+        text-align: left;
+        padding: 8px 6px;
+        border-bottom: 1px solid var(--border);
+      }
+      .tarefa-historico th {
+        font-size: 12px;
+        color: var(--muted);
+      }
       .artes-arquivo {
         display: flex;
         align-items: center;

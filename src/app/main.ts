@@ -28,6 +28,7 @@ import {
   type ArquivoEscolhido,
   CHANNELS,
   type CadastroResultado,
+  type ConclusaoResultado,
   type ConfigTela,
   type Defaults,
   type GerarOpResultado,
@@ -47,6 +48,7 @@ import {
   artesDoItem,
   criarClienteArtes,
   ErroRequisicao,
+  type ErrosCadastro,
   errosDaRejeicao,
   inspecionarArquivo,
   montarEnvio,
@@ -62,9 +64,13 @@ import { montarPedidosTela } from './plataforma/op.js';
 import {
   type ArteDoProduto,
   type Cliente,
+  type ComentarioTarefa,
+  type EventoTarefa,
   type PaginaClientes,
   type Perfil,
   type ProdutoDoCliente,
+  type Tarefa,
+  type TarefaDetalhe,
   temaDaEmpresa,
 } from './plataforma/contratos.js';
 import { criarSessao, type EstadoSessao } from './plataforma/sessao.js';
@@ -82,7 +88,13 @@ import {
   settingsDaEmpresa,
 } from './settings.js';
 import {
+  type CadastroEntrada,
   validarCadastro,
+  validarComentario,
+  validarConclusao,
+  validarConsultaTarefas,
+  validarMudancaStatus,
+  validarNovaTarefa,
   validarConsultaClientes,
   validarId,
   validarLogin,
@@ -518,29 +530,38 @@ ipcMain.handle(
   },
 );
 
+/**
+ * Relê os arquivos escolhidos (tamanho e tipo na hora do envio: o arquivo pode ter mudado depois do
+ * diálogo), valida e monta o multipart. Erros de validação ou de leitura voltam por campo.
+ */
+async function prepararEnvioArte(
+  entrada: Omit<CadastroEntrada, 'clienteId' | 'pdfId' | 'imagemId'>,
+  pdfId: string | undefined,
+  imagemId: string | undefined,
+): Promise<{ form: FormData } | { erros: ErrosCadastro }> {
+  const reler = async (id: string | undefined): Promise<ArquivoLocal | undefined> => {
+    if (!id) return undefined;
+    const escolhido = arquivosEscolhidos.get(id);
+    if (!escolhido) throw new Error('Arquivo não selecionado. Escolha o arquivo de novo.');
+    return inspecionarArquivo(escolhido.caminho);
+  };
+  let arquivos: { pdf?: ArquivoLocal; imagem?: ArquivoLocal };
+  try {
+    arquivos = { pdf: await reler(pdfId), imagem: await reler(imagemId) };
+  } catch (erro) {
+    // Erro de disco (ENOENT, EACCES…) tem `code`; "Arquivo não selecionado" sobe como está.
+    if (!(erro instanceof Error && 'code' in erro)) throw erro;
+    return { erros: { arquivos: 'Não foi possível ler o arquivo escolhido.' } };
+  }
+  return montarEnvio(entrada, arquivos);
+}
+
 ipcMain.handle(
   CHANNELS.artesCadastrar,
   async (_event, input: unknown): Promise<CadastroResultado> => {
     const { clienteId, pdfId, imagemId, ...entrada } = validarCadastro(input);
     const { empresa } = await contexto();
-
-    // Relê tamanho e tipo na hora do envio: o arquivo pode ter mudado depois do diálogo.
-    const reler = async (id: string | undefined): Promise<ArquivoLocal | undefined> => {
-      if (!id) return undefined;
-      const escolhido = arquivosEscolhidos.get(id);
-      if (!escolhido) throw new Error('Arquivo não selecionado. Escolha o arquivo de novo.');
-      return inspecionarArquivo(escolhido.caminho);
-    };
-    let arquivos: { pdf?: ArquivoLocal; imagem?: ArquivoLocal };
-    try {
-      arquivos = { pdf: await reler(pdfId), imagem: await reler(imagemId) };
-    } catch (erro) {
-      // Erro de disco (ENOENT, EACCES…) tem `code`; "Arquivo não selecionado" sobe como está.
-      if (!(erro instanceof Error && 'code' in erro)) throw erro;
-      return { ok: false, erros: { arquivos: 'Não foi possível ler o arquivo escolhido.' } };
-    }
-
-    const envio = await montarEnvio(entrada, arquivos);
+    const envio = await prepararEnvioArte(entrada, pdfId, imagemId);
     if ('erros' in envio) return { ok: false, erros: envio.erros };
     try {
       await artesApi.cadastrar(empresa, clienteId, envio.form);
@@ -552,6 +573,72 @@ ipcMain.handle(
     arquivosEscolhidos.clear();
     logger.info({ empresa }, 'Arte cadastrada');
     return { ok: true };
+  },
+);
+
+// Tarefas de arte: os dois perfis usam; a API decide o alcance (o arte finalista só alcança as suas).
+ipcMain.handle(CHANNELS.tarefasCriar, async (_event, input: unknown): Promise<Tarefa> => {
+  const { clienteId, produtoId } = validarNovaTarefa(input);
+  const { empresa } = await contexto();
+  const tarefa = await artesApi.criarTarefa(empresa, clienteId, produtoId);
+  logger.info({ empresa }, 'Tarefa de arte criada');
+  return tarefa;
+});
+
+ipcMain.handle(CHANNELS.tarefasListar, async (_event, input: unknown): Promise<Tarefa[]> => {
+  const consulta = validarConsultaTarefas(input);
+  const { empresa } = await contexto();
+  return artesApi.listarTarefas(empresa, consulta);
+});
+
+ipcMain.handle(CHANNELS.tarefasObter, async (_event, input: unknown): Promise<TarefaDetalhe> => {
+  const id = validarId(input);
+  const { empresa } = await contexto();
+  return artesApi.obterTarefa(empresa, id);
+});
+
+ipcMain.handle(CHANNELS.tarefasMudarStatus, async (_event, input: unknown): Promise<Tarefa> => {
+  const { id, status } = validarMudancaStatus(input);
+  const { empresa } = await contexto();
+  return artesApi.mudarStatusTarefa(empresa, id, status);
+});
+
+ipcMain.handle(
+  CHANNELS.tarefasConcluir,
+  async (_event, input: unknown): Promise<ConclusaoResultado> => {
+    const { tarefaId, pdfId, imagemId, ...entrada } = validarConclusao(input);
+    const { empresa } = await contexto();
+    const envio = await prepararEnvioArte(entrada, pdfId, imagemId);
+    if ('erros' in envio) return { ok: false, erros: envio.erros };
+    let tarefa: Tarefa;
+    try {
+      tarefa = await artesApi.concluirTarefa(empresa, tarefaId, envio.form);
+    } catch (erro) {
+      const erros = errosDaRejeicao(erro);
+      if (!erros) throw erro;
+      return { ok: false, erros };
+    }
+    arquivosEscolhidos.clear();
+    logger.info({ empresa }, 'Tarefa de arte concluída');
+    return { ok: true, tarefa };
+  },
+);
+
+ipcMain.handle(
+  CHANNELS.tarefasComentar,
+  async (_event, input: unknown): Promise<ComentarioTarefa> => {
+    const { id, texto } = validarComentario(input);
+    const { empresa } = await contexto();
+    return artesApi.comentarTarefa(empresa, id, texto);
+  },
+);
+
+ipcMain.handle(
+  CHANNELS.tarefasHistorico,
+  async (_event, input: unknown): Promise<EventoTarefa[]> => {
+    const id = validarId(input);
+    const { empresa } = await contexto();
+    return artesApi.historicoTarefa(empresa, id);
   },
 );
 

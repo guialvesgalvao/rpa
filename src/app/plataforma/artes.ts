@@ -7,7 +7,14 @@ import { ErroIndisponivel, ErroRecusado } from './cliente.js';
 import {
   type ArteDoProduto,
   type Cliente,
+  type ComentarioTarefa,
   detectarTipo,
+  type EscopoTarefas,
+  EsquemaComentarioTarefa,
+  EsquemaEventoTarefa,
+  EsquemaTarefa,
+  EsquemaTarefaDetalhe,
+  type EventoTarefa,
   EsquemaArteDoProduto,
   EsquemaCliente,
   EsquemaErro,
@@ -20,6 +27,9 @@ import {
   type Opcao,
   type PaginaClientes,
   type ProdutoDoCliente,
+  type StatusTarefa,
+  type Tarefa,
+  type TarefaDetalhe,
   type TipoDetectado,
   validarNovaArte,
 } from './contratos.js';
@@ -68,7 +78,18 @@ export type ClienteArtes = {
   cadastrar(empresa: string, clienteId: string, form: FormData): Promise<void>;
   /** Reserva `quantidade` números de OP consecutivos (só admin). */
   reservarNumerosOp(empresa: string, quantidade: number): Promise<number[]>;
+  /** Tarefa de desenvolvimento de arte do produto (catálogo) para o cliente. */
+  criarTarefa(empresa: string, clienteId: string, produtoId: string): Promise<Tarefa>;
+  listarTarefas(empresa: string, consulta: ConsultaTarefasApp): Promise<Tarefa[]>;
+  obterTarefa(empresa: string, id: string): Promise<TarefaDetalhe>;
+  mudarStatusTarefa(empresa: string, id: string, status: StatusTarefa): Promise<Tarefa>;
+  /** Cadastra a arte (multipart, como `cadastrar`) e conclui a tarefa. */
+  concluirTarefa(empresa: string, id: string, form: FormData): Promise<Tarefa>;
+  comentarTarefa(empresa: string, id: string, texto: string): Promise<ComentarioTarefa>;
+  historicoTarefa(empresa: string, id: string): Promise<EventoTarefa[]>;
 };
+
+export type ConsultaTarefasApp = { escopo: EscopoTarefas; status?: StatusTarefa };
 
 /** Só os dígitos do CNPJ; `null` se não sobrarem 14. */
 export function normalizarCnpj(cnpj: string): string | null {
@@ -92,7 +113,7 @@ export function criarClienteArtes({
   const base = baseUrl.replace(/\/+$/, '');
 
   async function chamar(
-    metodo: 'GET' | 'POST',
+    metodo: 'GET' | 'POST' | 'PATCH',
     caminho: string,
     opcoes: { corpo?: FormData; json?: unknown; timeout?: number } = {},
   ): Promise<Response> {
@@ -215,6 +236,51 @@ export function criarClienteArtes({
       });
       return (await lerJson(resposta, EsquemaNumerosOp)).numeros;
     },
+    async criarTarefa(empresa, clienteId, produtoId) {
+      const caminho = `/clientes/${encodeURIComponent(clienteId)}/produtos/${encodeURIComponent(produtoId)}/tarefas`;
+      return lerJson(await chamar('POST', rota(empresa, caminho)), EsquemaTarefa);
+    },
+    async listarTarefas(empresa, { escopo, status }) {
+      const params = new URLSearchParams({ escopo });
+      if (status) params.set('status', status);
+      const resposta = await chamar('GET', rota(empresa, `/tarefas?${params}`));
+      return lerJson(resposta, z.array(EsquemaTarefa));
+    },
+    async obterTarefa(empresa, id) {
+      const resposta = await chamar('GET', rota(empresa, `/tarefas/${encodeURIComponent(id)}`));
+      return lerJson(resposta, EsquemaTarefaDetalhe);
+    },
+    async mudarStatusTarefa(empresa, id, status) {
+      const resposta = await chamar(
+        'PATCH',
+        rota(empresa, `/tarefas/${encodeURIComponent(id)}/status`),
+        { json: { status } },
+      );
+      return lerJson(resposta, EsquemaTarefa);
+    },
+    async concluirTarefa(empresa, id, form) {
+      const resposta = await chamar(
+        'POST',
+        rota(empresa, `/tarefas/${encodeURIComponent(id)}/concluir`),
+        { corpo: form, timeout: timeoutEnvioMs },
+      );
+      return lerJson(resposta, EsquemaTarefa);
+    },
+    async comentarTarefa(empresa, id, texto) {
+      const resposta = await chamar(
+        'POST',
+        rota(empresa, `/tarefas/${encodeURIComponent(id)}/comentarios`),
+        { json: { texto } },
+      );
+      return lerJson(resposta, EsquemaComentarioTarefa);
+    },
+    async historicoTarefa(empresa, id) {
+      const resposta = await chamar(
+        'GET',
+        rota(empresa, `/tarefas/${encodeURIComponent(id)}/historico`),
+      );
+      return lerJson(resposta, z.array(EsquemaEventoTarefa));
+    },
   };
 }
 
@@ -331,7 +397,8 @@ export function errosDaRejeicao(erro: unknown): ErrosCadastro | null {
   if (!(erro instanceof ErroRequisicao)) return null;
   switch (erro.status) {
     case 409:
-      return { nome: erro.message };
+      // Nome repetido vai ao lado do Nome; os outros conflitos (ex.: tarefa já com arte), no geral.
+      return erro.codigo === 'arte_duplicada' ? { nome: erro.message } : { geral: erro.message };
     case 413:
     case 415:
       return { arquivos: erro.message };

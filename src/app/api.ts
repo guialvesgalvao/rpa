@@ -3,14 +3,24 @@ import type { DocTipo, PedidoSelecao } from '../processes/bling/selecao.js';
 import type { ResultadoOp } from '../processes/op/gerar.js';
 import type { PreenchimentoOp } from '../processes/op/preenchimento.js';
 
-import type { ArtesDoItem, ErrosCadastro, OpcoesArte } from './plataforma/artes.js';
+import type {
+  ArtesDoItem,
+  ConsultaTarefasApp,
+  ErrosCadastro,
+  OpcoesArte,
+} from './plataforma/artes.js';
 import type { ItemOpTela, PedidoOpTela } from './plataforma/op.js';
 import type {
   Cliente,
+  ComentarioTarefa,
+  EventoTarefa,
   PaginaClientes,
   Perfil,
   ProdutoDoCliente,
   SincronizacaoAutomaticaBling,
+  StatusTarefa,
+  Tarefa,
+  TarefaDetalhe,
   Tema,
   TipoArquivo,
 } from './plataforma/contratos.js';
@@ -57,6 +67,28 @@ export type CadastroArte = {
 };
 
 export type CadastroResultado = { ok: true } | { ok: false; erros: ErrosCadastro };
+
+/** Conclusão de tarefa: os dados da arte (cliente e produto são os da tarefa). */
+export type ConclusaoTarefa = Omit<CadastroArte, 'clienteId'> & { tarefaId: string };
+
+export type ConclusaoResultado = { ok: true; tarefa: Tarefa } | { ok: false; erros: ErrosCadastro };
+
+export type { ConsultaTarefasApp };
+
+/**
+ * Tarefas de desenvolvimento de arte da empresa em uso. A API decide o alcance: o arte finalista só
+ * vê e muda as próprias. Falha de rede ou de permissão vem como mensagem pronta para a tela.
+ */
+export type TarefasApi = {
+  criar(clienteId: string, produtoId: string): Promise<Tarefa>;
+  listar(consulta: ConsultaTarefasApp): Promise<Tarefa[]>;
+  obter(id: string): Promise<TarefaDetalhe>;
+  mudarStatus(id: string, status: StatusTarefa): Promise<Tarefa>;
+  /** Cadastra a arte e conclui; erros de validação voltam por campo, como no cadastro. */
+  concluir(entrada: ConclusaoTarefa): Promise<ConclusaoResultado>;
+  comentar(id: string, texto: string): Promise<ComentarioTarefa>;
+  historico(id: string): Promise<EventoTarefa[]>;
+};
 
 /** Artes da empresa em uso. Falha de rede ou de permissão vem como mensagem pronta para a tela. */
 export type ArtesApi = {
@@ -154,6 +186,7 @@ export type RpaApi = {
   /** Avisa quando a sessão muda sem ação da tela (renovação recusada ou servidor fora do ar). */
   onSessaoMudou(callback: (sessao: SessaoTela) => void): void;
   artes: ArtesApi;
+  tarefas: TarefasApi;
   op: OpApi;
   bling: BlingApi;
 };
@@ -212,6 +245,13 @@ export const CHANNELS = {
   artesOpcoes: 'rpa:artes:opcoes',
   artesEscolherArquivo: 'rpa:artes:escolher-arquivo',
   artesCadastrar: 'rpa:artes:cadastrar',
+  tarefasCriar: 'rpa:tarefas:criar',
+  tarefasListar: 'rpa:tarefas:listar',
+  tarefasObter: 'rpa:tarefas:obter',
+  tarefasMudarStatus: 'rpa:tarefas:mudar-status',
+  tarefasConcluir: 'rpa:tarefas:concluir',
+  tarefasComentar: 'rpa:tarefas:comentar',
+  tarefasHistorico: 'rpa:tarefas:historico',
   opClientePorCnpj: 'rpa:op:cliente-por-cnpj',
   opArtesDoItem: 'rpa:op:artes-do-item',
   opBuscarPedidos: 'rpa:op:buscar-pedidos',

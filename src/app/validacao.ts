@@ -7,7 +7,13 @@ import {
   normalizarPreenchimento,
 } from '../processes/op/preenchimento.js';
 import { PASSOS_PROCESSO } from '../processes/op/template.js';
-import type { ItemParaGerarOp } from './api.js';
+import type { ConsultaTarefasApp, ItemParaGerarOp } from './api.js';
+import {
+  COMENTARIO_TAREFA_MAX,
+  ESCOPOS_TAREFAS,
+  EsquemaStatusTarefa,
+  type StatusTarefa,
+} from './plataforma/contratos.js';
 
 const schema = z.array(
   z.object({
@@ -185,5 +191,56 @@ export type CadastroEntrada = z.infer<typeof cadastroSchema>;
 export function validarCadastro(input: unknown): CadastroEntrada {
   const parsed = cadastroSchema.safeParse(input);
   if (!parsed.success) throw new Error('Dados da arte inválidos.');
+  return parsed.data;
+}
+
+const conclusaoSchema = cadastroSchema.omit({ clienteId: true }).extend({ tarefaId: z.uuid() });
+
+export type ConclusaoEntrada = z.infer<typeof conclusaoSchema>;
+
+/** Valida a conclusão de tarefa: os mesmos campos do cadastro de arte, sem o cliente (é o da tarefa). */
+export function validarConclusao(input: unknown): ConclusaoEntrada {
+  const parsed = conclusaoSchema.safeParse(input);
+  if (!parsed.success) throw new Error('Dados da arte inválidos.');
+  return parsed.data;
+}
+
+const novaTarefaSchema = z.object({ clienteId: z.uuid(), produtoId: z.uuid() });
+
+export function validarNovaTarefa(input: unknown): { clienteId: string; produtoId: string } {
+  const parsed = novaTarefaSchema.safeParse(input);
+  if (!parsed.success) throw new Error('Cliente ou produto inválido.');
+  return parsed.data;
+}
+
+const consultaTarefasSchema = z.object({
+  escopo: z.enum(ESCOPOS_TAREFAS),
+  status: EsquemaStatusTarefa.optional(),
+});
+
+export function validarConsultaTarefas(input: unknown): ConsultaTarefasApp {
+  const parsed = consultaTarefasSchema.safeParse(input);
+  if (!parsed.success) throw new Error('Filtro de tarefas inválido.');
+  return parsed.data;
+}
+
+const mudancaStatusSchema = z.object({ id: z.uuid(), status: EsquemaStatusTarefa });
+
+export function validarMudancaStatus(input: unknown): { id: string; status: StatusTarefa } {
+  const parsed = mudancaStatusSchema.safeParse(input);
+  if (!parsed.success) throw new Error('Status inválido.');
+  return parsed.data;
+}
+
+const comentarioSchema = z.object({
+  id: z.uuid(),
+  texto: z.string().trim().min(1).max(COMENTARIO_TAREFA_MAX),
+});
+
+export function validarComentario(input: unknown): { id: string; texto: string } {
+  const parsed = comentarioSchema.safeParse(input);
+  if (!parsed.success) {
+    throw new Error(`Escreva um comentário de até ${COMENTARIO_TAREFA_MAX} caracteres.`);
+  }
   return parsed.data;
 }

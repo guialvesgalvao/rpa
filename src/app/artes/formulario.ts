@@ -1,4 +1,4 @@
-import type { ArquivoEscolhido, ArtesApi } from '../api.js';
+import type { ArquivoEscolhido, ArtesApi, CadastroArte, CadastroResultado } from '../api.js';
 import type { ErrosCadastro } from '../plataforma/artes.js';
 import {
   type Cliente,
@@ -13,9 +13,18 @@ import { blocoErro, botao, criar, formatarTamanho, mensagemErro } from './dom.js
 
 export type DepsFormulario = {
   api: Pick<ArtesApi, 'opcoes' | 'escolherArquivo' | 'cadastrar'>;
-  cliente: Cliente;
-  /** Produto já escolhido ao abrir (ex.: o item da OP); o usuário pode trocar. */
+  cliente: Pick<Cliente, 'id' | 'nomeExibicao'>;
+  /** Produto já escolhido ao abrir (ex.: o item da OP); o usuário pode trocar, salvo com `produtoFixo`. */
   produtoId?: string;
+  /**
+   * O produto não muda (ex.: conclusão de tarefa: é o da tarefa). Se ele não estiver no catálogo
+   * listado (ex.: inativado no Bling), entra como opção com este nome.
+   */
+  produtoFixo?: { nome: string };
+  /** Título do cartão; padrão: "Nova arte — <cliente>". */
+  titulo?: string;
+  /** Envio no lugar do cadastro comum (ex.: concluir a tarefa com a arte). */
+  enviar?: (entrada: Omit<CadastroArte, 'clienteId'>) => Promise<CadastroResultado>;
   voltar: () => void;
   concluido: () => void;
 };
@@ -58,7 +67,7 @@ function opcoesMarcaveis(
 /** Formulário de nova arte, com as mesmas regras e mensagens do site (`validarNovaArte`). */
 export function montarFormulario(
   raiz: HTMLElement,
-  { api, cliente, produtoId, voltar, concluido }: DepsFormulario,
+  { api, cliente, produtoId, produtoFixo, titulo, enviar, voltar, concluido }: DepsFormulario,
 ): { encerrar(): void } {
   let encerrado = false;
   const card = criar('div', 'card');
@@ -85,7 +94,13 @@ export function montarFormulario(
     const produto = criar('select');
     produto.append(new Option('Selecione um produto', ''));
     for (const { id, nome } of opcoes.produtos) produto.append(new Option(nome, id));
-    if (produtoId && opcoes.produtos.some((p) => p.id === produtoId)) produto.value = produtoId;
+    if (produtoId && produtoFixo && !opcoes.produtos.some((p) => p.id === produtoId)) {
+      produto.append(new Option(produtoFixo.nome, produtoId));
+    }
+    if (produtoId && [...produto.options].some((o) => o.value === produtoId)) {
+      produto.value = produtoId;
+    }
+    produto.disabled = Boolean(produtoFixo);
     const campoProduto = campo('Produto', produto);
 
     const nome = criar('input');
@@ -188,12 +203,10 @@ export function montarFormulario(
 
       salvar.disabled = true;
       try {
-        const resultado = await api.cadastrar({
-          ...entrada,
-          clienteId: cliente.id,
-          pdfId: arquivos.pdf?.id,
-          imagemId: arquivos.imagem?.id,
-        });
+        const dados = { ...entrada, pdfId: arquivos.pdf?.id, imagemId: arquivos.imagem?.id };
+        const resultado = enviar
+          ? await enviar(dados)
+          : await api.cadastrar({ ...dados, clienteId: cliente.id });
         if (encerrado) return;
         if (resultado.ok) concluido();
         else mostrarErros(resultado.erros);
@@ -204,7 +217,7 @@ export function montarFormulario(
       }
     });
 
-    return [criar('h2', undefined, `Nova arte — ${cliente.nomeExibicao}`), form];
+    return [criar('h2', undefined, titulo ?? `Nova arte — ${cliente.nomeExibicao}`), form];
   }
 
   void carregar();

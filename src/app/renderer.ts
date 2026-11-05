@@ -19,8 +19,15 @@ import { podeTrocarEmpresa, tituloJanela } from './empresa.js';
 import type { Perfil } from './plataforma/contratos.js';
 import { criarArtes } from './artes/index.js';
 import { mensagemErro } from './artes/dom.js';
-import { abaAoRemontar, abasDoPerfil, type Automacao, ordenarMenu } from './menu.js';
+import {
+  abaAoRemontar,
+  abasDoPerfil,
+  type Automacao,
+  ordenarMenu,
+  podeSincronizarBling,
+} from './menu.js';
 import { criarOp } from './op/index.js';
+import { textoProgressoBling, textoResultadoBling } from './sincronizacao.js';
 import { preencherResultado } from './resultados.js';
 
 declare global {
@@ -86,6 +93,9 @@ const usuarioEl = $('usuario');
 const usuarioNome = $('usuario-nome');
 const sair = $<HTMLButtonElement>('sair');
 const cfgCampos = $('cfg-campos');
+const cfgSincronizacao = $('cfg-sincronizacao');
+const cfgSincronizar = $<HTMLButtonElement>('cfg-sincronizar');
+const cfgSincronizacaoStatus = $('cfg-sincronizacao-status');
 const logo = $<HTMLImageElement>('logo');
 const empresaSubtitulo = $('empresa-subtitulo');
 const rodapeEmpresa = $('rodape-empresa');
@@ -377,6 +387,26 @@ async function abrirConfiguracoes(config?: ConfigTela) {
 
 abrirConfig.addEventListener('click', () => void abrirConfiguracoes());
 cfgCancelar.addEventListener('click', () => dialogConfig.close());
+// O botão fica desabilitado até o fim do job, mesmo fechando e reabrindo Configurações.
+let sincronizandoBling = false;
+cfgSincronizar.addEventListener('click', async () => {
+  if (sincronizandoBling) return;
+  sincronizandoBling = true;
+  cfgSincronizar.disabled = true;
+  cfgSincronizacaoStatus.textContent = 'Iniciando a sincronização…';
+  try {
+    cfgSincronizacaoStatus.textContent = textoResultadoBling(await window.rpa.bling.sincronizar());
+  } catch (erro) {
+    cfgSincronizacaoStatus.textContent = mensagemErro(erro);
+  } finally {
+    sincronizandoBling = false;
+    cfgSincronizar.disabled = false;
+  }
+});
+window.rpa.bling.onProgresso((progresso) => {
+  if (sincronizandoBling) cfgSincronizacaoStatus.textContent = textoProgressoBling(progresso);
+});
+
 cfgEscolher.addEventListener('click', async () => {
   const escolhida = await window.rpa.escolherPasta(cfgPasta.value);
   if (escolhida) cfgPasta.value = escolhida;
@@ -493,6 +523,7 @@ function aplicarSessao(sessao: SessaoTela) {
   const admin = sessao.perfil === 'admin';
   cfgCampos.hidden = !admin;
   cfgSalvar.hidden = !admin;
+  cfgSincronizacao.hidden = !podeSincronizarBling(sessao.perfil, sessao.empresa?.slug);
   usuarioNome.textContent = sessao.nome;
 
   aplicarEmpresa(sessao.empresa, sessao.empresas.length);

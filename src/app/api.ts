@@ -143,6 +143,34 @@ export type RpaApi = {
   onSessaoMudou(callback: (sessao: SessaoTela) => void): void;
   artes: ArtesApi;
   op: OpApi;
+  bling: BlingApi;
+};
+
+/** Progresso do job de sincronização, para o texto de status. */
+export type ProgressoBlingTela = {
+  etapa: 'produtos' | 'clientes' | 'detalhes';
+  lidos: number;
+  total: number | null;
+};
+
+/** Resumo da sincronização concluída (só contagens: os dados ficam no servidor). */
+export type ResumoBlingTela = {
+  produtos: number;
+  clientes: number;
+  concluidaEm: string;
+  avisos: string[];
+};
+
+export type ResultadoSincronizacaoBling =
+  | { situacao: 'concluida'; resumo: ResumoBlingTela }
+  /** A empresa não estava conectada: o main abriu a autorização do Bling no navegador. */
+  | { situacao: 'autorizacao_aberta' }
+  | { situacao: 'erro'; mensagem: string };
+
+export type BlingApi = {
+  /** Sincroniza produtos e clientes do Bling (só admin da Roma); resolve no fim do job. */
+  sincronizar(): Promise<ResultadoSincronizacaoBling>;
+  onProgresso(callback: (progresso: ProgressoBlingTela) => void): void;
 };
 
 export const CHANNELS = {
@@ -171,4 +199,6 @@ export const CHANNELS = {
   opBuscarPedidos: 'rpa:op:buscar-pedidos',
   opGerar: 'rpa:op:gerar',
   opProgresso: 'rpa:op:progresso',
+  blingSincronizar: 'rpa:bling:sincronizar',
+  blingProgresso: 'rpa:bling:progresso',
 } as const;

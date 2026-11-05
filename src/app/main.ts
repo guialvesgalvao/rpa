@@ -34,20 +34,28 @@ import {
   type GerarResultado,
   type ItemParaGerarOp,
   type PedidoOpTela,
+  type ProgressoBlingTela,
+  type ResultadoSincronizacaoBling,
   type SessaoTela,
 } from './api.js';
 import { logoDaEmpresa, podeTrocarEmpresa, rotuloEmpresa } from './empresa.js';
-import { podeUsarOp } from './menu.js';
+import { podeSincronizarBling, podeUsarOp } from './menu.js';
 import {
   type ArquivoLocal,
   type ArtesDoItem,
   artesDoItem,
   criarClienteArtes,
+  ErroRequisicao,
   errosDaRejeicao,
   inspecionarArquivo,
   montarEnvio,
   type OpcoesArte,
 } from './plataforma/artes.js';
+import {
+  acompanharSincronizacao,
+  criarClienteBling,
+  urlAutorizacaoSegura,
+} from './plataforma/bling.js';
 import { criarCliente, ErroIndisponivel, ErroRecusado } from './plataforma/cliente.js';
 import { montarPedidosTela } from './plataforma/op.js';
 import {
@@ -131,18 +139,17 @@ const sessaoIniciada: Promise<unknown> = app
 const INTERVALO_SESSAO_MS = 5 * 60 * 1000;
 
 // Artes: a janela não faz `fetch` (CSP); o main chama a API com o acesso da sessão.
-const artesApi = criarClienteArtes({
-  baseUrl: urlDaApi(),
-  fetch,
-  obterAcesso: async () => {
-    const acesso = await sessao.obterAcesso();
-    if (acesso) return acesso;
-    if (sessao.estado().situacao === 'deslogado') {
-      throw new Error('Sessão encerrada. Entre novamente.');
-    }
-    throw new ErroIndisponivel('Sem conexão com o servidor.');
-  },
-});
+async function obterAcessoApi(): Promise<string> {
+  const acesso = await sessao.obterAcesso();
+  if (acesso) return acesso;
+  if (sessao.estado().situacao === 'deslogado') {
+    throw new Error('Sessão encerrada. Entre novamente.');
+  }
+  throw new ErroIndisponivel('Sem conexão com o servidor.');
+}
+const artesApi = criarClienteArtes({ baseUrl: urlDaApi(), fetch, obterAcesso: obterAcessoApi });
+// Sincronização com o Bling: pela API da plataforma (o app nunca fala com o Bling por esta via).
+const blingApi = criarClienteBling({ baseUrl: urlDaApi(), fetch, obterAcesso: obterAcessoApi });
 /** Arquivos escolhidos nos diálogos: a janela só conhece o id, nunca o caminho. */
 const arquivosEscolhidos = new Map<string, ArquivoLocal>();
 
@@ -217,6 +224,13 @@ async function contexto(): Promise<{ usuarioId: string; empresa: string; perfil:
 async function exigirOp(): Promise<string> {
   const { empresa, perfil } = await contexto();
   if (!podeUsarOp(perfil, empresa)) throw new Error('Sem permissão.');
+  return empresa;
+}
+
+/** A sincronização com o Bling é só do admin da Roma; repete no main a regra da tela. */
+async function exigirSincronizacao(): Promise<string> {
+  const { empresa, perfil } = await contexto();
+  if (!podeSincronizarBling(perfil, empresa)) throw new Error('Sem permissão.');
   return empresa;
 }
 
@@ -537,6 +551,60 @@ ipcMain.handle(
     return { ok: true };
   },
 );
+
+/** Acompanhamento em curso: um novo clique (ex.: depois de reabrir Configurações) espera o mesmo. */
+let sincronizacaoBling: Promise<ResultadoSincronizacaoBling> | undefined;
+
+async function sincronizarBling(
+  empresa: string,
+  aoProgredir: (progresso: ProgressoBlingTela) => void,
+): Promise<ResultadoSincronizacaoBling> {
+  try {
+    const fim = await acompanharSincronizacao({
+      iniciar: () => blingApi.iniciar(empresa),
+      estado: () => blingApi.estado(empresa),
+      esperar: (ms) => new Promise((resolver) => setTimeout(resolver, ms)),
+      aoProgredir: ({ etapa, lidos, total }) => aoProgredir({ etapa, lidos, total }),
+    });
+    if (fim.situacao === 'falhou') {
+      logger.warn({ empresa, codigo: fim.erro.codigo }, 'Sincronização do Bling falhou');
+      return { situacao: 'erro', mensagem: fim.erro.mensagem };
+    }
+    const { produtos, clientes, concluidaEm, avisos } = fim.resumo;
+    // Só contagens no log: nada de dados do Bling.
+    logger.info(
+      { empresa, produtos, clientes, avisos: avisos.length },
+      'Sincronização do Bling concluída',
+    );
+    return { situacao: 'concluida', resumo: { produtos, clientes, concluidaEm, avisos } };
+  } catch (erro) {
+    if (erro instanceof ErroRequisicao && erro.codigo === 'bling_nao_conectado') {
+      const { urlAutorizacao } = await blingApi.conectar(empresa);
+      if (!urlAutorizacaoSegura(urlAutorizacao)) {
+        logger.error({ empresa }, 'Link de autorização do Bling fora do esperado; nada foi aberto');
+        return { situacao: 'erro', mensagem: 'Link de autorização inesperado; nada foi aberto.' };
+      }
+      await shell.openExternal(urlAutorizacao);
+      logger.info({ empresa }, 'Autorização do Bling aberta no navegador');
+      return { situacao: 'autorizacao_aberta' };
+    }
+    if (erro instanceof ErroRequisicao && erro.codigo === 'bling_nao_configurado') {
+      return { situacao: 'erro', mensagem: 'Sincronização não configurada no servidor.' };
+    }
+    logger.error({ empresa, erro: (erro as Error).message }, 'Falha na sincronização do Bling');
+    return { situacao: 'erro', mensagem: (erro as Error).message };
+  }
+}
+
+ipcMain.handle(CHANNELS.blingSincronizar, async (event): Promise<ResultadoSincronizacaoBling> => {
+  const empresa = await exigirSincronizacao();
+  sincronizacaoBling ??= sincronizarBling(empresa, (progresso) => {
+    if (!event.sender.isDestroyed()) event.sender.send(CHANNELS.blingProgresso, progresso);
+  }).finally(() => {
+    sincronizacaoBling = undefined;
+  });
+  return sincronizacaoBling;
+});
 
 ipcMain.handle(
   CHANNELS.opClientePorCnpj,

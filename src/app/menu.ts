@@ -1,5 +1,8 @@
 import type { Perfil } from './plataforma/contratos.js';
 
+/** Sincronização com o Bling: só o admin das empresas da lista do `contratos` (hoje, a Roma). */
+export { podeSincronizarBling } from './plataforma/contratos.js';
+
 /** Automação do menu lateral do app. Cada uma tem a sua seção `section[data-aba=id]`. */
 export type Automacao = { id: 'fatura' | 'op' | 'artes'; rotulo: string };
 

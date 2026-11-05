@@ -1,6 +1,13 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
-import { CHANNELS, type DocResult, type ResultadoOp, type RpaApi, type SessaoTela } from './api.js';
+import {
+  CHANNELS,
+  type DocResult,
+  type ProgressoBlingTela,
+  type ResultadoOp,
+  type RpaApi,
+  type SessaoTela,
+} from './api.js';
 
 const api: RpaApi = {
   defaults: () => ipcRenderer.invoke(CHANNELS.defaults),
@@ -38,6 +45,13 @@ const api: RpaApi = {
     onProgresso: (callback) =>
       void ipcRenderer.on(CHANNELS.opProgresso, (_event, resultado: ResultadoOp) =>
         callback(resultado),
+      ),
+  },
+  bling: {
+    sincronizar: () => ipcRenderer.invoke(CHANNELS.blingSincronizar),
+    onProgresso: (callback) =>
+      void ipcRenderer.on(CHANNELS.blingProgresso, (_event, progresso: ProgressoBlingTela) =>
+        callback(progresso),
       ),
   },
 };

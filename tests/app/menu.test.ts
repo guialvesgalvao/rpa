@@ -6,6 +6,7 @@ import {
   abasDoPerfil,
   AUTOMACOES,
   ordenarMenu,
+  podeSincronizarBling,
   podeUsarOp,
 } from '../../src/app/menu.js';
 
@@ -77,5 +78,15 @@ describe('menu de automações', () => {
   it('ao remontar sem a aba atual (OP fora da Roma) ou sem aba, abre na primeira', () => {
     expect(abaAoRemontar(abasDoPerfil('admin', 'aba'), 'op').id).toBe('artes');
     expect(abaAoRemontar(abasDoPerfil('admin', 'roma'), undefined).id).toBe('artes');
+  });
+});
+
+describe('podeSincronizarBling', () => {
+  it('só o admin da Roma vê a sincronização com o Bling', () => {
+    expect(podeSincronizarBling('admin', 'roma')).toBe(true);
+    expect(podeSincronizarBling('arte_finalista', 'roma')).toBe(false);
+    expect(podeSincronizarBling('admin', 'aba')).toBe(false);
+    expect(podeSincronizarBling('admin', 'ROMA')).toBe(false);
+    expect(podeSincronizarBling('admin', undefined)).toBe(false);
   });
 });

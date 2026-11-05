@@ -72,20 +72,13 @@ describe('lerConfig: Bling', () => {
     expect(lerConfig({ ...OBRIGATORIAS, ...vazias }).bling).toBeUndefined();
   });
 
-  it('com as quatro variáveis, lê o Bling com a pasta de dados padrão', () => {
+  it('com as quatro variáveis, lê o Bling', () => {
     expect(lerConfig({ ...OBRIGATORIAS, ...BLING }).bling).toEqual({
       clientId: BLING.BLING_CLIENT_ID,
       clientSecret: BLING.BLING_CLIENT_SECRET,
       redirectUri: BLING.BLING_REDIRECT_URI,
       chaveTokens: BLING.BLING_CHAVE_TOKENS,
-      dirDados: 'data/bling',
     });
-  });
-
-  it('lê BLING_DIR_DADOS', () => {
-    expect(
-      lerConfig({ ...OBRIGATORIAS, ...BLING, BLING_DIR_DADOS: '/tmp/bling' }).bling?.dirDados,
-    ).toBe('/tmp/bling');
   });
 
   it('recusa configuração parcial, dizendo o que falta sem mostrar valores', () => {

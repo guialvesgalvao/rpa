@@ -116,7 +116,7 @@ export function rotasBling(
       } catch (erro) {
         throw erroApiDoBling(erro);
       }
-      const estado = execucao.iniciar(empresa.slug, () => oauth.acessoValido(empresa.id));
+      const estado = execucao.iniciar(empresa, () => oauth.acessoValido(empresa.id));
       return reply.code(202).send(estado);
     },
   );

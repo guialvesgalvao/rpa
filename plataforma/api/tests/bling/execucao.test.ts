@@ -1,12 +1,8 @@
-import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
-
 import type { EstadoSincronizacaoBling } from '@plataforma/contratos';
 import { EsquemaEstadoSincronizacaoBling } from '@plataforma/contratos';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { type ArmazemSincronizacao, criarArmazemArquivo } from '../../src/bling/armazem.js';
+import type { ArmazemSincronizacao, ResultadoGravacao } from '../../src/bling/armazem.js';
 import { ErroBlingIndisponivel, ErroBlingNaoAutorizado } from '../../src/bling/cliente.js';
 import {
   criarExecucaoSincronizacao,
@@ -35,12 +31,18 @@ const DADOS: DadosSincronizacao = {
 };
 
 const acesso = async () => 'acesso-ficticio';
+const ROMA = { id: 'id-roma-ficticio', slug: 'roma' };
+const OUTRA = { id: 'id-outra-ficticio', slug: 'outra' };
 
-let dir: string;
-beforeEach(async () => {
-  dir = await mkdtemp(path.join(tmpdir(), 'bling-'));
+// Armazém falso: 2 produtos inseridos, 1 cliente atualizado e um aviso agregado.
+const GRAVADO: ResultadoGravacao = {
+  produtos: { inseridos: 2, atualizados: 0, inativados: 0, pulados: {} },
+  clientes: { inseridos: 0, atualizados: 1, inativados: 3, pulados: { cnpj_invalido: 1 } },
+  avisos: ['1 cliente sem CNPJ válido ficou de fora.'],
+};
+const armazemFalso = () => ({
+  salvar: vi.fn<ArmazemSincronizacao['salvar']>().mockResolvedValue(GRAVADO),
 });
-afterEach(() => rm(dir, { recursive: true, force: true }));
 
 // Sincronização controlada pelo teste: termina quando `liberar`/`falhar` são chamados ou o sinal aborta.
 function sincronizacaoControlada() {
@@ -58,12 +60,15 @@ function sincronizacaoControlada() {
   return { sincronizar, liberar: (d = DADOS) => liberar(d), falhar: (e: unknown) => falhar(e) };
 }
 
-function montar(sincronizar: ExecutarSincronizacao, armazem?: ArmazemSincronizacao) {
+function montar(
+  sincronizar: ExecutarSincronizacao,
+  armazem: ReturnType<typeof armazemFalso> = armazemFalso(),
+) {
   const relogio = criarRelogioFalso();
   const aoFalhar = vi.fn();
   const execucao = criarExecucaoSincronizacao({
     sincronizar,
-    armazem: armazem ?? criarArmazemArquivo(dir),
+    armazem,
     relogio: relogio.agora,
     aoFalhar,
   });
@@ -73,37 +78,8 @@ function montar(sincronizar: ExecutarSincronizacao, armazem?: ArmazemSincronizac
       expect(estado.situacao).toBe(esperada);
       return EsquemaEstadoSincronizacaoBling.parse(estado);
     });
-  return { execucao, relogio, aoFalhar, situacao };
+  return { execucao, relogio, aoFalhar, situacao, armazem };
 }
-
-describe('armazém em arquivo', () => {
-  it('grava <empresa>.json com as contagens, sem deixar o temporário', async () => {
-    const pasta = path.join(dir, 'data', 'bling');
-    await criarArmazemArquivo(pasta).salvar('roma', DADOS, new Date('2026-01-05T12:00:00.000Z'));
-
-    const gravado = JSON.parse(await readFile(path.join(pasta, 'roma.json'), 'utf8'));
-    expect(gravado).toEqual({
-      empresa: 'roma',
-      sincronizadoEm: '2026-01-05T12:00:00.000Z',
-      ...DADOS,
-    });
-    expect(await readdir(pasta)).toEqual(['roma.json']);
-  });
-
-  it('sobrescreve a sincronização anterior', async () => {
-    const armazem = criarArmazemArquivo(dir);
-    await armazem.salvar('roma', DADOS, new Date());
-    await armazem.salvar('roma', { produtos: [], clientes: [], avisos: [] }, new Date());
-    const gravado = JSON.parse(await readFile(path.join(dir, 'roma.json'), 'utf8'));
-    expect(gravado.produtos).toEqual([]);
-  });
-
-  it('recusa slug que escaparia da pasta', async () => {
-    const armazem = criarArmazemArquivo(dir);
-    await expect(armazem.salvar('../roma', DADOS, new Date())).rejects.toThrow(/Slug/);
-    await expect(armazem.salvar('a/b', DADOS, new Date())).rejects.toThrow(/Slug/);
-  });
-});
 
 describe('execução da sincronização', () => {
   it('começa ociosa', () => {
@@ -111,12 +87,12 @@ describe('execução da sincronização', () => {
     expect(execucao.estado('roma')).toEqual({ situacao: 'ociosa' });
   });
 
-  it('roda em segundo plano, mostra o progresso e termina concluída com o resumo', async () => {
+  it('roda em segundo plano, mostra o progresso e termina concluída com o resumo do que gravou', async () => {
     const controlada = sincronizacaoControlada();
-    const { execucao, relogio, situacao } = montar(controlada.sincronizar);
+    const { execucao, relogio, situacao, armazem } = montar(controlada.sincronizar);
     const iniciadaEm = relogio.agora().toISOString();
 
-    expect(execucao.iniciar('roma', acesso)).toEqual({
+    expect(execucao.iniciar(ROMA, acesso)).toEqual({
       situacao: 'em_andamento',
       iniciadaEm,
       etapa: 'detalhes',
@@ -134,33 +110,32 @@ describe('execução da sincronização', () => {
         concluidaEm: relogio.agora().toISOString(),
         produtos: 2,
         clientes: 1,
-        avisos: ['aviso sintético'],
+        avisos: ['aviso sintético', '1 cliente sem CNPJ válido ficou de fora.'],
       },
     });
-    const gravado = JSON.parse(await readFile(path.join(dir, 'roma.json'), 'utf8'));
-    expect([gravado.produtos.length, gravado.clientes.length]).toEqual([2, 1]);
+    expect(armazem.salvar).toHaveBeenCalledExactlyOnceWith(ROMA.id, DADOS, { modo: 'completa' });
   });
 
   it('um segundo iniciar durante o job devolve o mesmo estado sem nova leitura', async () => {
     const controlada = sincronizacaoControlada();
     const { execucao, relogio, situacao } = montar(controlada.sincronizar);
-    const primeiro = execucao.iniciar('roma', acesso);
+    const primeiro = execucao.iniciar(ROMA, acesso);
     relogio.avancar(5000);
 
-    expect(execucao.iniciar('roma', acesso)).toEqual(primeiro);
+    expect(execucao.iniciar(ROMA, acesso)).toEqual(primeiro);
     expect(controlada.sincronizar).toHaveBeenCalledTimes(1);
 
     controlada.liberar();
     await situacao('roma', 'concluida');
-    execucao.iniciar('roma', acesso);
+    execucao.iniciar(ROMA, acesso);
     expect(controlada.sincronizar).toHaveBeenCalledTimes(2);
   });
 
   it('empresas diferentes têm jobs independentes', () => {
     const controlada = sincronizacaoControlada();
     const { execucao } = montar(controlada.sincronizar);
-    execucao.iniciar('roma', acesso);
-    execucao.iniciar('outra', acesso);
+    execucao.iniciar(ROMA, acesso);
+    execucao.iniciar(OUTRA, acesso);
     expect(controlada.sincronizar).toHaveBeenCalledTimes(2);
   });
 
@@ -171,15 +146,15 @@ describe('execução da sincronização', () => {
     ['erro qualquer', new Error('detalhe interno'), 'erro_interno'],
   ])('%s no meio do job → falhou com %s', async (_, erro, codigo) => {
     const controlada = sincronizacaoControlada();
-    const { execucao, aoFalhar, situacao } = montar(controlada.sincronizar);
-    execucao.iniciar('roma', acesso);
+    const { execucao, aoFalhar, situacao, armazem } = montar(controlada.sincronizar);
+    execucao.iniciar(ROMA, acesso);
     controlada.falhar(erro);
 
     const estado = await situacao('roma', 'falhou');
     expect(estado).toMatchObject({ erro: { codigo } });
     expect(JSON.stringify(estado)).not.toMatch(/detalhe interno|SERVER_ERROR/);
     expect(aoFalhar).toHaveBeenCalledTimes(codigo === 'erro_interno' ? 1 : 0);
-    await expect(readdir(dir)).resolves.toEqual([]);
+    expect(armazem.salvar).not.toHaveBeenCalled();
   });
 
   it('falha síncrona do sincronizar também termina o job', async () => {
@@ -187,25 +162,26 @@ describe('execução da sincronização', () => {
       throw new Error('síncrono');
     });
     const { execucao, situacao } = montar(sincronizar);
-    execucao.iniciar('roma', acesso);
+    execucao.iniciar(ROMA, acesso);
     await situacao('roma', 'falhou');
-    execucao.iniciar('roma', acesso);
+    execucao.iniciar(ROMA, acesso);
     expect(sincronizar).toHaveBeenCalledTimes(2);
   });
 
-  it('falha ao gravar o arquivo → falhou com erro interno', async () => {
+  it('falha ao gravar no banco → falhou com erro interno', async () => {
     const controlada = sincronizacaoControlada();
-    const armazem = { salvar: vi.fn().mockRejectedValue(new Error('disco cheio')) };
+    const armazem = armazemFalso();
+    armazem.salvar.mockRejectedValue(new Error('banco fora'));
     const { execucao, situacao } = montar(controlada.sincronizar, armazem);
-    execucao.iniciar('roma', acesso);
+    execucao.iniciar(ROMA, acesso);
     controlada.liberar();
     expect(await situacao('roma', 'falhou')).toMatchObject({ erro: { codigo: 'erro_interno' } });
   });
 
   it('encerrar aborta os jobs e espera terminarem, sem gravar', async () => {
     const controlada = sincronizacaoControlada();
-    const { execucao, aoFalhar } = montar(controlada.sincronizar);
-    execucao.iniciar('roma', acesso);
+    const { execucao, aoFalhar, armazem } = montar(controlada.sincronizar);
+    execucao.iniciar(ROMA, acesso);
 
     await execucao.encerrar();
 
@@ -213,7 +189,7 @@ describe('execução da sincronização', () => {
     expect(sinal?.aborted).toBe(true);
     expect(execucao.estado('roma').situacao).toBe('falhou');
     expect(aoFalhar).not.toHaveBeenCalled();
-    await expect(readdir(dir)).resolves.toEqual([]);
+    expect(armazem.salvar).not.toHaveBeenCalled();
   });
 
   it('encerrar sem jobs não faz nada', async () => {

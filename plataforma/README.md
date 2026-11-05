@@ -154,7 +154,7 @@ Cria os usuários `admin.dev@exemplo.com` e `finalista.dev@exemplo.com` (senha `
 
 ## Sincronização com o Bling (API v3)
 
-Leitura de **produtos ativos** e **contatos ativos do tipo Cliente** (com o detalhe de cada um) pela API v3 do Bling, só com GET. Por enquanto os dados vão para um JSON local, não para o Postgres. Só o admin das empresas em `EMPRESAS_SINCRONIZACAO_BLING` (`contratos/src/bling.ts`, hoje só `roma`) pode usar; o app chama pelo botão "Sincronizar dados" em Configurações.
+Leitura de **produtos ativos** e **contatos ativos do tipo Cliente** (com o detalhe de cada um) pela API v3 do Bling, só com GET, gravada nas tabelas `clientes` e `produtos` (as mesmas das artes). Só o admin das empresas em `EMPRESAS_SINCRONIZACAO_BLING` (`contratos/src/bling.ts`, hoje só `roma`) pode usar; o app chama pelo botão "Sincronizar dados" em Configurações.
 
 | Rota                                             | Resposta                                                                             |
 | ------------------------------------------------ | ------------------------------------------------------------------------------------ |
@@ -168,12 +168,20 @@ Erros: `503 bling_nao_configurado` (sem as variáveis), `409 bling_nao_conectado
 Para conectar (local):
 
 1. Preencha `BLING_CLIENT_ID`, `BLING_CLIENT_SECRET`, `BLING_REDIRECT_URI` e `BLING_CHAVE_TOKENS` no `plataforma/.env` (modelo e comando da chave no `.env.example`). As quatro vão juntas: com só algumas, a API não sobe.
-2. Aplique as migrações (`db:migrar:dev`; a `0007` cria `bling_conexoes`) e suba a API (`npm --prefix plataforma -w @plataforma/api run dev`).
+2. Aplique as migrações (`db:migrar:dev`; a `0007` cria `bling_conexoes` e a `0008`, o `id_bling` e a marca de inativo) e suba a API (`npm --prefix plataforma -w @plataforma/api run dev`).
 3. No app, "Sincronizar dados" sem conexão abre a autorização do Bling no navegador. Depois de autorizar, o Bling volta para `BLING_REDIRECT_URI` e a conexão fica gravada, com os tokens cifrados (AES-256-GCM). Clique em "Sincronizar dados" de novo.
 
-O JSON fica em `plataforma/api/data/bling/<empresa>.json` (`BLING_DIR_DADOS`, relativo a `plataforma/api`; fora do git). **Ele tem dados reais de clientes (nomes, CPF/CNPJ)**: não sai da máquina, não vai para chat, log nem fixture, e é apagado ao fim desta etapa. Trocar `BLING_CHAVE_TOKENS` invalida a conexão gravada (é preciso autorizar de novo).
+Como a gravação funciona (tudo numa transação; uma falha no meio desfaz tudo):
 
-Nesta etapa, **produção fica desligada**: sem `BLING_*` no Railway, as rotas respondem `503` e só a migração `0007` vai para o banco de produção.
+- **Vínculo:** `clientes.id_bling` e `produtos.id_bling` guardam o id do registro no Bling (único por empresa). Um cadastro manual sem vínculo é **adotado** pelo CNPJ (cliente) ou pelo `codigo` (produto), mantendo o `id` e as artes; produto sem `codigo` só casa pelo id do Bling.
+- **Fonte da verdade:** o Bling manda nos campos sincronizados (`razao_social` = nome, `nome_fantasia` = fantasia, `cnpj`, `nome`, `codigo`); uma edição manual nesses campos é sobrescrita na sincronização seguinte.
+- **Ficam de fora**, com um aviso agregado por motivo no resumo (nunca com nome nem documento): clientes sem CNPJ válido (pessoa física, sem documento ou dígitos errados; validado pela função `cnpj_valido` do banco), registros sem nome, CNPJ ou `codigo` repetido (fica o vínculo existente ou, sem vínculo, o primeiro lido; uma linha já ligada que mudaria para um valor em uso fica como estava) e produtos com nome repetido (a unicidade sem acento nem caixa de `produtos`).
+- **Inativos:** na sincronização completa, uma linha com `id_bling` que não veio do Bling (inativada ou excluída lá) recebe `inativo_no_bling_em`; ela some da busca de clientes e da lista de produtos, mas continua no banco, com as artes, e as rotas por id ainda a encontram. Se voltar a ficar ativa no Bling, a marca sai.
+- **Resumo:** `produtos` e `clientes` contam as linhas gravadas (inseridas ou que mudaram), não as lidas.
+
+**O banco local passa a ter dados reais de clientes (nomes, CNPJ)**: nada disso vai para chat, log nem fixture. Trocar `BLING_CHAVE_TOKENS` invalida a conexão gravada (é preciso autorizar de novo).
+
+Nesta etapa, **produção fica desligada**: sem `BLING_*` no Railway, as rotas respondem `503` e só as migrações (`0007` e `0008`) vão para o banco de produção.
 
 ## Ambiente
 
@@ -187,7 +195,6 @@ Nesta etapa, **produção fica desligada**: sem `BLING_*` no Railway, as rotas r
 | `BLING_CLIENT_ID`, `BLING_CLIENT_SECRET` | —                                             | app cadastrado no Bling (opcionais; as quatro `BLING_*` juntas ou nenhuma) |
 | `BLING_REDIRECT_URI`                     | —                                             | link de redirecionamento cadastrado no app do Bling                        |
 | `BLING_CHAVE_TOKENS`                     | —                                             | 32 bytes em base64; cifra os tokens do Bling no banco                      |
-| `BLING_DIR_DADOS`                        | `data/bling`                                  | pasta do JSON da sincronização (relativa a `plataforma/api`)               |
 
 Site (`web/`), obrigatórias em produção:
 

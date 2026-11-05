@@ -7,10 +7,13 @@ import type { DadosSincronizacao, OpcoesSincronizacao } from './sincronizacao.js
 
 export type ExecutarSincronizacao = (opcoes: OpcoesSincronizacao) => Promise<DadosSincronizacao>;
 
+// O estado em memória é por slug; o armazém grava pelo id.
+export type EmpresaSincronizacao = { id: string; slug: string };
+
 export type ExecucaoSincronizacao = {
   // Com um job da empresa em andamento, devolve o estado dele sem iniciar outro.
-  iniciar(empresa: string, acesso: AcessoBling): EstadoSincronizacaoBling;
-  estado(empresa: string): EstadoSincronizacaoBling;
+  iniciar(empresa: EmpresaSincronizacao, acesso: AcessoBling): EstadoSincronizacaoBling;
+  estado(empresaSlug: string): EstadoSincronizacaoBling;
   // Aborta os jobs em andamento e espera terminarem (fechamento da API).
   encerrar(): Promise<void>;
 };
@@ -52,7 +55,7 @@ export function criarExecucaoSincronizacao({
   const jobs = new Map<string, Job>();
 
   async function rodar(
-    empresa: string,
+    { id: empresaId, slug: empresa }: EmpresaSincronizacao,
     iniciadaEm: string,
     acesso: AcessoBling,
     controle: AbortController,
@@ -66,17 +69,18 @@ export function criarExecucaoSincronizacao({
           estados.set(empresa, { situacao: 'em_andamento', iniciadaEm, etapa, lidos, total }),
       });
       sinal.throwIfAborted();
+      const gravado = await armazem.salvar(empresaId, dados, { modo: 'completa' });
       const concluida = relogio();
-      await armazem.salvar(empresa, dados, concluida);
+      // Contagens do que foi gravado (inseridos + atualizados), não do que foi lido.
       estados.set(empresa, {
         situacao: 'concluida',
         resumo: {
           empresa,
           iniciadaEm,
           concluidaEm: concluida.toISOString(),
-          produtos: dados.produtos.length,
-          clientes: dados.clientes.length,
-          avisos: dados.avisos,
+          produtos: gravado.produtos.inseridos + gravado.produtos.atualizados,
+          clientes: gravado.clientes.inseridos + gravado.clientes.atualizados,
+          avisos: [...dados.avisos, ...gravado.avisos],
         },
       });
     } catch (erro) {
@@ -93,18 +97,19 @@ export function criarExecucaoSincronizacao({
     }
   }
 
-  function estado(empresa: string): EstadoSincronizacaoBling {
-    return estados.get(empresa) ?? { situacao: 'ociosa' };
+  function estado(empresaSlug: string): EstadoSincronizacaoBling {
+    return estados.get(empresaSlug) ?? { situacao: 'ociosa' };
   }
 
   return {
     estado,
 
     iniciar(empresa, acesso) {
-      if (jobs.has(empresa)) return estado(empresa);
+      const { slug } = empresa;
+      if (jobs.has(slug)) return estado(slug);
       const iniciadaEm = relogio().toISOString();
       const controle = new AbortController();
-      estados.set(empresa, {
+      estados.set(slug, {
         situacao: 'em_andamento',
         iniciadaEm,
         etapa: 'produtos',
@@ -113,10 +118,10 @@ export function criarExecucaoSincronizacao({
       });
       // O job entra no mapa antes de rodar: uma falha síncrona também o tira de lá no `finally`.
       const job: Job = { controle };
-      jobs.set(empresa, job);
+      jobs.set(slug, job);
       // Sem `await`: `rodar` nunca rejeita (o `catch` registra a falha no estado).
       job.termino = rodar(empresa, iniciadaEm, acesso, controle);
-      return estado(empresa);
+      return estado(slug);
     },
 
     async encerrar() {

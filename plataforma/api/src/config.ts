@@ -35,7 +35,6 @@ const schema = z
     BLING_CHAVE_TOKENS: opcional(
       z.string().trim().refine(chaveValida, 'BLING_CHAVE_TOKENS precisa ter 32 bytes em base64'),
     ),
-    BLING_DIR_DADOS: opcional(z.string().trim()),
   })
   .superRefine((env, ctx) => {
     const ausentes = VARIAVEIS_BLING.filter((nome) => env[nome] === undefined);
@@ -52,8 +51,6 @@ export type ConfigBling = {
   redirectUri: string;
   // Base64 de 32 bytes (AES-256-GCM dos tokens no banco).
   chaveTokens: string;
-  // Pasta do JSON da sincronização, relativa ao diretório de trabalho da API.
-  dirDados: string;
 };
 
 export type Config = {
@@ -84,7 +81,6 @@ export function lerConfig(env: NodeJS.ProcessEnv = process.env): Config {
       clientSecret: parsed.BLING_CLIENT_SECRET,
       redirectUri: parsed.BLING_REDIRECT_URI,
       chaveTokens: parsed.BLING_CHAVE_TOKENS,
-      dirDados: parsed.BLING_DIR_DADOS ?? 'data/bling',
     };
   return config;
 }

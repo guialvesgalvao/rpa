@@ -1,7 +1,4 @@
 import { randomBytes } from 'node:crypto';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
 
 import {
   EsquemaConexaoBling,
@@ -14,7 +11,8 @@ import type { FastifyInstance } from 'fastify';
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { criarApp } from '../../src/app.js';
-import { blingConexoes, empresas } from '../../src/db/esquema.js';
+import { gerarCnpj } from '../../src/cli/semear-dev.js';
+import { blingConexoes, clientes, empresas, produtos } from '../../src/db/esquema.js';
 import { criarUsuario } from '../../src/usuarios/servico.js';
 import { SEGREDO_TESTE } from '../helpers/app.js';
 import { criarBancoTeste, limparTabelas } from '../helpers/banco.js';
@@ -24,6 +22,7 @@ const SENHA = 'senha-ficticia-123';
 const CODE = 'codigo-ficticio-do-bling';
 const ACESSO_BLING = 'acesso-bling-ficticio';
 const RENOVACAO_BLING = 'renovacao-bling-ficticia';
+const CNPJ_FICTICIO = gerarCnpj(900);
 const CONFIG = {
   clientId: 'client-id-ficticio',
   clientSecret: 'client-secret-ficticio',
@@ -62,7 +61,15 @@ function blingFalso() {
         liberarDetalhe = resolver;
         init?.signal?.addEventListener('abort', () => rejeitar(init.signal?.reason));
       });
-    return json({ data: { id: 100, nome: 'Empresa Fictícia', tipo: 'J', fantasia: 'Fictícia' } });
+    return json({
+      data: {
+        id: 100,
+        nome: 'Empresa Fictícia',
+        tipo: 'J',
+        fantasia: 'Fictícia',
+        numeroDocumento: CNPJ_FICTICIO,
+      },
+    });
   });
   return {
     fetch: fake as unknown as typeof fetch,
@@ -77,7 +84,6 @@ function blingFalso() {
 
 let app: FastifyInstance;
 let bling: ReturnType<typeof blingFalso>;
-let dir: string;
 let logs: string[];
 
 function montarApp(comBling = true) {
@@ -88,7 +94,7 @@ function montarApp(comBling = true) {
     jwtSegredo: SEGREDO_TESTE,
     logger: { level: 'trace', stream: { write: (linha: string) => logs.push(linha) } },
     ...(comBling && {
-      bling: { ...CONFIG, dirDados: dir, fetch: bling.fetch, esperar: async () => {} },
+      bling: { ...CONFIG, fetch: bling.fetch, esperar: async () => {} },
     }),
   });
 }
@@ -152,14 +158,10 @@ async function estadoAte(token: string, situacao: string) {
 let admin: string;
 beforeEach(async () => {
   await limparTabelas(db);
-  dir = await mkdtemp(path.join(tmpdir(), 'bling-rotas-'));
   app = montarApp();
   admin = await entrar('admin@exemplo.com', 'admin', ['aba', 'roma']);
 });
-afterEach(async () => {
-  await app.close();
-  await rm(dir, { recursive: true, force: true });
-});
+afterEach(() => app.close());
 
 describe('guardas', () => {
   it('sem token → 401', async () => {
@@ -250,7 +252,7 @@ describe('conexão e retorno OAuth', () => {
 });
 
 describe('sincronização', () => {
-  it('POST → 202 e o GET chega a concluída com as contagens', async () => {
+  it('POST → 202 e o GET chega a concluída, com as linhas gravadas no banco', async () => {
     await conectar(admin);
 
     const inicio = await chamar('POST', 'sincronizacao', admin);
@@ -261,8 +263,21 @@ describe('sincronização', () => {
     expect(estado).toMatchObject({
       resumo: { empresa: 'roma', produtos: 2, clientes: 1, avisos: [] },
     });
-    const gravado = JSON.parse(await readFile(path.join(dir, 'roma.json'), 'utf8'));
-    expect([gravado.produtos.length, gravado.clientes.length]).toEqual([2, 1]);
+    const [roma] = await db.select().from(empresas).where(eq(empresas.slug, 'roma'));
+    const gravados = await db
+      .select({ idBling: produtos.idBling, codigo: produtos.codigo })
+      .from(produtos)
+      .where(eq(produtos.empresaId, roma!.id));
+    expect(gravados.sort((a, b) => (a.idBling ?? 0) - (b.idBling ?? 0))).toEqual([
+      { idBling: 1, codigo: 'SKU1' },
+      { idBling: 2, codigo: 'SKU2' },
+    ]);
+    expect(
+      await db
+        .select({ idBling: clientes.idBling, cnpj: clientes.cnpj, nome: clientes.nomeExibicao })
+        .from(clientes)
+        .where(eq(clientes.empresaId, roma!.id)),
+    ).toEqual([{ idBling: 100, cnpj: CNPJ_FICTICIO, nome: 'Fictícia' }]);
   });
 
   it('segundo POST durante o job → 202 com o mesmo iniciadaEm, sem nova leitura', async () => {
@@ -299,7 +314,8 @@ describe('sincronização', () => {
 
     // Sem liberar o detalhe: o fechamento cancela a chamada em andamento em vez de esperá-la.
     await app.close();
-    await expect(readFile(path.join(dir, 'roma.json'), 'utf8')).rejects.toThrow();
+    expect(await db.$count(produtos)).toBe(0);
+    expect(await db.$count(clientes)).toBe(0);
   });
 });
 
@@ -317,6 +333,7 @@ describe('logs', () => {
       RENOVACAO_BLING,
       CONFIG.clientSecret,
       'Empresa Fictícia',
+      CNPJ_FICTICIO,
     ])
       expect(tudo).not.toContain(segredo);
     expect(tudo).not.toContain('oauth/retorno');

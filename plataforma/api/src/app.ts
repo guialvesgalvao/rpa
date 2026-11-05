@@ -3,7 +3,7 @@ import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastif
 
 import { criarLimite } from './auth/limite.js';
 import { criarTokens } from './auth/tokens.js';
-import { criarArmazemArquivo } from './bling/armazem.js';
+import { criarArmazemPostgres } from './bling/armazem.js';
 import { criarCifra } from './bling/cifra.js';
 import { criarClienteBling } from './bling/cliente.js';
 import { criarConexoesBling } from './bling/conexoes.js';
@@ -82,7 +82,7 @@ function criarServicosBling(
   const oauth = criarOAuthBling({ config: bling, cliente, conexoes, jwtSegredo, relogio });
   const execucao = criarExecucaoSincronizacao({
     sincronizar: (opcoes) => sincronizarBling(cliente, opcoes),
-    armazem: criarArmazemArquivo(bling.dirDados),
+    armazem: criarArmazemPostgres({ db, relogio }),
     relogio,
     // Só o nome do erro: nada de tokens nem dados do Bling no log.
     aoFalhar: (erro) =>

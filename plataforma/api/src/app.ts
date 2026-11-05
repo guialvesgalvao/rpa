@@ -1,8 +1,9 @@
-import type { Saude } from '@plataforma/contratos';
+import { EMPRESAS_SINCRONIZACAO_BLING, type Saude } from '@plataforma/contratos';
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
 
 import { criarLimite } from './auth/limite.js';
 import { criarTokens } from './auth/tokens.js';
+import { criarAgendadorBling, type Temporizador } from './bling/agendador.js';
 import { criarArmazemPostgres } from './bling/armazem.js';
 import { criarCifra } from './bling/cifra.js';
 import { criarClienteBling } from './bling/cliente.js';
@@ -15,6 +16,7 @@ import type { ConfigBling } from './config.js';
 import type { Banco } from './db/cliente.js';
 import { configurarErros } from './erros.js';
 import { criarAutenticacao } from './plugins/autenticacao.js';
+import { idDaEmpresa } from './artes/repositorio.js';
 import { rotasArtes } from './rotas/artes.js';
 import { rotasAuth } from './rotas/auth.js';
 import { rotasBling, type ServicosBling } from './rotas/bling.js';
@@ -27,9 +29,13 @@ export type DepsApp = Pick<FastifyServerOptions, 'logger'> & {
   jwtSegredo: string;
   // Fonte do "agora" para tokens, sessões e limite de tentativas; os testes injetam um relógio falso.
   relogio?: () => Date;
-  // Sincronização com o Bling; ausente, as rotas do Bling respondem 503. `fetch` e `esperar` (intervalo entre
-  // chamadas ao Bling) são injetáveis nos testes.
-  bling?: ConfigBling & { fetch?: typeof fetch; esperar?: (ms: number) => Promise<void> };
+  // Sincronização com o Bling; ausente, as rotas do Bling respondem 503. `fetch`, `esperar` (intervalo entre
+  // chamadas ao Bling) e `temporizador` (ciclos do agendador) são injetáveis nos testes.
+  bling?: ConfigBling & {
+    fetch?: typeof fetch;
+    esperar?: (ms: number) => Promise<void>;
+    temporizador?: Temporizador;
+  };
 };
 
 export function criarApp({
@@ -57,7 +63,29 @@ export function criarApp({
   rotasOp(app, { db });
   const servicosBling = bling && criarServicosBling(app, { db, jwtSegredo, relogio, bling });
   rotasBling(app, { db, bling: servicosBling });
-  if (servicosBling) app.addHook('onClose', () => servicosBling.execucao.encerrar());
+  if (servicosBling) {
+    // Só com BLING_SINCRONIZACAO_AUTOMATICA=true.
+    const agendador =
+      bling.automatica.ligada &&
+      criarAgendadorBling({
+        empresas: EMPRESAS_SINCRONIZACAO_BLING,
+        idDaEmpresa: (slug) => idDaEmpresa(db, slug),
+        oauth: servicosBling.oauth,
+        execucao: servicosBling.execucao,
+        estado: servicosBling.estado,
+        config: bling.automatica,
+        relogio,
+        ...(bling.temporizador && { temporizador: bling.temporizador }),
+        log: app.log,
+      });
+    if (agendador) app.addHook('onReady', async () => agendador.iniciar());
+    app.addHook('onClose', async () => {
+      // Para o agendador antes de abortar o job; depois espera o ciclo em andamento terminar.
+      const parando = agendador ? agendador.parar() : Promise.resolve();
+      await servicosBling.execucao.encerrar();
+      await parando;
+    });
+  }
 
   return app;
 }

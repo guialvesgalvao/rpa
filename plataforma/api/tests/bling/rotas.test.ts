@@ -23,6 +23,7 @@ import {
 } from '../../src/db/esquema.js';
 import { criarUsuario } from '../../src/usuarios/servico.js';
 import { SEGREDO_TESTE } from '../helpers/app.js';
+import { temporizadorFalso } from '../helpers/temporizador.js';
 import { criarBancoTeste, limparTabelas } from '../helpers/banco.js';
 
 // Credenciais, tokens e dados fictícios.
@@ -95,15 +96,24 @@ let app: FastifyInstance;
 let bling: ReturnType<typeof blingFalso>;
 let logs: string[];
 
+let tempo: ReturnType<typeof temporizadorFalso>;
+
 function montarApp(comBling = true, automatica: ConfigSincronizacaoAutomatica = CONFIG.automatica) {
   logs = [];
   bling = blingFalso();
+  tempo = temporizadorFalso();
   return criarApp({
     db,
     jwtSegredo: SEGREDO_TESTE,
     logger: { level: 'trace', stream: { write: (linha: string) => logs.push(linha) } },
     ...(comBling && {
-      bling: { ...CONFIG, automatica, fetch: bling.fetch, esperar: async () => {} },
+      bling: {
+        ...CONFIG,
+        automatica,
+        fetch: bling.fetch,
+        esperar: async () => {},
+        temporizador: tempo.temporizador,
+      },
     }),
   });
 }
@@ -408,6 +418,71 @@ describe('sincronização automática: status', () => {
       ultimaCompletaEm: '2026-11-04T10:00:00.000Z',
       proximaCompletaEm: '2026-11-06T10:00:00.000Z',
     });
+  });
+});
+
+describe('sincronização automática: agendador', () => {
+  const LIGADA = { ligada: true, intervaloMinutos: 15, completaDias: 3 };
+
+  it('desligada, a API sobe sem agendar nenhum ciclo', async () => {
+    await app.ready();
+    expect(tempo.agendados).toEqual([]);
+  });
+
+  it('ligada, o primeiro ciclo faz a completa e grava no banco, com origem agendador', async () => {
+    await conectar(admin);
+    await app.close();
+    app = montarApp(true, LIGADA);
+    await app.ready();
+    expect(tempo.ativos().map((item) => item.ms)).toEqual([60_000]);
+    expect(bling.chamadas).toHaveLength(0);
+
+    tempo.disparar();
+    await vi.waitFor(() => expect(tempo.ativos().map((item) => item.ms)).toEqual([15 * 60_000]));
+
+    expect(await db.$count(produtos)).toBe(2);
+    expect(await db.$count(clientes)).toBe(1);
+    const resposta = await chamar('GET', 'sincronizacao/automatica', admin);
+    expect(EsquemaSincronizacaoAutomaticaBling.parse(resposta.json())).toMatchObject({
+      ligada: true,
+      ultima: { tipo: 'completa', origem: 'agendador', situacao: 'concluida', produtos: 2 },
+    });
+    expect(logs.join(' ')).toContain('Sincronização automática do Bling concluída');
+  });
+
+  it('sem conexão, registra nao_conectado sem chamar o Bling', async () => {
+    await app.close();
+    app = montarApp(true, LIGADA);
+    await app.ready();
+    tempo.disparar();
+    await vi.waitFor(() => expect(tempo.ativos()).toHaveLength(1));
+
+    expect(bling.chamadas).toHaveLength(0);
+    const status = EsquemaSincronizacaoAutomaticaBling.parse(
+      (await chamar('GET', 'sincronizacao/automatica', admin)).json(),
+    );
+    expect(status.ultima?.situacao).toBe('nao_conectado');
+  });
+
+  it('fechar a API durante um ciclo aborta o job, libera o lease e não agenda outro', async () => {
+    await conectar(admin);
+    await app.close();
+    app = montarApp(true, LIGADA);
+    await app.ready();
+    bling.segurarDetalhe();
+    tempo.disparar();
+    // Preso no detalhe do contato (como na rota do botão).
+    await vi.waitFor(() =>
+      expect(bling.chamadas.some(([url]) => String(url).includes('/contatos/100'))).toBe(true),
+    );
+
+    await app.close();
+    expect(tempo.ativos()).toEqual([]);
+    expect(await db.$count(clientes)).toBe(0);
+    const [linha] = await db.select().from(blingSincronizacoes);
+    expect(linha?.emExecucaoDesde).toBeNull();
+    // O aborto não registra resultado.
+    expect(linha?.ultimoResultado).toBeNull();
   });
 });
 

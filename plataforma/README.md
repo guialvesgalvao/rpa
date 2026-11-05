@@ -185,6 +185,17 @@ Como a gravação funciona (tudo numa transação; uma falha no meio desfaz tudo
 
 Nesta etapa, **produção fica desligada**: sem `BLING_*` no Railway, as rotas respondem `503` e só as migrações (`0007` e `0008`) vão para o banco de produção.
 
+### Sincronização automática
+
+Com `BLING_SINCRONIZACAO_AUTOMATICA=true` (exige as quatro `BLING_*`), a própria API sincroniza sozinha as empresas de `EMPRESAS_SINCRONIZACAO_BLING`, sem serviço extra no Railway:
+
+- **Ritmo:** o primeiro ciclo roda 1 min depois de a API subir; o seguinte, `BLING_INTERVALO_MINUTOS` (padrão 15) depois do **fim** do anterior, sem sobreposição.
+- **Modo:** completa se nunca houve uma ou se a última tem `BLING_COMPLETA_DIAS` (padrão 3) ou mais; senão, incremental, só com o que foi incluído ou alterado no Bling desde o início do último ciclo bem-sucedido (com 10 min de margem). O incremental não vê inativação de produto, troca de tipo de contato nem exclusões: a completa corrige. O botão "Sincronizar dados" sempre faz uma completa.
+- **Estado no banco** (`bling_sincronizacoes`): depois de um deploy, continua de onde parou. Um lease (`em_execucao_desde`, validade de 1 h) evita dois ciclos da mesma empresa; se o botão já estiver sincronizando, o ciclo pula a empresa.
+- **Sem conexão** (nunca autorizada, ou o refresh venceu): o ciclo registra `nao_conectado` e não chama o Bling; o admin autoriza de novo pelo botão no app.
+- **Log** (só contagens e códigos, nunca tokens, `code` nem dados de clientes): `Sincronização automática do Bling ligada` ao subir; `… concluída` a cada ciclo, com `empresa`, `tipo`, `produtos`, `clientes` e a quantidade de `avisos`; `… falhou` com o `codigo`; `… sem conexão` só quando a situação muda (não a cada ciclo); `Falha no ciclo …` com o nome do erro, sem parar as outras empresas nem o próximo ciclo.
+- **Fechamento:** ao encerrar a API (deploy, `SIGTERM`), o agendador para antes de abortar o job em andamento; um job abortado não registra resultado nem avança a janela.
+
 ## Ambiente
 
 | Variável                                 | Padrão                                        | Uso                                                                        |

@@ -37,6 +37,7 @@ import {
   type ProgressoBlingTela,
   type ResultadoSincronizacaoBling,
   type SessaoTela,
+  type StatusAutomaticaBling,
 } from './api.js';
 import { logoDaEmpresa, podeTrocarEmpresa, rotuloEmpresa } from './empresa.js';
 import { podeSincronizarBling, podeUsarOp } from './menu.js';
@@ -604,6 +605,21 @@ ipcMain.handle(CHANNELS.blingSincronizar, async (event): Promise<ResultadoSincro
     sincronizacaoBling = undefined;
   });
   return sincronizacaoBling;
+});
+
+ipcMain.handle(CHANNELS.blingAutomatica, async (): Promise<StatusAutomaticaBling> => {
+  const empresa = await exigirSincronizacao();
+  try {
+    return { situacao: 'ok', status: await blingApi.automatica(empresa) };
+  } catch (erro) {
+    if (erro instanceof ErroRequisicao && erro.codigo === 'bling_nao_configurado')
+      return { situacao: 'erro', mensagem: 'Sincronização não configurada no servidor.' };
+    logger.warn(
+      { empresa, erro: (erro as Error).message },
+      'Falha ao ler o status da sincronização automática do Bling',
+    );
+    return { situacao: 'erro', mensagem: (erro as Error).message };
+  }
 });
 
 ipcMain.handle(

@@ -27,7 +27,7 @@ import {
   podeSincronizarBling,
 } from './menu.js';
 import { criarOp } from './op/index.js';
-import { textoProgressoBling, textoResultadoBling } from './sincronizacao.js';
+import { textoAutomaticaBling, textoProgressoBling, textoResultadoBling } from './sincronizacao.js';
 import { preencherResultado } from './resultados.js';
 
 declare global {
@@ -96,6 +96,7 @@ const cfgCampos = $('cfg-campos');
 const cfgSincronizacao = $('cfg-sincronizacao');
 const cfgSincronizar = $<HTMLButtonElement>('cfg-sincronizar');
 const cfgSincronizacaoStatus = $('cfg-sincronizacao-status');
+const cfgSincronizacaoAutomatica = $('cfg-sincronizacao-automatica');
 const logo = $<HTMLImageElement>('logo');
 const empresaSubtitulo = $('empresa-subtitulo');
 const rodapeEmpresa = $('rodape-empresa');
@@ -380,9 +381,25 @@ function preencherConfig(config: ConfigTela) {
   cfgErro.textContent = '';
 }
 
+// Segunda linha do bloco: a sincronização automática no servidor (só para quem vê o bloco).
+async function atualizarAutomatica() {
+  if (cfgSincronizacao.hidden) return;
+  cfgSincronizacaoAutomatica.textContent = 'Consultando a sincronização automática…';
+  try {
+    const resposta = await window.rpa.bling.automatica();
+    cfgSincronizacaoAutomatica.textContent =
+      resposta.situacao === 'ok'
+        ? textoAutomaticaBling(resposta.status, new Date())
+        : resposta.mensagem;
+  } catch (erro) {
+    cfgSincronizacaoAutomatica.textContent = mensagemErro(erro);
+  }
+}
+
 async function abrirConfiguracoes(config?: ConfigTela) {
   preencherConfig(config ?? (await window.rpa.obterConfig()));
   dialogConfig.showModal();
+  void atualizarAutomatica();
 }
 
 abrirConfig.addEventListener('click', () => void abrirConfiguracoes());
@@ -401,6 +418,7 @@ cfgSincronizar.addEventListener('click', async () => {
   } finally {
     sincronizandoBling = false;
     cfgSincronizar.disabled = false;
+    void atualizarAutomatica();
   }
 });
 window.rpa.bling.onProgresso((progresso) => {

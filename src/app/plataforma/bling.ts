@@ -5,8 +5,10 @@ import {
   EsquemaConexaoBling,
   EsquemaErro,
   EsquemaEstadoSincronizacaoBling,
+  EsquemaSincronizacaoAutomaticaBling,
   type EstadoSincronizacaoBling,
   type ResumoSincronizacaoBling,
+  type SincronizacaoAutomaticaBling,
 } from './contratos.js';
 
 export type ClienteBlingApp = {
@@ -15,6 +17,8 @@ export type ClienteBlingApp = {
   /** Inicia o job (ou devolve o que já está rodando). 409 `bling_nao_conectado` vem como `ErroRequisicao`. */
   iniciar(empresa: string): Promise<EstadoSincronizacaoBling>;
   estado(empresa: string): Promise<EstadoSincronizacaoBling>;
+  /** Status da sincronização automática (lido do banco da plataforma; não chama o Bling). */
+  automatica(empresa: string): Promise<SincronizacaoAutomaticaBling>;
 };
 
 export type DepsClienteBling = {
@@ -90,6 +94,12 @@ export function criarClienteBling({
       return lerJson(
         await chamar('GET', rota(empresa, '/sincronizacao')),
         EsquemaEstadoSincronizacaoBling,
+      );
+    },
+    async automatica(empresa) {
+      return lerJson(
+        await chamar('GET', rota(empresa, '/sincronizacao/automatica')),
+        EsquemaSincronizacaoAutomaticaBling,
       );
     },
   };

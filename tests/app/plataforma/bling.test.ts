@@ -110,6 +110,54 @@ describe('criarClienteBling', () => {
   });
 });
 
+describe('criarClienteBling: automatica', () => {
+  const STATUS = {
+    ligada: true,
+    intervaloMinutos: 15,
+    completaDias: 3,
+    ultima: {
+      tipo: 'incremental',
+      origem: 'agendador',
+      situacao: 'concluida',
+      iniciadaEm: INICIADA,
+      concluidaEm: '2026-11-04T12:00:20.000Z',
+      produtos: 1,
+      clientes: 3,
+      avisos: [],
+    },
+    ultimaCompletaEm: '2026-11-04T10:00:00.000Z',
+    proximaCompletaEm: '2026-11-07T10:00:00.000Z',
+  };
+
+  it('faz GET na rota do status com o token e valida o contrato', async () => {
+    const { cliente, chamadas } = montar(() => json(STATUS));
+    expect(await cliente.automatica('roma')).toEqual(STATUS);
+    expect(chamadas[0]?.url).toBe(
+      'http://api.local/v1/empresas/roma/bling/sincronizacao/automatica',
+    );
+    expect(chamadas[0]?.init.method).toBe('GET');
+    expect(new Headers(chamadas[0]?.init.headers).get('authorization')).toBe(
+      'Bearer acesso-ficticio',
+    );
+  });
+
+  it('503 bling_nao_configurado vira ErroRequisicao com o código', async () => {
+    const { cliente } = montar(() => erro(503, 'bling_nao_configurado'));
+    const recusa = await cliente.automatica('roma').catch((e: unknown) => e);
+    expect(recusa).toBeInstanceOf(ErroRequisicao);
+    expect(recusa).toMatchObject({ status: 503, codigo: 'bling_nao_configurado' });
+  });
+
+  it('rede fora e resposta fora do contrato viram ErroIndisponivel', async () => {
+    const rede = montar(() => {
+      throw new TypeError('fetch failed');
+    });
+    await expect(rede.cliente.automatica('roma')).rejects.toBeInstanceOf(ErroIndisponivel);
+    const fora = montar(() => json({ ...STATUS, ligada: 'sim' }));
+    await expect(fora.cliente.automatica('roma')).rejects.toBeInstanceOf(ErroIndisponivel);
+  });
+});
+
 describe('urlAutorizacaoSegura', () => {
   it('aceita a página de autorização do Bling', () => {
     expect(urlAutorizacaoSegura(URL_BLING)).toBe(true);

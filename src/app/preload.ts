@@ -53,6 +53,7 @@ const api: RpaApi = {
       void ipcRenderer.on(CHANNELS.blingProgresso, (_event, progresso: ProgressoBlingTela) =>
         callback(progresso),
       ),
+    automatica: () => ipcRenderer.invoke(CHANNELS.blingAutomatica),
   },
 };
 

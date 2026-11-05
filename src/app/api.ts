@@ -9,6 +9,7 @@ import type {
   PaginaClientes,
   Perfil,
   ProdutoDoCliente,
+  SincronizacaoAutomaticaBling,
   Tema,
   TipoArquivo,
 } from './plataforma/contratos.js';
@@ -167,10 +168,16 @@ export type ResultadoSincronizacaoBling =
   | { situacao: 'autorizacao_aberta' }
   | { situacao: 'erro'; mensagem: string };
 
+/** Status da sincronização automática no servidor, ou o erro ao lê-lo. */
+export type StatusAutomaticaBling =
+  { situacao: 'ok'; status: SincronizacaoAutomaticaBling } | { situacao: 'erro'; mensagem: string };
+
 export type BlingApi = {
   /** Sincroniza produtos e clientes do Bling (só admin da Roma); resolve no fim do job. */
   sincronizar(): Promise<ResultadoSincronizacaoBling>;
   onProgresso(callback: (progresso: ProgressoBlingTela) => void): void;
+  /** Se a sincronização automática está ligada no servidor e o último resultado (só admin da Roma). */
+  automatica(): Promise<StatusAutomaticaBling>;
 };
 
 export const CHANNELS = {
@@ -201,4 +208,5 @@ export const CHANNELS = {
   opProgresso: 'rpa:op:progresso',
   blingSincronizar: 'rpa:bling:sincronizar',
   blingProgresso: 'rpa:bling:progresso',
+  blingAutomatica: 'rpa:bling:automatica',
 } as const;

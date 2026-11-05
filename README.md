@@ -93,6 +93,29 @@ O topo do menu mostra a empresa em uso (ABA Embalagens, Roma…). Com mais de um
 
 O fluxo é este: o cliente pede à fábrica um produto do catálogo. Se ainda não há arte dele para esse produto, ou se ele quer uma nova, o arte-finalista desenvolve a arte e a cadastra para esse cliente e produto. A OP usa essa arte. Não existe vínculo direto entre cliente e produto: é a arte que liga os dois. Por isso a lista de produtos de um cliente mostra só os que já têm arte, e o cadastro de uma arte nova escolhe o produto no catálogo inteiro.
 
+### Tarefas de desenvolvimento de arte
+
+Na página do cliente (app e site), o bloco **Novo trabalho de arte** escolhe um produto do catálogo e oferece duas saídas:
+
+- **Inserir arte pronta:** abre o formulário de nova arte com o produto já escolhido (o cadastro de sempre).
+- **Iniciar desenvolvimento:** cria uma **tarefa** para esse produto e cliente, com status **Não iniciado** e quem a criou como responsável. Não pede nenhum outro campo: a tarefa serve para registrar quando a arte começou e terminou e para consultar quais estão em produção (ex.: "Arte de Caixa de pizza 35x35 para Pizzaria Ficticia").
+
+Status: **Não iniciado**, **Em desenvolvimento**, **Aguardando validação do cliente**, **Concluída** e **Cancelada**. Admin e arte-finalista podem mudar para qualquer um. **Concluída** exige a arte: escolher Concluída (ou "Concluir com a arte") abre o formulário de nova arte com o cliente e o produto da tarefa, e salvar cadastra a arte e conclui, de uma vez. Uma tarefa concluída pode voltar a outro status; a arte continua vinculada e não pode ser removida enquanto a tarefa existir.
+
+Cada tarefa tem **comentários** (autor e data/hora) e um **Histórico** com cada mudança de status (de → para, autor, data/hora), desde a criação.
+
+No topo da home de Artes, o arte-finalista vê **Minhas tarefas** (só as próprias, com filtro de status) e o admin vê **Tarefas em andamento** (as não terminadas de todos, com filtro para ver todas ou um status). O arte-finalista não vê nem altera tarefas de outros.
+
+### OP: pré-preencher dados
+
+Na lista de pedidos da aba OP, cada produto marcado tem o botão **Pré-preencher OP**. Ele abre um formulário com os campos que antes saíam sempre em branco no PDF:
+
+- **Data entrega de produção**;
+- **Descrição do Processo:** para cada um dos 9 passos, Sim/Não, Quantidade, Responsável e Data (o Visto continua para o papel);
+- **Observação:** até 400 caracteres e 4 linhas; as quebras a mais viram espaço, para a OP continuar em 1 página.
+
+Salvo, o botão vira **Editar dados da OP ✓** e o resumo da seleção conta as OPs pré-preenchidas. A geração usa esses dados; campo vazio sai em branco, como antes. O pré-preenchimento vale só para a próxima geração: fica na tela enquanto o pedido estiver na lista (inclusive ao buscar de novo) e não é salvo em lugar nenhum.
+
 ### Configurações do app
 
 O botão **Configurações** (no cabeçalho, só para o admin) guarda **por usuário e por empresa** o usuário e a senha do Bling e a pasta padrão dos documentos; o caminho do Chrome (opcional) vale para o usuário. Se a empresa em uso não tem usuário, senha ou pasta, a tela abre sozinha ao entrar ou ao trocar para ela (não bloqueia; a execução da Fatura valida de novo). Os valores ficam em `data/settings.json` (em dev, na raiz do projeto; no app instalado, em `%APPDATA%\RPA Bling\data`). A senha é cifrada pelo Windows (DPAPI, via `safeStorage` do Electron) e só pode ser lida pelo mesmo usuário na mesma máquina. Senha em branco mantém a atual, mas é obrigatória no primeiro salvamento de cada empresa.

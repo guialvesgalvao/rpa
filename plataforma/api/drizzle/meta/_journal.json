@@ -50,6 +50,13 @@
       "when": 1793666454402,
       "tag": "0006_op_contador_produto_codigo",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793841530575,
+      "tag": "0007_bling_conexoes",
+      "breakpoints": true
     }
   ]
 }

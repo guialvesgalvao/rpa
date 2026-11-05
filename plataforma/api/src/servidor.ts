@@ -4,7 +4,12 @@ import { criarBanco } from './db/cliente.js';
 
 const config = lerConfig();
 const { db, fechar } = criarBanco(config.bancoUrl);
-const app = criarApp({ db, jwtSegredo: config.jwtSegredo, logger: true });
+const app = criarApp({
+  db,
+  jwtSegredo: config.jwtSegredo,
+  logger: true,
+  ...(config.bling && { bling: config.bling }),
+});
 app.addHook('onClose', () => fechar());
 
 // O Railway encerra o processo com SIGTERM a cada deploy.

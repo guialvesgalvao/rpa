@@ -3,6 +3,7 @@ import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastif
 
 import { criarLimite } from './auth/limite.js';
 import { criarTokens } from './auth/tokens.js';
+import type { ConfigBling } from './config.js';
 import type { Banco } from './db/cliente.js';
 import { configurarErros } from './erros.js';
 import { criarAutenticacao } from './plugins/autenticacao.js';
@@ -17,6 +18,8 @@ export type DepsApp = Pick<FastifyServerOptions, 'logger'> & {
   jwtSegredo: string;
   // Fonte do "agora" para tokens, sessões e limite de tentativas; os testes injetam um relógio falso.
   relogio?: () => Date;
+  // Sincronização com o Bling; ausente, as rotas do Bling respondem 503. `fetch` é injetável nos testes.
+  bling?: ConfigBling & { fetch?: typeof fetch };
 };
 
 export function criarApp({

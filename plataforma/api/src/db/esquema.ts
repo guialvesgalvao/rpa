@@ -163,6 +163,19 @@ export const opContadores = pgTable(
   (t) => [check('op_contadores_ultimo_nao_negativo', sql`${t.ultimo} >= 0`)],
 );
 
+// Conexão OAuth da empresa com a API v3 do Bling. Os tokens só entram cifrados (`src/bling/cifra.ts`).
+export const blingConexoes = pgTable('bling_conexoes', {
+  empresaId: uuid('empresa_id')
+    .primaryKey()
+    .references(() => empresas.id, { onDelete: 'cascade' }),
+  accessTokenCifrado: text('access_token_cifrado').notNull(),
+  accessExpiraEm: instante('access_expira_em').notNull(),
+  refreshTokenCifrado: text('refresh_token_cifrado').notNull(),
+  autorizadoPor: uuid('autorizado_por').references(() => usuarios.id, { onDelete: 'set null' }),
+  autorizadoEm: instante('autorizado_em').notNull(),
+  atualizadoEm: instante('atualizado_em').notNull(),
+});
+
 // Globais: iguais para as duas empresas (valores de referência na migração `artes_cores_maquinas`).
 export const cores = pgTable('cores', {
   id: uuid('id').primaryKey().defaultRandom(),

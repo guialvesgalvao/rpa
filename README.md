@@ -85,6 +85,14 @@ O app abre na tela de **Entrar** (e-mail e senha da plataforma). A sessão fica 
 
 O topo do menu mostra a empresa em uso (ABA Embalagens, Roma…). Com mais de uma, clique nele para trocar; a troca fica bloqueada durante uma execução. Tema, logo e título da janela acompanham a empresa, e a última escolhida volta ao reabrir. Empresa sem logo cadastrada mostra só o nome.
 
+### Catálogo, clientes e artes
+
+- **Catálogo:** os produtos que a fábrica produz (ex.: caixa de pizza 35x35), cadastrados no Bling. É o mesmo para todos os clientes da empresa.
+- **Cliente:** quem compra da fábrica (ex.: uma pizzaria), também vindo do Bling.
+- **Arte:** a estampa de um produto do catálogo feita para um cliente específico (ex.: a caixa 35x35 com a marca da pizzaria). Tem ao menos um arquivo (PDF ou imagem), cor e máquinas.
+
+O fluxo é este: o cliente pede à fábrica um produto do catálogo. Se ainda não há arte dele para esse produto, ou se ele quer uma nova, o arte-finalista desenvolve a arte e a cadastra para esse cliente e produto. A OP usa essa arte. Não existe vínculo direto entre cliente e produto: é a arte que liga os dois. Por isso a lista de produtos de um cliente mostra só os que já têm arte, e o cadastro de uma arte nova escolhe o produto no catálogo inteiro.
+
 ### Configurações do app
 
 O botão **Configurações** (no cabeçalho, só para o admin) guarda **por usuário e por empresa** o usuário e a senha do Bling e a pasta padrão dos documentos; o caminho do Chrome (opcional) vale para o usuário. Se a empresa em uso não tem usuário, senha ou pasta, a tela abre sozinha ao entrar ou ao trocar para ela (não bloqueia; a execução da Fatura valida de novo). Os valores ficam em `data/settings.json` (em dev, na raiz do projeto; no app instalado, em `%APPDATA%\RPA Bling\data`). A senha é cifrada pelo Windows (DPAPI, via `safeStorage` do Electron) e só pode ser lida pelo mesmo usuário na mesma máquina. Senha em branco mantém a atual, mas é obrigatória no primeiro salvamento de cada empresa.

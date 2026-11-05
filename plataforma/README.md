@@ -126,6 +126,8 @@ railway run --service Postgres -- npm --prefix plataforma -w @plataforma/api run
 
 ## Artes: clientes, produtos e cadastro manual
 
+O que são catálogo, cliente e arte, e como se relacionam: ver [Catálogo, clientes e artes](../README.md#catálogo-clientes-e-artes).
+
 Clientes e produtos **não têm cadastro pela API**: entram por INSERT direto no banco (o `semear-dev` só serve para desenvolvimento local). As regras de formato ficam no próprio banco; o INSERT falha se algo estiver errado.
 
 **CNPJ com 14 dígitos, sem pontuação** (`11222333000181`, não `11.222.333/0001-81`), com os dígitos verificadores corretos (`cnpj_valido`), único por empresa. `nome_exibicao` (fantasia ou, se vazia, razão social) e `busca` (sem acento, minúsculas) são colunas geradas: não entram no INSERT.

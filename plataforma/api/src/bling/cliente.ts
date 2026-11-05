@@ -67,8 +67,14 @@ export type ClienteBling = {
     esquemaItem: z.ZodType<T>,
     acesso: AcessoBling,
     aoPaginar?: (lidos: number) => void,
+    sinal?: AbortSignal,
   ): Promise<T[]>;
-  obter<T>(caminho: string, esquema: z.ZodType<T>, acesso: AcessoBling): Promise<T>;
+  obter<T>(
+    caminho: string,
+    esquema: z.ZodType<T>,
+    acesso: AcessoBling,
+    sinal?: AbortSignal,
+  ): Promise<T>;
   token(corpoForm: Record<string, string>, credenciais: CredenciaisBling): Promise<TokenBling>;
 };
 
@@ -111,15 +117,26 @@ export function criarClienteBling({
   }
 
   // Respeita o intervalo, repete em 429 e traduz falhas de rede. Devolve a resposta (qualquer status ≠ 429).
-  async function chamar(url: string, init: () => Promise<RequestInit>): Promise<Response> {
+  // `sinal` abortado cancela a chamada em andamento (fechamento da API) e lança o motivo do aborto.
+  async function chamar(
+    url: string,
+    init: () => Promise<RequestInit>,
+    sinal?: AbortSignal,
+  ): Promise<Response> {
     for (let tentativa = 0; ; tentativa++) {
       // Antes do ritmo: o `acesso()` pode fazer um refresh, que também é uma chamada ao Bling.
       const opcoes = await init();
       await noRitmo();
+      sinal?.throwIfAborted();
+      const tempo = AbortSignal.timeout(TIMEOUT_MS);
       let resposta: Response;
       try {
-        resposta = await fetchBling(url, { ...opcoes, signal: AbortSignal.timeout(TIMEOUT_MS) });
+        resposta = await fetchBling(url, {
+          ...opcoes,
+          signal: sinal ? AbortSignal.any([tempo, sinal]) : tempo,
+        });
       } catch {
+        sinal?.throwIfAborted();
         throw new ErroBlingIndisponivel('rede');
       }
       if (resposta.status !== 429) return resposta;
@@ -134,12 +151,17 @@ export function criarClienteBling({
     busca: URLSearchParams | undefined,
     esquema: z.ZodType<T>,
     acesso: AcessoBling,
+    sinal?: AbortSignal,
   ): Promise<T> {
     const url = `${BASE_BLING}${caminho}${busca ? `?${busca}` : ''}`;
-    const resposta = await chamar(url, async () => ({
-      method: 'GET',
-      headers: { Authorization: `Bearer ${await acesso()}`, Accept: 'application/json' },
-    }));
+    const resposta = await chamar(
+      url,
+      async () => ({
+        method: 'GET',
+        headers: { Authorization: `Bearer ${await acesso()}`, Accept: 'application/json' },
+      }),
+      sinal,
+    );
     if (resposta.status === 401) throw new ErroBlingNaoAutorizado();
     if (resposta.status === 404) throw new ErroBlingNaoEncontrado();
     if (!resposta.ok)
@@ -156,6 +178,7 @@ export function criarClienteBling({
     esquemaItem: z.ZodType<T>,
     acesso: AcessoBling,
     aoPaginar?: (lidos: number) => void,
+    sinal?: AbortSignal,
   ): Promise<T[]> {
     const itens: T[] = [];
     for (let pagina = 1; pagina <= MAXIMO_PAGINAS; pagina++) {
@@ -165,7 +188,7 @@ export function criarClienteBling({
           String(v),
         ]),
       );
-      const lote = await get(caminho, busca, z.array(esquemaItem), acesso);
+      const lote = await get(caminho, busca, z.array(esquemaItem), acesso, sinal);
       itens.push(...lote);
       aoPaginar?.(itens.length);
       if (lote.length < LIMITE_PAGINA) return itens;
@@ -176,8 +199,8 @@ export function criarClienteBling({
   return {
     listarTodas,
 
-    obter(caminho, esquema, acesso) {
-      return get(caminho, undefined, esquema, acesso);
+    obter(caminho, esquema, acesso, sinal) {
+      return get(caminho, undefined, esquema, acesso, sinal);
     },
 
     async token(corpoForm, { clientId, clientSecret }) {

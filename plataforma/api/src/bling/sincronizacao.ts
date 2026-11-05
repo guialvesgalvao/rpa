@@ -117,6 +117,7 @@ export async function sincronizarBling(
       EsquemaProduto,
       acessoComSinal,
       (lidos) => aoProgredir({ etapa: 'produtos', lidos, total: null }),
+      sinal,
     )
   ).map((p): ProdutoSincronizado => ({
     idBling: p.id,
@@ -127,7 +128,12 @@ export async function sincronizarBling(
   }));
 
   aoProgredir({ etapa: 'clientes', lidos: 0, total: null });
-  const tipos = await cliente.obter('/contatos/tipos', z.array(EsquemaTipoContato), acessoComSinal);
+  const tipos = await cliente.obter(
+    '/contatos/tipos',
+    z.array(EsquemaTipoContato),
+    acessoComSinal,
+    sinal,
+  );
   const tipoCliente = tipos.find((t) => normalizar(t.descricao) === 'cliente');
   if (!tipoCliente) avisos.push(AVISO_SEM_TIPO_CLIENTE);
   const contatos = await cliente.listarTodas(
@@ -139,6 +145,7 @@ export async function sincronizarBling(
     EsquemaContato,
     acessoComSinal,
     (lidos) => aoProgredir({ etapa: 'clientes', lidos, total: null }),
+    sinal,
   );
   const ativos = contatos.filter((c) => c.situacao === SITUACAO_ATIVO);
 
@@ -150,6 +157,7 @@ export async function sincronizarBling(
         `/contatos/${contato.id}`,
         EsquemaDetalheContato,
         acessoComSinal,
+        sinal,
       );
       clientes.push({
         idBling: contato.id,

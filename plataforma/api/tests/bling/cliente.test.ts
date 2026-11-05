@@ -231,3 +231,28 @@ describe('token', () => {
     });
   });
 });
+
+describe('cancelamento', () => {
+  it('sinal abortado cancela a chamada em andamento e lança AbortError, não erro de rede', async () => {
+    const controle = new AbortController();
+    const { cliente } = montar(
+      ({ init }) =>
+        new Promise((_, rejeitar) => {
+          init.signal?.addEventListener('abort', () => rejeitar(new TypeError('fetch abortado')));
+          controle.abort();
+        }),
+    );
+    await expect(
+      cliente.obter('/contatos/1', EsquemaItem, acesso, controle.signal),
+    ).rejects.toMatchObject({ name: 'AbortError' });
+  });
+
+  it('sinal já abortado não chega a chamar o Bling', async () => {
+    const { cliente, chamadas } = montar(() => json({ data: [] }));
+    const sinal = AbortSignal.abort();
+    await expect(
+      cliente.listarTodas('/produtos', {}, EsquemaItem, acesso, undefined, sinal),
+    ).rejects.toMatchObject({ name: 'AbortError' });
+    expect(chamadas).toHaveLength(0);
+  });
+});

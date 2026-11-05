@@ -152,15 +152,42 @@ npm --prefix plataforma -w @plataforma/api run semear-dev
 
 Cria os usuários `admin.dev@exemplo.com` e `finalista.dev@exemplo.com` (senha `senha-dev-1234`, nas duas empresas), 60 clientes e 8 produtos por empresa e algumas artes com arquivos sintéticos.
 
+## Sincronização com o Bling (API v3)
+
+Leitura de **produtos ativos** e **contatos ativos do tipo Cliente** (com o detalhe de cada um) pela API v3 do Bling, só com GET. Por enquanto os dados vão para um JSON local, não para o Postgres. Só o admin das empresas em `EMPRESAS_SINCRONIZACAO_BLING` (`contratos/src/bling.ts`, hoje só `roma`) pode usar; o app chama pelo botão "Sincronizar dados" em Configurações.
+
+| Rota                                             | Resposta                                                                             |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| `POST /v1/empresas/:empresa/bling/conexao`       | `{ urlAutorizacao }` para abrir no navegador                                         |
+| `POST /v1/empresas/:empresa/bling/sincronizacao` | `202` com o estado do job (inicia um, ou devolve o que já está rodando)              |
+| `GET /v1/empresas/:empresa/bling/sincronizacao`  | estado: `ociosa`, `em_andamento` (etapa e progresso), `concluida` (resumo), `falhou` |
+| `GET /v1/bling/oauth/retorno` (pública, sem log) | página "Bling conectado" ou a falha; é o link de redirecionamento do app do Bling    |
+
+Erros: `503 bling_nao_configurado` (sem as variáveis), `409 bling_nao_conectado` (autorizar de novo), `502 bling_indisponivel`, `403 sincronizacao_indisponivel` (empresa fora da lista).
+
+Para conectar (local):
+
+1. Preencha `BLING_CLIENT_ID`, `BLING_CLIENT_SECRET`, `BLING_REDIRECT_URI` e `BLING_CHAVE_TOKENS` no `plataforma/.env` (modelo e comando da chave no `.env.example`). As quatro vão juntas: com só algumas, a API não sobe.
+2. Aplique as migrações (`db:migrar:dev`; a `0007` cria `bling_conexoes`) e suba a API (`npm --prefix plataforma -w @plataforma/api run dev`).
+3. No app, "Sincronizar dados" sem conexão abre a autorização do Bling no navegador. Depois de autorizar, o Bling volta para `BLING_REDIRECT_URI` e a conexão fica gravada, com os tokens cifrados (AES-256-GCM). Clique em "Sincronizar dados" de novo.
+
+O JSON fica em `plataforma/api/data/bling/<empresa>.json` (`BLING_DIR_DADOS`, relativo a `plataforma/api`; fora do git). **Ele tem dados reais de clientes (nomes, CPF/CNPJ)**: não sai da máquina, não vai para chat, log nem fixture, e é apagado ao fim desta etapa. Trocar `BLING_CHAVE_TOKENS` invalida a conexão gravada (é preciso autorizar de novo).
+
+Nesta etapa, **produção fica desligada**: sem `BLING_*` no Railway, as rotas respondem `503` e só a migração `0007` vai para o banco de produção.
+
 ## Ambiente
 
-| Variável             | Padrão                                        | Uso                                             |
-| -------------------- | --------------------------------------------- | ----------------------------------------------- |
-| `PORT`               | `3001`                                        | porta HTTP                                      |
-| `HOST`               | `::`                                          | interface (todas, IPv4 e IPv6)                  |
-| `DATABASE_URL`       | —                                             | banco da API e do `db:migrar` (obrigatória)     |
-| `JWT_SEGREDO`        | —                                             | chave do JWT, ao menos 32 bytes (obrigatória)   |
-| `DATABASE_URL_TESTE` | `postgres://rpa:rpa@localhost:5433/rpa_teste` | banco dos testes (precisa terminar em `_teste`) |
+| Variável                                 | Padrão                                        | Uso                                                                        |
+| ---------------------------------------- | --------------------------------------------- | -------------------------------------------------------------------------- |
+| `PORT`                                   | `3001`                                        | porta HTTP                                                                 |
+| `HOST`                                   | `::`                                          | interface (todas, IPv4 e IPv6)                                             |
+| `DATABASE_URL`                           | —                                             | banco da API e do `db:migrar` (obrigatória)                                |
+| `JWT_SEGREDO`                            | —                                             | chave do JWT, ao menos 32 bytes (obrigatória)                              |
+| `DATABASE_URL_TESTE`                     | `postgres://rpa:rpa@localhost:5433/rpa_teste` | banco dos testes (precisa terminar em `_teste`)                            |
+| `BLING_CLIENT_ID`, `BLING_CLIENT_SECRET` | —                                             | app cadastrado no Bling (opcionais; as quatro `BLING_*` juntas ou nenhuma) |
+| `BLING_REDIRECT_URI`                     | —                                             | link de redirecionamento cadastrado no app do Bling                        |
+| `BLING_CHAVE_TOKENS`                     | —                                             | 32 bytes em base64; cifra os tokens do Bling no banco                      |
+| `BLING_DIR_DADOS`                        | `data/bling`                                  | pasta do JSON da sincronização (relativa a `plataforma/api`)               |
 
 Site (`web/`), obrigatórias em produção:
 

@@ -154,6 +154,20 @@ npm --prefix plataforma -w @plataforma/api run semear-dev
 
 Cria os usuários `admin.dev@exemplo.com` e `finalista.dev@exemplo.com` (senha `senha-dev-1234`, nas duas empresas), 60 clientes e 8 produtos por empresa e algumas artes com arquivos sintéticos.
 
+## Tarefas de desenvolvimento de arte
+
+Registram o desenvolvimento de uma arte de um produto do catálogo para um cliente (uso no `README.md` da raiz). Tabelas `tarefas_arte`, `tarefas_arte_comentarios` e `tarefas_arte_historico` (migração `0009`); a regra "concluída exige arte" é um CHECK no banco, e a arte da tarefa não pode ser removida (FK `RESTRICT`, a API responde 409 `arte_em_tarefa`). Todas as rotas aceitam admin e arte finalista; o arte finalista só alcança as tarefas de que é responsável (as outras respondem 404).
+
+| Rota                                                                  | Resposta                                                                                                                                                                  |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /v1/empresas/:empresa/clientes/:id/produtos/:produtoId/tarefas` | `201` com a tarefa (`nao_iniciada`, responsável = quem criou) e o primeiro evento no histórico                                                                            |
+| `GET /v1/empresas/:empresa/tarefas?escopo&status`                     | tarefas, mais recentes primeiro; `escopo`: `minhas` (padrão), `andamento` (não terminadas) ou `todas`; o arte finalista sempre recebe só as próprias                      |
+| `GET /v1/empresas/:empresa/tarefas/:id`                               | a tarefa com os comentários                                                                                                                                               |
+| `PATCH /v1/empresas/:empresa/tarefas/:id/status`                      | `{ status }`: muda e grava o histórico (o mesmo status não gera evento); `concluida` sem arte: 409 `tarefa_sem_arte`                                                      |
+| `POST /v1/empresas/:empresa/tarefas/:id/concluir`                     | multipart com os campos do cadastro de arte (cliente e produto são os da tarefa): cadastra a arte e conclui numa transação; tarefa que já tem arte: 409 `tarefa_com_arte` |
+| `POST /v1/empresas/:empresa/tarefas/:id/comentarios`                  | `{ texto }` (1 a 2000 caracteres, aparado): `201` com o comentário                                                                                                        |
+| `GET /v1/empresas/:empresa/tarefas/:id/historico`                     | mudanças de status, da criação à mais recente (anterior, novo, autor, data/hora)                                                                                          |
+
 ## Sincronização com o Bling (API v3)
 
 Leitura de **produtos ativos** e **contatos ativos do tipo Cliente** (com o detalhe de cada um) pela API v3 do Bling, só com GET, gravada nas tabelas `clientes` e `produtos` (as mesmas das artes). Só o admin das empresas em `EMPRESAS_SINCRONIZACAO_BLING` (`contratos/src/bling.ts`, hoje só `roma`) pode usar; o app chama pelo botão "Sincronizar dados" em Configurações.

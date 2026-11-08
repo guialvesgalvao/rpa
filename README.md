@@ -80,8 +80,12 @@ Como funciona a nota fiscal (**emite NF-e de verdade**, com efeito fiscal se a c
 
 O app abre na tela de **Entrar** (e-mail e senha da plataforma). A sessão fica salva até o **Sair** (rodapé do menu): fechar e reabrir não pede a senha de novo. Sem conexão com o servidor, o app abre com o perfil salvo: as automações seguem liberadas e Artes fica indisponível.
 
-- **admin:** vê Artes, Fatura e OP e configura o Bling.
+- **admin:** vê Artes, Fatura, OP e Usuários e configura o Bling.
 - **arte finalista:** vê só Artes, sem Configurações do Bling.
+
+Quem foi criado pelo admin na tela entra com a senha inicial e cai direto na troca de senha (app e site); depois da troca, as outras sessões dessa pessoa são encerradas.
+
+**Usuários** (só admin, app e site): lista os usuários das empresas do admin e cria novos com nome, e-mail, perfil, empresas (só as do admin; com uma só, ela vem fixa) e senha inicial. Editar, desativar e trocar a senha de outro usuário continuam na CLI (`plataforma/README.md`).
 
 O topo do menu mostra a empresa em uso (ABA Embalagens, Roma…). Com mais de uma, clique nele para trocar; a troca fica bloqueada durante uma execução. Tema, logo e título da janela acompanham a empresa, e a última escolhida volta ao reabrir. Empresa sem logo cadastrada mostra só o nome.
 
@@ -102,9 +106,11 @@ Na página do cliente (app e site), o bloco **Novo trabalho de arte** escolhe um
 
 Status: **Não iniciado**, **Em desenvolvimento**, **Aguardando validação do cliente**, **Concluída** e **Cancelada**. Admin e arte-finalista podem mudar para qualquer um. **Concluída** exige a arte: escolher Concluída (ou "Concluir com a arte") abre o formulário de nova arte com o cliente e o produto da tarefa, e salvar cadastra a arte e conclui, de uma vez. Uma tarefa concluída pode voltar a outro status; a arte continua vinculada e não pode ser removida enquanto a tarefa existir.
 
-Cada tarefa tem **comentários** (autor e data/hora) e um **Histórico** com cada mudança de status (de → para, autor, data/hora), desde a criação.
+Cada tarefa tem **comentários** (autor e data/hora), com até 5 **anexos** por comentário (PDF ou imagem; texto opcional quando há anexo), e um **Histórico** com cada mudança de status (de → para, autor, data/hora), desde a criação. No app, **Anexar** escolhe os arquivos e **Baixar** pede onde salvar; no site, o campo de arquivos e os links de download.
 
-No topo da home de Artes, o arte-finalista vê **Minhas tarefas** (só as próprias, com filtro de status) e o admin vê **Tarefas em andamento** (as não terminadas de todos, com filtro para ver todas ou um status). O arte-finalista não vê nem altera tarefas de outros.
+No topo da home de Artes ficam os atalhos **Pendentes**, **Em andamento**, **Aguardando validação** (com o contador entre parênteses) e **Todos**, que abrem a lista já filtrada. O arte-finalista conta e vê só as próprias; o admin, todas da empresa. O arte-finalista não vê nem altera tarefas de outros.
+
+**Tarefas automáticas:** a sincronização com o Bling cria tarefas a partir dos pedidos de venda em aberto quando o cliente ainda não tem arte para o produto (detalhes em `plataforma/README.md`). Elas vão para o **responsável pelas tarefas automáticas**, escolhido pelo admin nas Configurações do app; sem escolha, para a única arte-finalista da empresa.
 
 ### OP: pré-preencher dados
 
@@ -113,6 +119,8 @@ Na lista de pedidos da aba OP, cada produto marcado tem o botão **Pré-preenche
 - **Data entrega de produção**;
 - **Descrição do Processo:** para cada um dos 7 passos, Sim/Não, Quantidade, Responsável e Data (o Visto continua para o papel);
 - **Observação:** até 400 caracteres e 4 linhas; as quebras a mais viram espaço, para a OP continuar em 1 página.
+
+Ao clicar em **Gerar OPs**, um diálogo lista, agrupado por pedido, cada produto e a arte escolhida (`→ sem arte` quando não houver); só **Gerar OPs** no diálogo gera, **Cancelar** ou Esc não gera nada.
 
 Salvo, o botão vira **Editar dados da OP ✓** e o resumo da seleção conta as OPs pré-preenchidas. A geração usa esses dados; campo vazio sai em branco, como antes. O pré-preenchimento vale só para a próxima geração: fica na tela enquanto o pedido estiver na lista (inclusive ao buscar de novo) e não é salvo em lugar nenhum.
 

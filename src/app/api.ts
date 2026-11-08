@@ -107,8 +107,20 @@ export type TarefasApi = {
   mudarStatus(id: string, status: StatusTarefa): Promise<Tarefa>;
   /** Cadastra a arte e conclui; erros de validação voltam por campo, como no cadastro. */
   concluir(entrada: ConclusaoTarefa): Promise<ConclusaoResultado>;
-  comentar(id: string, texto: string): Promise<ComentarioTarefa>;
+  /** Texto ou anexos (ids de `escolherAnexos`); a validação dos arquivos é refeita no envio. */
+  comentar(id: string, texto: string, anexoIds?: string[]): Promise<ComentarioTarefa>;
   historico(id: string): Promise<EventoTarefa[]>;
+  /** Diálogo de arquivos (PDF e imagens, vários); a janela só conhece os ids. */
+  escolherAnexos(): Promise<ArquivoEscolhido[]>;
+  /** Pede o destino e grava o anexo; `false` se o usuário cancelou. */
+  baixarAnexo(anexo: AnexoParaBaixar): Promise<boolean>;
+};
+
+export type AnexoParaBaixar = {
+  tarefaId: string;
+  comentarioId: string;
+  anexoId: string;
+  nome: string;
 };
 
 /** Artes da empresa em uso. Falha de rede ou de permissão vem como mensagem pronta para a tela. */
@@ -279,6 +291,8 @@ export const CHANNELS = {
   tarefasMudarStatus: 'rpa:tarefas:mudar-status',
   tarefasConcluir: 'rpa:tarefas:concluir',
   tarefasComentar: 'rpa:tarefas:comentar',
+  tarefasEscolherAnexos: 'rpa:tarefas:escolher-anexos',
+  tarefasBaixarAnexo: 'rpa:tarefas:baixar-anexo',
   tarefasHistorico: 'rpa:tarefas:historico',
   opClientePorCnpj: 'rpa:op:cliente-por-cnpj',
   opArtesDoItem: 'rpa:op:artes-do-item',

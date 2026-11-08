@@ -50,7 +50,10 @@ const api: RpaApi = {
     obter: (id) => ipcRenderer.invoke(CHANNELS.tarefasObter, id),
     mudarStatus: (id, status) => ipcRenderer.invoke(CHANNELS.tarefasMudarStatus, { id, status }),
     concluir: (entrada) => ipcRenderer.invoke(CHANNELS.tarefasConcluir, entrada),
-    comentar: (id, texto) => ipcRenderer.invoke(CHANNELS.tarefasComentar, { id, texto }),
+    comentar: (id, texto, anexoIds) =>
+      ipcRenderer.invoke(CHANNELS.tarefasComentar, { id, texto, anexoIds }),
+    escolherAnexos: () => ipcRenderer.invoke(CHANNELS.tarefasEscolherAnexos),
+    baixarAnexo: (anexo) => ipcRenderer.invoke(CHANNELS.tarefasBaixarAnexo, anexo),
     historico: (id) => ipcRenderer.invoke(CHANNELS.tarefasHistorico, id),
   },
   op: {

@@ -60,8 +60,11 @@ async function repassar(request: NextRequest): Promise<NextResponse> {
   }
 
   const saida = new NextResponse(resposta.body, { status: resposta.status });
-  const tipoResposta = resposta.headers.get('content-type');
-  if (tipoResposta) saida.headers.set('content-type', tipoResposta);
+  // Só os cabeçalhos que a tela usa: tipo, e nos downloads o nome do arquivo e o nosniff.
+  for (const nome of ['content-type', 'content-disposition', 'x-content-type-options']) {
+    const valor = resposta.headers.get(nome);
+    if (valor) saida.headers.set(nome, valor);
+  }
   return sessao.novos ? gravarCookies(saida, sessao.novos) : saida;
 }
 

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   MAX_PEDIDOS_OP,
   validarCnpj,
+  validarAnexoParaBaixar,
   validarComentario,
   validarConclusao,
   validarConsultaTarefas,
@@ -253,11 +254,30 @@ describe('tarefas de arte', () => {
     expect(() => validarMudancaStatus({ id, status: 'pausada' })).toThrow('Status inválido.');
   });
 
-  it('comentário: aparado, nem vazio nem longo demais', () => {
-    expect(validarComentario({ id, texto: '  ok ' })).toEqual({ id, texto: 'ok' });
-    for (const texto of ['  ', 'x'.repeat(2001)]) {
-      expect(() => validarComentario({ id, texto })).toThrow('Escreva um comentário');
-    }
+  it('comentário: aparado, texto ou anexo, nem longo demais nem com anexos demais', () => {
+    expect(validarComentario({ id, texto: '  ok ' })).toEqual({ id, texto: 'ok', anexoIds: [] });
+    expect(validarComentario({ id, texto: ' ', anexoIds: [id] })).toEqual({
+      id,
+      texto: '',
+      anexoIds: [id],
+    });
+    expect(() => validarComentario({ id, texto: '  ' })).toThrow(
+      'Escreva o comentário ou anexe um arquivo.',
+    );
+    expect(() => validarComentario({ id, texto: 'x'.repeat(2001) })).toThrow(
+      'Escreva um comentário',
+    );
+    expect(() =>
+      validarComentario({ id, texto: 'ok', anexoIds: Array.from({ length: 6 }, () => id) }),
+    ).toThrow('no máximo 5');
+    expect(() => validarComentario({ id, texto: 'ok', anexoIds: ['../x'] })).toThrow();
+  });
+
+  it('anexo para baixar: ids e nome', () => {
+    const anexo = { tarefaId: id, comentarioId: id, anexoId: id, nome: 'a.pdf' };
+    expect(validarAnexoParaBaixar(anexo)).toEqual(anexo);
+    expect(() => validarAnexoParaBaixar({ ...anexo, anexoId: 'x' })).toThrow('Anexo inválido.');
+    expect(() => validarAnexoParaBaixar({ ...anexo, nome: '' })).toThrow('Anexo inválido.');
   });
 
   it('conclusão: os campos do cadastro, sem o cliente e com a tarefa', () => {

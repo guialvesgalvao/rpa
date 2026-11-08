@@ -6,6 +6,7 @@ import {
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
+import { formatarTamanho } from '../../../../../anexos';
 import { AcoesTarefa } from '../../../../../componentes/AcoesTarefa';
 import { formatarDataHora } from '../../../../../datas';
 import { tarefaDaEmpresa } from '../../../../../servidor/artes';
@@ -96,7 +97,22 @@ export default async function PaginaTarefa({
                   {comentario.autor?.nome ?? 'Usuário removido'} ·{' '}
                   {formatarDataHora(comentario.criadoEm)}
                 </div>
-                <div className="texto-comentario">{comentario.texto}</div>
+                {comentario.texto && <div className="texto-comentario">{comentario.texto}</div>}
+                {comentario.anexos.length > 0 && (
+                  <ul className="anexos-comentario">
+                    {comentario.anexos.map((anexo) => (
+                      <li key={anexo.id}>
+                        <a
+                          href={`/api/v1/empresas/${encodeURIComponent(empresa)}/tarefas/${tarefa.id}/comentarios/${comentario.id}/anexos/${anexo.id}`}
+                          download={anexo.nome}
+                        >
+                          {anexo.nome}
+                        </a>{' '}
+                        <span className="hint">({formatarTamanho(anexo.tamanho)})</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </li>
             ))}
           </ul>

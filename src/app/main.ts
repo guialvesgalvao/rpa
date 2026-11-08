@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
-import { access, readFile } from 'node:fs/promises';
+import { access, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -52,6 +52,7 @@ import {
   errosDaRejeicao,
   inspecionarArquivo,
   montarEnvio,
+  montarEnvioComentario,
   type OpcoesArte,
 } from './plataforma/artes.js';
 import {
@@ -92,6 +93,7 @@ import {
 import {
   type CadastroEntrada,
   validarCadastro,
+  validarAnexoParaBaixar,
   validarComentario,
   validarConclusao,
   validarConsultaTarefas,
@@ -667,11 +669,79 @@ ipcMain.handle(
 ipcMain.handle(
   CHANNELS.tarefasComentar,
   async (_event, input: unknown): Promise<ComentarioTarefa> => {
-    const { id, texto } = validarComentario(input);
+    const { id, texto, anexoIds } = validarComentario(input);
     const { empresa } = await contexto();
-    return artesApi.comentarTarefa(empresa, id, texto);
+    if (anexoIds.length === 0) return artesApi.comentarTarefa(empresa, id, texto);
+
+    // Relê cada arquivo no envio (tamanho e tipo podem ter mudado depois do diálogo).
+    const locais: ArquivoLocal[] = [];
+    for (const anexoId of anexoIds) {
+      const escolhido = arquivosEscolhidos.get(anexoId);
+      if (!escolhido) throw new Error('Arquivo não selecionado. Escolha o arquivo de novo.');
+      try {
+        locais.push(await inspecionarArquivo(escolhido.caminho));
+      } catch {
+        throw new Error(`Não foi possível ler ${escolhido.nome}.`);
+      }
+    }
+    const envio = await montarEnvioComentario(texto, locais);
+    if ('erro' in envio) throw new Error(envio.erro);
+    const comentario = await artesApi.comentarTarefaComAnexos(empresa, id, envio.form);
+    for (const anexoId of anexoIds) arquivosEscolhidos.delete(anexoId);
+    logger.info({ empresa, anexos: anexoIds.length }, 'Comentário com anexos');
+    return comentario;
   },
 );
+
+const FILTROS_ANEXO = [
+  { name: 'PDF ou imagem', extensions: ['pdf', 'png', 'jpg', 'jpeg', 'webp'] },
+];
+
+ipcMain.handle(CHANNELS.tarefasEscolherAnexos, async (event): Promise<ArquivoEscolhido[]> => {
+  await contexto();
+  const window = BrowserWindow.fromWebContents(event.sender);
+  const options: OpenDialogOptions = {
+    properties: ['openFile', 'multiSelections'],
+    filters: FILTROS_ANEXO,
+  };
+  const result = window
+    ? await dialog.showOpenDialog(window, options)
+    : await dialog.showOpenDialog(options);
+  if (result.canceled) return [];
+  const escolhidos: ArquivoEscolhido[] = [];
+  for (const caminho of result.filePaths) {
+    const local = await inspecionarArquivo(caminho);
+    const id = randomUUID();
+    arquivosEscolhidos.set(id, local);
+    escolhidos.push({
+      id,
+      nome: local.nome,
+      tamanho: local.tamanho,
+      tipo: local.tipo?.tipo ?? null,
+    });
+  }
+  return escolhidos;
+});
+
+ipcMain.handle(CHANNELS.tarefasBaixarAnexo, async (event, input: unknown): Promise<boolean> => {
+  const { tarefaId, comentarioId, anexoId, nome } = validarAnexoParaBaixar(input);
+  const { empresa } = await contexto();
+  const window = BrowserWindow.fromWebContents(event.sender);
+  // Só o nome do arquivo como sugestão: nada de caminho vindo da API.
+  const sugestao =
+    [...path.basename(nome)]
+      .map((c) => (c.charCodeAt(0) < 0x20 || '<>:"/\\|?*'.includes(c) ? '_' : c))
+      .join('') || 'anexo';
+  const options = { defaultPath: sugestao };
+  const result = window
+    ? await dialog.showSaveDialog(window, options)
+    : await dialog.showSaveDialog(options);
+  if (result.canceled || !result.filePath) return false;
+  const conteudo = await artesApi.baixarAnexo(empresa, tarefaId, comentarioId, anexoId);
+  await writeFile(result.filePath, conteudo);
+  logger.info({ empresa }, 'Anexo de comentário baixado');
+  return true;
+});
 
 ipcMain.handle(
   CHANNELS.tarefasHistorico,

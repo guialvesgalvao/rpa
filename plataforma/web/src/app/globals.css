@@ -628,3 +628,19 @@ footer {
 .tabela-rolagem {
   overflow-x: auto;
 }
+
+/* Anexos dos comentários das tarefas. */
+.anexos-comentario {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+  overflow-wrap: anywhere;
+}
+.rotulo-secundario {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  margin: 10px 0 6px;
+}

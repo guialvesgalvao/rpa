@@ -5,6 +5,7 @@ import {
   descreverEvento,
   filtrosDeTarefas,
   formatarDataHora,
+  formatarTamanho,
 } from '../../src/app/artes/tarefas-dados.js';
 
 describe('filtrosDeTarefas', () => {
@@ -29,6 +30,12 @@ describe('filtrosDeTarefas', () => {
 });
 
 describe('formatação', () => {
+  it('tamanho em B, KB e MB', () => {
+    expect(formatarTamanho(820)).toBe('820 B');
+    expect(formatarTamanho(12 * 1024)).toBe('12 KB');
+    expect(formatarTamanho(3.4 * 1024 * 1024)).toBe('3,4 MB');
+  });
+
   it('data e hora locais', () => {
     expect(formatarDataHora(new Date(2026, 10, 5, 9, 7).toISOString())).toBe('05/11/2026 09:07');
   });

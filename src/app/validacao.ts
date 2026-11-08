@@ -9,6 +9,7 @@ import {
 import { PASSOS_PROCESSO } from '../processes/op/template.js';
 import type { ConsultaTarefasApp, ItemParaGerarOp } from './api.js';
 import {
+  ANEXOS_POR_COMENTARIO,
   COMENTARIO_TAREFA_MAX,
   ESCOPOS_TAREFAS,
   EsquemaNovoUsuario,
@@ -238,14 +239,39 @@ export function validarMudancaStatus(input: unknown): { id: string; status: Stat
 
 const comentarioSchema = z.object({
   id: z.uuid(),
-  texto: z.string().trim().min(1).max(COMENTARIO_TAREFA_MAX),
+  texto: z.string().trim().max(COMENTARIO_TAREFA_MAX),
+  anexoIds: z.array(z.uuid()).max(ANEXOS_POR_COMENTARIO).optional(),
 });
 
-export function validarComentario(input: unknown): { id: string; texto: string } {
+/** Texto (até o limite) ou anexos (até 5 ids escolhidos no diálogo); os dois vazios é erro. */
+export function validarComentario(input: unknown): {
+  id: string;
+  texto: string;
+  anexoIds: string[];
+} {
   const parsed = comentarioSchema.safeParse(input);
   if (!parsed.success) {
-    throw new Error(`Escreva um comentário de até ${COMENTARIO_TAREFA_MAX} caracteres.`);
+    throw new Error(
+      `Escreva um comentário de até ${COMENTARIO_TAREFA_MAX} caracteres e anexe no máximo ${ANEXOS_POR_COMENTARIO} arquivos.`,
+    );
   }
+  const anexoIds = parsed.data.anexoIds ?? [];
+  if (!parsed.data.texto && anexoIds.length === 0) {
+    throw new Error('Escreva o comentário ou anexe um arquivo.');
+  }
+  return { id: parsed.data.id, texto: parsed.data.texto, anexoIds };
+}
+
+const anexoParaBaixarSchema = z.object({
+  tarefaId: z.uuid(),
+  comentarioId: z.uuid(),
+  anexoId: z.uuid(),
+  nome: z.string().min(1).max(500),
+});
+
+export function validarAnexoParaBaixar(input: unknown): z.infer<typeof anexoParaBaixarSchema> {
+  const parsed = anexoParaBaixarSchema.safeParse(input);
+  if (!parsed.success) throw new Error('Anexo inválido.');
   return parsed.data;
 }
 

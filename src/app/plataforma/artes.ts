@@ -7,6 +7,7 @@ import { ErroIndisponivel, ErroRecusado } from './cliente.js';
 import {
   type ArteDoProduto,
   type Cliente,
+  ANEXOS_POR_COMENTARIO,
   type ComentarioTarefa,
   type ContagemTarefas,
   detectarTipo,
@@ -95,6 +96,14 @@ export type ClienteArtes = {
   /** Cadastra a arte (multipart, como `cadastrar`) e conclui a tarefa. */
   concluirTarefa(empresa: string, id: string, form: FormData): Promise<Tarefa>;
   comentarTarefa(empresa: string, id: string, texto: string): Promise<ComentarioTarefa>;
+  /** Comentário com anexos (multipart montado por `montarEnvioComentario`). */
+  comentarTarefaComAnexos(empresa: string, id: string, form: FormData): Promise<ComentarioTarefa>;
+  baixarAnexo(
+    empresa: string,
+    tarefaId: string,
+    comentarioId: string,
+    anexoId: string,
+  ): Promise<Uint8Array>;
   historicoTarefa(empresa: string, id: string): Promise<EventoTarefa[]>;
 };
 
@@ -107,6 +116,7 @@ export function normalizarCnpj(cnpj: string): string | null {
 }
 
 const TIMEOUT_PADRAO_MS = 15_000;
+const MB = 1024 * 1024;
 // O Railway aceita uploads de até 5 minutos.
 const TIMEOUT_ENVIO_PADRAO_MS = 5 * 60_000;
 
@@ -292,6 +302,19 @@ export function criarClienteArtes({
       );
       return lerJson(resposta, EsquemaComentarioTarefa);
     },
+    async comentarTarefaComAnexos(empresa, id, form) {
+      const resposta = await chamar(
+        'POST',
+        rota(empresa, `/tarefas/${encodeURIComponent(id)}/comentarios`),
+        { corpo: form, timeout: timeoutEnvioMs },
+      );
+      return lerJson(resposta, EsquemaComentarioTarefa);
+    },
+    async baixarAnexo(empresa, tarefaId, comentarioId, anexoId) {
+      const caminho = `/tarefas/${encodeURIComponent(tarefaId)}/comentarios/${encodeURIComponent(comentarioId)}/anexos/${encodeURIComponent(anexoId)}`;
+      const resposta = await chamar('GET', rota(empresa, caminho), { timeout: timeoutEnvioMs });
+      return new Uint8Array(await resposta.arrayBuffer());
+    },
     async historicoTarefa(empresa, id) {
       const resposta = await chamar(
         'GET',
@@ -366,6 +389,35 @@ export type EntradaCadastro = {
 };
 
 export type ArquivosCadastro = { pdf?: ArquivoLocal; imagem?: ArquivoLocal };
+
+/**
+ * Comentário com anexos: confere texto ou anexo, quantidade, tipo (pela assinatura) e tamanho por tipo, com
+ * as mesmas regras da API, e monta o multipart. O conteúdo é lido do disco só no envio (`openAsBlob`).
+ */
+export async function montarEnvioComentario(
+  texto: string,
+  anexos: readonly ArquivoLocal[],
+  abrirBlob: AbrirBlob = abrirBlobPadrao,
+): Promise<{ erro: string } | { form: FormData }> {
+  if (!texto.trim() && anexos.length === 0) {
+    return { erro: 'Escreva o comentário ou anexe um arquivo.' };
+  }
+  if (anexos.length > ANEXOS_POR_COMENTARIO) {
+    return { erro: `Anexe no máximo ${ANEXOS_POR_COMENTARIO} arquivos por comentário.` };
+  }
+  for (const anexo of anexos) {
+    if (!anexo.tipo) return { erro: `${anexo.nome} não é PDF nem imagem PNG, JPEG ou WebP.` };
+    const limite = anexo.tipo.tipo === 'pdf' ? LIMITES.pdfBytes : LIMITES.imagemBytes;
+    if (anexo.tamanho > limite) return { erro: `${anexo.nome} passa de ${limite / MB} MB.` };
+  }
+  const form = new FormData();
+  form.append('texto', texto.trim());
+  for (const anexo of anexos) {
+    // O tipo foi conferido acima.
+    form.append('anexos', await abrirBlob(anexo.caminho, anexo.tipo!.mime), anexo.nome);
+  }
+  return { form };
+}
 
 /** Erros por campo (mesmos nomes de `validarNovaArte`) e, à parte, os que não pertencem a um campo. */
 export type ErrosCadastro = ErrosNovaArte & { geral?: string };

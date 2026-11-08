@@ -1,5 +1,6 @@
-import type { TarefasApi } from '../api.js';
+import type { ArquivoEscolhido, TarefasApi } from '../api.js';
 import {
+  ANEXOS_POR_COMENTARIO,
   COMENTARIO_TAREFA_MAX,
   type ComentarioTarefa,
   precisaDaArteParaConcluir,
@@ -10,11 +11,11 @@ import {
   tituloTarefa,
 } from '../plataforma/contratos.js';
 import { blocoErro, botao, criar, mensagemErro } from './dom.js';
-import { acaoDoStatus, formatarDataHora } from './tarefas-dados.js';
+import { acaoDoStatus, formatarDataHora, formatarTamanho } from './tarefas-dados.js';
 import { seloStatus } from './tarefas.js';
 
 export type DepsTarefa = {
-  api: Pick<TarefasApi, 'obter' | 'mudarStatus' | 'comentar'>;
+  api: Pick<TarefasApi, 'obter' | 'mudarStatus' | 'comentar' | 'escolherAnexos' | 'baixarAnexo'>;
   tarefaId: string;
   /** Mensagem de sucesso no topo (ex.: "Tarefa criada"). */
   sucesso?: string;
@@ -31,7 +32,11 @@ function campoInfo(rotulo: string, valor: string | HTMLElement): HTMLElement {
   return linha;
 }
 
-function blocoComentario(comentario: ComentarioTarefa): HTMLElement {
+/** Comentário com autor, data, texto e os anexos, cada um com o botão de baixar. */
+function blocoComentario(
+  comentario: ComentarioTarefa,
+  baixar: (anexo: ComentarioTarefa['anexos'][number], aviso: HTMLElement) => void,
+): HTMLElement {
   const item = criar('li', 'tarefa-comentario');
   item.append(
     criar(
@@ -39,8 +44,22 @@ function blocoComentario(comentario: ComentarioTarefa): HTMLElement {
       'hint',
       `${comentario.autor?.nome ?? 'Usuário removido'} · ${formatarDataHora(comentario.criadoEm)}`,
     ),
-    criar('div', 'tarefa-comentario-texto', comentario.texto),
   );
+  if (comentario.texto) item.append(criar('div', 'tarefa-comentario-texto', comentario.texto));
+  if (comentario.anexos.length) {
+    const lista = criar('ul', 'tarefa-anexos');
+    for (const anexo of comentario.anexos) {
+      const linha = criar('li');
+      const aviso = criar('span', 'hint');
+      linha.append(
+        criar('span', undefined, `${anexo.nome} (${formatarTamanho(anexo.tamanho)}) `),
+        botao('Baixar', () => baixar(anexo, aviso)),
+        aviso,
+      );
+      lista.append(linha);
+    }
+    item.append(lista);
+  }
   return item;
 }
 
@@ -121,8 +140,27 @@ export function montarTarefa(
     }
     acoes.append(botao('Histórico', () => historico(tarefa)));
 
+    const baixar = async (anexo: ComentarioTarefa['anexos'][number], aviso: HTMLElement) => {
+      aviso.className = 'hint';
+      aviso.textContent = ' Baixando…';
+      const comentario = tarefa.comentarios.find((c) => c.anexos.some((a) => a.id === anexo.id));
+      try {
+        const salvo = await api.baixarAnexo({
+          tarefaId: tarefa.id,
+          comentarioId: comentario?.id ?? '',
+          anexoId: anexo.id,
+          nome: anexo.nome,
+        });
+        aviso.textContent = salvo ? ' Salvo.' : '';
+      } catch (erro) {
+        aviso.className = 'hint warn';
+        aviso.textContent = ` ${mensagemErro(erro)}`;
+      }
+    };
+    const desenhar = (comentario: ComentarioTarefa) =>
+      blocoComentario(comentario, (anexo, aviso) => void baixar(anexo, aviso));
     const comentarios = criar('ul', 'tarefa-comentarios');
-    comentarios.append(...tarefa.comentarios.map(blocoComentario));
+    comentarios.append(...tarefa.comentarios.map(desenhar));
     const semComentarios = criar('div', 'hint', 'Nenhum comentário ainda.');
     semComentarios.hidden = tarefa.comentarios.length > 0;
     const texto = criar('textarea');
@@ -132,33 +170,76 @@ export function montarTarefa(
     texto.setAttribute('aria-label', 'Novo comentário');
     const erroComentario = criar('div', 'hint warn');
     erroComentario.setAttribute('role', 'alert');
+    // Anexos escolhidos para o próximo comentário (ids do diálogo do main).
+    let anexos: ArquivoEscolhido[] = [];
+    const listaAnexos = criar('ul', 'tarefa-anexos');
+    const desenharAnexos = () => {
+      listaAnexos.replaceChildren(
+        ...anexos.map((anexo) => {
+          const linha = criar('li');
+          linha.append(
+            criar('span', undefined, `${anexo.nome} (${formatarTamanho(anexo.tamanho)}) `),
+            botao('Remover', () => {
+              anexos = anexos.filter((a) => a.id !== anexo.id);
+              desenharAnexos();
+            }),
+          );
+          return linha;
+        }),
+      );
+    };
+    const anexar = botao('Anexar', async () => {
+      erroComentario.textContent = '';
+      try {
+        const escolhidos = await api.escolherAnexos();
+        anexos = [...anexos, ...escolhidos].slice(0, ANEXOS_POR_COMENTARIO);
+        if (anexos.length < escolhidos.length) {
+          erroComentario.textContent = `Anexe no máximo ${ANEXOS_POR_COMENTARIO} arquivos por comentário.`;
+        }
+        desenharAnexos();
+      } catch (erro) {
+        erroComentario.textContent = mensagemErro(erro);
+      }
+    });
     const comentar = botao('Comentar', async () => {
-      if (!texto.value.trim()) {
-        erroComentario.textContent = 'Escreva o comentário.';
+      if (!texto.value.trim() && anexos.length === 0) {
+        erroComentario.textContent = 'Escreva o comentário ou anexe um arquivo.';
         return;
       }
       comentar.disabled = true;
+      anexar.disabled = true;
       erroComentario.textContent = '';
       try {
-        const novo = await api.comentar(tarefa.id, texto.value);
+        const novo = await api.comentar(
+          tarefa.id,
+          texto.value,
+          anexos.map((a) => a.id),
+        );
         if (encerrado) return;
-        comentarios.append(blocoComentario(novo));
+        tarefa.comentarios.push(novo);
+        comentarios.append(desenhar(novo));
         semComentarios.hidden = true;
         texto.value = '';
+        anexos = [];
+        desenharAnexos();
       } catch (erro) {
         erroComentario.textContent = mensagemErro(erro);
       } finally {
         comentar.disabled = false;
+        anexar.disabled = false;
       }
     });
+    const acoesComentario = criar('div', 'actions');
+    acoesComentario.append(comentar, anexar);
     const blocoComentarios = criar('div', 'artes-campo tarefa-bloco-comentarios');
     blocoComentarios.append(
       criar('label', undefined, 'Comentários'),
       comentarios,
       semComentarios,
       texto,
+      listaAnexos,
       erroComentario,
-      comentar,
+      acoesComentario,
     );
 
     const topo = criar('div', 'artes-topo');

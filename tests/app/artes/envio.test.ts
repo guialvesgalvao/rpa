@@ -10,6 +10,7 @@ import {
   errosDaRejeicao,
   inspecionarArquivo,
   montarEnvio,
+  montarEnvioComentario,
 } from '../../../src/app/plataforma/artes.js';
 import { ErroIndisponivel, ErroRecusado } from '../../../src/app/plataforma/cliente.js';
 
@@ -29,6 +30,49 @@ const local = (sobre: Partial<ArquivoLocal> = {}): ArquivoLocal => ({
 
 const entrada = { produtoId: ID, nome: '', corId: ID, maquinaIds: [ID] };
 const abrirBlob = async (_caminho: string, mime: string) => new Blob(['x'], { type: mime });
+
+describe('montarEnvioComentario', () => {
+  it('texto aparado e os anexos com o nome original e o tipo detectado', async () => {
+    const envio = await montarEnvioComentario(
+      '  Segue  ',
+      [local(), local({ caminho: 'C:\\ref.png', nome: 'ref.png', tipo: PNG })],
+      abrirBlob,
+    );
+    if (!('form' in envio)) throw new Error('esperava o formulário');
+    expect(envio.form.get('texto')).toBe('Segue');
+    const anexos = envio.form.getAll('anexos') as File[];
+    expect(anexos.map((a) => [a.name, a.type])).toEqual([
+      ['arte.pdf', 'application/pdf'],
+      ['ref.png', 'image/png'],
+    ]);
+  });
+
+  it('recusa: sem texto nem anexo, mais de 5, tipo desconhecido e tamanho por tipo', async () => {
+    expect(await montarEnvioComentario(' ', [], abrirBlob)).toEqual({
+      erro: 'Escreva o comentário ou anexe um arquivo.',
+    });
+    expect(
+      await montarEnvioComentario(
+        '',
+        Array.from({ length: 6 }, () => local()),
+        abrirBlob,
+      ),
+    ).toEqual({ erro: 'Anexe no máximo 5 arquivos por comentário.' });
+    expect(
+      await montarEnvioComentario('', [local({ nome: 'x.txt', tipo: null })], abrirBlob),
+    ).toEqual({ erro: 'x.txt não é PDF nem imagem PNG, JPEG ou WebP.' });
+    expect(await montarEnvioComentario('', [local({ tamanho: 25 * MB + 1 })], abrirBlob)).toEqual({
+      erro: 'arte.pdf passa de 25 MB.',
+    });
+    expect(
+      await montarEnvioComentario(
+        '',
+        [local({ nome: 'f.png', tipo: PNG, tamanho: 10 * MB + 1 })],
+        abrirBlob,
+      ),
+    ).toEqual({ erro: 'f.png passa de 10 MB.' });
+  });
+});
 
 describe('montarEnvio', () => {
   it('monta o multipart com os campos da API e o PDF com o nome original', async () => {

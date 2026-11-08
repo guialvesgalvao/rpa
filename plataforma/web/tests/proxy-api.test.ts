@@ -51,6 +51,34 @@ describe('/api/v1/[...caminho]', () => {
     expect(resposta.cookies.get('rpa_acesso')).toBeUndefined();
   });
 
+  it('nos downloads, repassa o nome do arquivo e o nosniff, e nenhum outro cabeçalho da API', async () => {
+    const caminho = '/v1/empresas/aba/tarefas/t1/comentarios/c1/anexos/a1';
+    apiFalsa({
+      [`GET ${caminho}`]: () =>
+        new Response('%PDF-ficticio', {
+          headers: {
+            'content-type': 'application/pdf',
+            'content-disposition': 'attachment; filename="a.pdf"',
+            'x-content-type-options': 'nosniff',
+            'set-cookie': 'intruso=1',
+            'x-interno': 'segredo',
+          },
+        }),
+    });
+
+    const resposta = await GET(
+      requisicao(`/api${caminho}`, {
+        cookies: { rpa_acesso: acessoValido(), rpa_renovacao: 'renovacao' },
+      }),
+    );
+
+    expect(resposta.headers.get('content-disposition')).toBe('attachment; filename="a.pdf"');
+    expect(resposta.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(resposta.headers.get('x-interno')).toBeNull();
+    expect(resposta.headers.get('set-cookie')).toBeNull();
+    expect(await resposta.text()).toBe('%PDF-ficticio');
+  });
+
   it('mantém a query string e devolve erros da API como vieram', async () => {
     const { chamadas } = apiFalsa({
       'GET /v1/empresas/aba/artes': () =>

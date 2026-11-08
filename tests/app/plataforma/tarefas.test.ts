@@ -84,6 +84,32 @@ describe('tarefas no cliente da API', () => {
     expect(JSON.parse(String(criar.chamadas[0]?.corpo))).toEqual(novo);
   });
 
+  it('comentário com anexos (multipart) e download do anexo', async () => {
+    const comentario = {
+      id: TAREFA,
+      autor: { id: USUARIO, nome: 'Ana Ficticia' },
+      texto: '',
+      anexos: [{ id: PRODUTO, nome: 'a.pdf', tipoMime: 'application/pdf', tamanho: 3 }],
+      criadoEm: '2026-11-05T12:00:00.000Z',
+    };
+    const { cliente, chamadas } = api((url) =>
+      url.includes('/anexos/') ? new Response(new Uint8Array([1, 2, 3])) : json(comentario, 201),
+    );
+    const form = new FormData();
+    form.append('texto', '');
+    expect((await cliente.comentarTarefaComAnexos('roma', TAREFA, form)).anexos).toHaveLength(1);
+    expect(chamadas[0]).toMatchObject({
+      url: `http://api.local/v1/empresas/roma/tarefas/${TAREFA}/comentarios`,
+      metodo: 'POST',
+      corpo: form,
+    });
+    const bytes = await cliente.baixarAnexo('roma', TAREFA, CLIENTE, PRODUTO);
+    expect([...bytes]).toEqual([1, 2, 3]);
+    expect(chamadas[1]?.url).toBe(
+      `http://api.local/v1/empresas/roma/tarefas/${TAREFA}/comentarios/${CLIENTE}/anexos/${PRODUTO}`,
+    );
+  });
+
   it('contagem pela rota dos atalhos', async () => {
     const contagem = { nao_iniciada: 2, em_desenvolvimento: 1, aguardando_cliente: 0 };
     const { cliente, chamadas } = api(() => json(contagem));

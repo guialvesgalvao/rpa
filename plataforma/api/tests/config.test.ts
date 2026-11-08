@@ -151,3 +151,44 @@ describe('lerConfig: sincronização automática do Bling', () => {
     );
   });
 });
+
+describe('bucket S3 dos arquivos', () => {
+  const S3 = {
+    ARQUIVOS_S3_ENDPOINT: 'http://localhost:9090',
+    ARQUIVOS_S3_REGIAO: 'us-east-1',
+    ARQUIVOS_S3_BUCKET: 'rpa-arquivos',
+    ARQUIVOS_S3_CHAVE: 'chave-ficticia',
+    ARQUIVOS_S3_SEGREDO: 'segredo-ficticio',
+  };
+
+  it('sem as variáveis (ou vazias), os arquivos ficam no Postgres', () => {
+    expect(lerConfig(OBRIGATORIAS).arquivosS3).toBeUndefined();
+    const vazias = Object.fromEntries(Object.keys(S3).map((nome) => [nome, '']));
+    expect(lerConfig({ ...OBRIGATORIAS, ...vazias }).arquivosS3).toBeUndefined();
+  });
+
+  it('com as cinco, lê o bucket; estilo de caminho só com true', () => {
+    expect(lerConfig({ ...OBRIGATORIAS, ...S3 }).arquivosS3).toEqual({
+      endpoint: S3.ARQUIVOS_S3_ENDPOINT,
+      regiao: S3.ARQUIVOS_S3_REGIAO,
+      bucket: S3.ARQUIVOS_S3_BUCKET,
+      chave: S3.ARQUIVOS_S3_CHAVE,
+      segredo: S3.ARQUIVOS_S3_SEGREDO,
+      estiloCaminho: false,
+    });
+    expect(
+      lerConfig({ ...OBRIGATORIAS, ...S3, ARQUIVOS_S3_ESTILO_CAMINHO: 'true' }).arquivosS3
+        ?.estiloCaminho,
+    ).toBe(true);
+  });
+
+  it('recusa configuração parcial, dizendo o que falta sem mostrar valores', () => {
+    const parcial = { ...S3, ARQUIVOS_S3_SEGREDO: '' };
+    expect(() => lerConfig({ ...OBRIGATORIAS, ...parcial })).toThrow(/ARQUIVOS_S3_SEGREDO/);
+    try {
+      lerConfig({ ...OBRIGATORIAS, ...parcial });
+    } catch (erro) {
+      expect(String(erro)).not.toContain('chave-ficticia');
+    }
+  });
+});

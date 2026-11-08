@@ -12,6 +12,8 @@ import {
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 
 import { buscarCliente, buscarProduto, ehUuid, idDaEmpresa } from '../artes/repositorio.js';
+import type { ArmazemArquivos } from '../arquivos/armazem.js';
+import { ARMAZEM_BANCO } from '../arquivos/banco.js';
 import type { Banco } from '../db/cliente.js';
 import { ErroApi, lerCorpo } from '../erros.js';
 import { usuarioDe } from '../plugins/autenticacao.js';
@@ -34,7 +36,10 @@ const tarefaNaoEncontrada = () =>
 
 // Tarefas de desenvolvimento de arte. Admin e arte finalista usam todas as rotas; o arte finalista só alcança
 // as tarefas de que é responsável (as outras respondem 404).
-export function rotasTarefas(app: FastifyInstance, { db }: { db: Banco }): void {
+export function rotasTarefas(
+  app: FastifyInstance,
+  { db, armazem = ARMAZEM_BANCO }: { db: Banco; armazem?: ArmazemArquivos },
+): void {
   // Registro encapsulado: o parser multipart (conclusão com a arte) vale só para estas rotas.
   void app.register(async (escopo) => {
     await escopo.register(multipart, { limits: LIMITES_MULTIPART });
@@ -144,18 +149,22 @@ export function rotasTarefas(app: FastifyInstance, { db }: { db: Banco }): void 
         const campos = await lerCampos(request);
         exigirIds(campos);
         conferirNovaArte(campos, atual.produto.id);
-        const tarefa = await concluirTarefa(db, {
-          empresaId,
-          tarefaId,
-          acesso,
-          arte: {
-            nome: campos.nome,
-            corId: campos.corId ?? '',
-            maquinaIds: campos.maquinaIds ?? [],
-            pdf: campos.pdf,
-            imagem: campos.imagem,
+        const tarefa = await concluirTarefa(
+          db,
+          {
+            empresaId,
+            tarefaId,
+            acesso,
+            arte: {
+              nome: campos.nome,
+              corId: campos.corId ?? '',
+              maquinaIds: campos.maquinaIds ?? [],
+              pdf: campos.pdf,
+              imagem: campos.imagem,
+            },
           },
-        });
+          { armazem, log: request.log },
+        );
         if (!tarefa) throw tarefaNaoEncontrada();
         return tarefa;
       },

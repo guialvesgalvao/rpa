@@ -9,7 +9,6 @@ import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 
 import type { Banco } from '../db/cliente.js';
 import {
-  arquivos,
   arteMaquinas,
   artes,
   clientes,
@@ -225,20 +224,19 @@ export async function artesDoProduto(
   }));
 }
 
-export type ImagemDaArte = { tipoMime: string; conteudo: Buffer };
-
-// `null` quando a arte não existe na empresa ou não tem imagem.
-export async function imagemDaArte(
+// Id do arquivo (imagem ou PDF) da arte; `null` quando a arte não existe na empresa ou não tem o arquivo.
+// O conteúdo é lido por `lerArquivo`, de onde estiver (bytea ou bucket).
+export async function arquivoDaArte(
   db: Banco,
   empresaId: string,
   arteId: string,
-): Promise<ImagemDaArte | null> {
+  tipo: 'imagem' | 'pdf',
+): Promise<string | null> {
   const [linha] = await db
-    .select({ tipoMime: arquivos.tipoMime, conteudo: arquivos.conteudo })
+    .select({ arquivoId: tipo === 'imagem' ? artes.imagemId : artes.pdfId })
     .from(artes)
-    .innerJoin(arquivos, eq(arquivos.id, artes.imagemId))
     .where(and(eq(artes.id, arteId), eq(artes.empresaId, empresaId)));
-  return linha ?? null;
+  return linha?.arquivoId ?? null;
 }
 
 // Produtos inativos ou excluídos no Bling ficam de fora; `buscarProduto` ainda os encontra.

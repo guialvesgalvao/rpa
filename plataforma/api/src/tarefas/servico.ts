@@ -13,7 +13,15 @@ import {
 import { and, asc, desc, eq, inArray, type SQL, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 
-import { duplicada, inserirArte, type NovaArte, violouUnico } from '../artes/servico.js';
+import {
+  type Armazenamento,
+  duplicada,
+  inserirArte,
+  NO_BANCO,
+  type NovaArte,
+  violouUnico,
+} from '../artes/servico.js';
+import { comObjetosGravados } from '../arquivos/armazem.js';
 import type { Banco } from '../db/cliente.js';
 import {
   clientes,
@@ -224,48 +232,55 @@ export type ArteDaConclusao = Omit<NovaArte, 'empresaId' | 'clienteId' | 'produt
 export async function concluirTarefa(
   db: Banco,
   entrada: { empresaId: string; tarefaId: string; acesso: Acesso; arte: ArteDaConclusao },
+  { armazem, log }: Armazenamento = NO_BANCO,
 ): Promise<Tarefa | null> {
   const { empresaId, tarefaId, acesso, arte } = entrada;
   try {
-    const encontrada = await db.transaction(async (tx) => {
-      const [atual] = await tx
-        .select({
-          id: tarefasArte.id,
-          status: tarefasArte.status,
-          arteId: tarefasArte.arteId,
-          clienteId: tarefasArte.clienteId,
-          produtoId: tarefasArte.produtoId,
-        })
-        .from(tarefasArte)
-        .where(alcance(empresaId, acesso, tarefaId))
-        .for('update');
-      if (!atual) return false;
-      if (atual.arteId) {
-        throw new ErroApi(
-          409,
-          'tarefa_com_arte',
-          'Esta tarefa já tem arte cadastrada; mude o status para Concluída.',
-        );
-      }
-      const arteId = await inserirArte(tx, {
-        ...arte,
-        empresaId,
-        clienteId: atual.clienteId,
-        produtoId: atual.produtoId,
-        usuarioId: acesso.usuarioId,
-      });
-      await tx
-        .update(tarefasArte)
-        .set({ status: 'concluida', arteId, atualizadoEm: sql`now()` })
-        .where(eq(tarefasArte.id, atual.id));
-      await tx.insert(tarefasArteHistorico).values({
-        tarefaId: atual.id,
-        statusAnterior: atual.status,
-        statusNovo: 'concluida',
-        autorId: acesso.usuarioId,
-      });
-      return true;
-    });
+    const encontrada = await comObjetosGravados(
+      armazem,
+      [arte.pdf, arte.imagem],
+      () =>
+        db.transaction(async (tx) => {
+          const [atual] = await tx
+            .select({
+              id: tarefasArte.id,
+              status: tarefasArte.status,
+              arteId: tarefasArte.arteId,
+              clienteId: tarefasArte.clienteId,
+              produtoId: tarefasArte.produtoId,
+            })
+            .from(tarefasArte)
+            .where(alcance(empresaId, acesso, tarefaId))
+            .for('update');
+          if (!atual) return false;
+          if (atual.arteId) {
+            throw new ErroApi(
+              409,
+              'tarefa_com_arte',
+              'Esta tarefa já tem arte cadastrada; mude o status para Concluída.',
+            );
+          }
+          const arteId = await inserirArte(tx, {
+            ...arte,
+            empresaId,
+            clienteId: atual.clienteId,
+            produtoId: atual.produtoId,
+            usuarioId: acesso.usuarioId,
+          });
+          await tx
+            .update(tarefasArte)
+            .set({ status: 'concluida', arteId, atualizadoEm: sql`now()` })
+            .where(eq(tarefasArte.id, atual.id));
+          await tx.insert(tarefasArteHistorico).values({
+            tarefaId: atual.id,
+            statusAnterior: atual.status,
+            statusNovo: 'concluida',
+            autorId: acesso.usuarioId,
+          });
+          return true;
+        }),
+      log,
+    );
     return encontrada ? obterTarefa(db, empresaId, tarefaId, acesso) : null;
   } catch (erro) {
     if (violouUnico(erro)) throw duplicada(nomeOuPadrao(arte.nome));

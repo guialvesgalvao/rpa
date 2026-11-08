@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import type { ConfigS3 } from './arquivos/s3.js';
 import { chaveValida } from './bling/cifra.js';
 
 // Variável vazia (`BLING_CLIENT_ID=` no `.env`) conta como ausente.
@@ -8,6 +9,15 @@ const opcional = <T extends z.ZodType>(esquema: T) =>
     (valor) => (typeof valor === 'string' && valor.trim() === '' ? undefined : valor),
     esquema.optional(),
   );
+
+// Bucket S3 dos arquivos (Railway Storage Bucket): todas ou nenhuma. Sem elas, o conteúdo fica no Postgres.
+const VARIAVEIS_S3 = [
+  'ARQUIVOS_S3_ENDPOINT',
+  'ARQUIVOS_S3_REGIAO',
+  'ARQUIVOS_S3_BUCKET',
+  'ARQUIVOS_S3_CHAVE',
+  'ARQUIVOS_S3_SEGREDO',
+] as const;
 
 const VARIAVEIS_BLING = [
   'BLING_CLIENT_ID',
@@ -48,6 +58,15 @@ const schema = z
         .min(5, 'BLING_INTERVALO_MINUTOS precisa ser de 5 a 1440')
         .max(1440, 'BLING_INTERVALO_MINUTOS precisa ser de 5 a 1440'),
     ),
+    ARQUIVOS_S3_ENDPOINT: opcional(z.url({ error: 'ARQUIVOS_S3_ENDPOINT precisa ser uma URL' })),
+    ARQUIVOS_S3_REGIAO: opcional(z.string().trim()),
+    ARQUIVOS_S3_BUCKET: opcional(z.string().trim()),
+    ARQUIVOS_S3_CHAVE: opcional(z.string().trim()),
+    ARQUIVOS_S3_SEGREDO: opcional(z.string().trim()),
+    // `true`: endereço no estilo endpoint/bucket/chave (conforme a aba Credentials do bucket).
+    ARQUIVOS_S3_ESTILO_CAMINHO: opcional(
+      z.enum(['true', 'false'], { error: 'ARQUIVOS_S3_ESTILO_CAMINHO precisa ser true ou false' }),
+    ),
     BLING_COMPLETA_DIAS: opcional(
       z.coerce
         .number()
@@ -57,6 +76,12 @@ const schema = z
     ),
   })
   .superRefine((env, ctx) => {
+    const semS3 = VARIAVEIS_S3.filter((nome) => env[nome] === undefined);
+    if (semS3.length > 0 && semS3.length < VARIAVEIS_S3.length)
+      ctx.addIssue({
+        code: 'custom',
+        message: `Configuração do bucket incompleta; faltam: ${semS3.join(', ')}`,
+      });
     const ausentes = VARIAVEIS_BLING.filter((nome) => env[nome] === undefined);
     if (ausentes.length > 0 && ausentes.length < VARIAVEIS_BLING.length)
       ctx.addIssue({
@@ -92,6 +117,8 @@ export type Config = {
   jwtSegredo: string;
   // Ausente quando as variáveis do Bling não estão definidas: as rotas do Bling respondem 503.
   bling?: ConfigBling;
+  // Ausente sem as variáveis ARQUIVOS_S3_*: os arquivos ficam no Postgres (bytea).
+  arquivosS3?: ConfigS3;
 };
 
 export function lerConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -102,6 +129,21 @@ export function lerConfig(env: NodeJS.ProcessEnv = process.env): Config {
     bancoUrl: parsed.DATABASE_URL,
     jwtSegredo: parsed.JWT_SEGREDO,
   };
+  if (
+    parsed.ARQUIVOS_S3_ENDPOINT !== undefined &&
+    parsed.ARQUIVOS_S3_REGIAO !== undefined &&
+    parsed.ARQUIVOS_S3_BUCKET !== undefined &&
+    parsed.ARQUIVOS_S3_CHAVE !== undefined &&
+    parsed.ARQUIVOS_S3_SEGREDO !== undefined
+  )
+    config.arquivosS3 = {
+      endpoint: parsed.ARQUIVOS_S3_ENDPOINT,
+      regiao: parsed.ARQUIVOS_S3_REGIAO,
+      bucket: parsed.ARQUIVOS_S3_BUCKET,
+      chave: parsed.ARQUIVOS_S3_CHAVE,
+      segredo: parsed.ARQUIVOS_S3_SEGREDO,
+      estiloCaminho: parsed.ARQUIVOS_S3_ESTILO_CAMINHO === 'true',
+    };
   if (
     parsed.BLING_CLIENT_ID !== undefined &&
     parsed.BLING_CLIENT_SECRET !== undefined &&

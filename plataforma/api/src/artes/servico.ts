@@ -3,11 +3,25 @@ import { createHash } from 'node:crypto';
 import { type Arte, nomeOuPadrao } from '@plataforma/contratos';
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 
+import {
+  apagarObjetos,
+  type ArmazemArquivos,
+  type ArquivoRecebido,
+  comObjetosGravados,
+} from '../arquivos/armazem.js';
+import { ARMAZEM_BANCO } from '../arquivos/banco.js';
 import type { Banco } from '../db/cliente.js';
 import { arquivos, arteMaquinas, artes, cores, maquinas, produtos } from '../db/esquema.js';
 import { ErroApi } from '../erros.js';
 
-export type ArquivoRecebido = { nomeOriginal: string; tipoMime: string; conteudo: Buffer };
+export type { ArquivoRecebido };
+
+// Onde o conteúdo vai (bucket ou bytea) e o log das falhas ao apagar objetos.
+export type Armazenamento = {
+  armazem: ArmazemArquivos;
+  log?: { warn(dados: object, mensagem: string): void };
+};
+export const NO_BANCO: Armazenamento = { armazem: ARMAZEM_BANCO };
 
 export type NovaArte = {
   empresaId: string;
@@ -78,7 +92,8 @@ async function conferirReferencias(
   }
 }
 
-async function gravarArquivo(tx: Transacao, arquivo: ArquivoRecebido): Promise<string> {
+// Com `chaveObjeto` (já gravado no bucket por `comObjetosGravados`), a linha guarda só a chave.
+export async function gravarArquivo(tx: Transacao, arquivo: ArquivoRecebido): Promise<string> {
   const [linha] = await tx
     .insert(arquivos)
     .values({
@@ -86,7 +101,8 @@ async function gravarArquivo(tx: Transacao, arquivo: ArquivoRecebido): Promise<s
       tipoMime: arquivo.tipoMime,
       tamanho: arquivo.conteudo.length,
       sha256: createHash('sha256').update(arquivo.conteudo).digest('hex'),
-      conteudo: arquivo.conteudo,
+      conteudo: arquivo.chaveObjeto ? null : arquivo.conteudo,
+      chaveObjeto: arquivo.chaveObjeto ?? null,
     })
     .returning({ id: arquivos.id });
   if (!linha) throw new Error('Arquivo não gravado.');
@@ -171,10 +187,19 @@ export async function inserirArte(tx: Transacao, entrada: NovaArte): Promise<str
   return arte.id;
 }
 
-export async function criarArte(db: Banco, entrada: NovaArte): Promise<Arte> {
+export async function criarArte(
+  db: Banco,
+  entrada: NovaArte,
+  { armazem, log }: Armazenamento = NO_BANCO,
+): Promise<Arte> {
   if (!entrada.pdf && !entrada.imagem) throw invalida('Envie ao menos um arquivo.');
   try {
-    const arteId = await db.transaction((tx) => inserirArte(tx, entrada));
+    const arteId = await comObjetosGravados(
+      armazem,
+      [entrada.pdf, entrada.imagem],
+      () => db.transaction((tx) => inserirArte(tx, entrada)),
+      log,
+    );
     const criada = await obterArte(db, entrada.empresaId, arteId);
     if (!criada) throw new Error('Arte não criada.');
     return criada;
@@ -185,68 +210,89 @@ export async function criarArte(db: Banco, entrada: NovaArte): Promise<Arte> {
 }
 
 // `null` quando a arte não existe na empresa.
-export async function atualizarArte(db: Banco, entrada: EdicaoArte): Promise<Arte | null> {
+export async function atualizarArte(
+  db: Banco,
+  entrada: EdicaoArte,
+  { armazem, log }: Armazenamento = NO_BANCO,
+): Promise<Arte | null> {
   let nomeFinal = entrada.nome === undefined ? undefined : nomeOuPadrao(entrada.nome);
+  // Objetos dos arquivos trocados ou removidos: saem do bucket depois que a transação confirma.
+  let objetosDescartados: (string | null)[] = [];
   try {
-    const encontrada = await db.transaction(async (tx) => {
-      const [atual] = await tx
-        .select()
-        .from(artes)
-        .where(and(eq(artes.id, entrada.arteId), eq(artes.empresaId, entrada.empresaId)))
-        .for('update');
-      if (!atual) return false;
-      nomeFinal ??= atual.nome;
+    const encontrada = await comObjetosGravados(
+      armazem,
+      [entrada.pdf, entrada.imagem],
+      () =>
+        db.transaction(async (tx) => {
+          const [atual] = await tx
+            .select()
+            .from(artes)
+            .where(and(eq(artes.id, entrada.arteId), eq(artes.empresaId, entrada.empresaId)))
+            .for('update');
+          if (!atual) return false;
+          nomeFinal ??= atual.nome;
 
-      const manterPdf = Boolean(entrada.pdf) || (atual.pdfId !== null && !entrada.removerPdf);
-      const manterImagem =
-        Boolean(entrada.imagem) || (atual.imagemId !== null && !entrada.removerImagem);
-      if (!manterPdf && !manterImagem) throw invalida('A arte precisa ter ao menos um arquivo.');
+          const manterPdf = Boolean(entrada.pdf) || (atual.pdfId !== null && !entrada.removerPdf);
+          const manterImagem =
+            Boolean(entrada.imagem) || (atual.imagemId !== null && !entrada.removerImagem);
+          if (!manterPdf && !manterImagem)
+            throw invalida('A arte precisa ter ao menos um arquivo.');
 
-      await conferirReferencias(tx, entrada.empresaId, entrada);
+          await conferirReferencias(tx, entrada.empresaId, entrada);
 
-      // Os arquivos antigos só saem depois de a arte deixar de referenciá-los (FK).
-      const descartar: string[] = [];
-      let pdfId = atual.pdfId;
-      if (entrada.pdf) {
-        if (pdfId) descartar.push(pdfId);
-        pdfId = await gravarArquivo(tx, entrada.pdf);
-      } else if (entrada.removerPdf && pdfId) {
-        descartar.push(pdfId);
-        pdfId = null;
-      }
-      let imagemId = atual.imagemId;
-      if (entrada.imagem) {
-        if (imagemId) descartar.push(imagemId);
-        imagemId = await gravarArquivo(tx, entrada.imagem);
-      } else if (entrada.removerImagem && imagemId) {
-        descartar.push(imagemId);
-        imagemId = null;
-      }
+          // Os arquivos antigos só saem depois de a arte deixar de referenciá-los (FK).
+          const descartar: string[] = [];
+          let pdfId = atual.pdfId;
+          if (entrada.pdf) {
+            if (pdfId) descartar.push(pdfId);
+            pdfId = await gravarArquivo(tx, entrada.pdf);
+          } else if (entrada.removerPdf && pdfId) {
+            descartar.push(pdfId);
+            pdfId = null;
+          }
+          let imagemId = atual.imagemId;
+          if (entrada.imagem) {
+            if (imagemId) descartar.push(imagemId);
+            imagemId = await gravarArquivo(tx, entrada.imagem);
+          } else if (entrada.removerImagem && imagemId) {
+            descartar.push(imagemId);
+            imagemId = null;
+          }
 
-      await tx
-        .update(artes)
-        .set({
-          produtoId: entrada.produtoId ?? atual.produtoId,
-          nome: nomeFinal,
-          corId: entrada.corId ?? atual.corId,
-          pdfId,
-          imagemId,
-          atualizadoPor: entrada.usuarioId,
-          atualizadoEm: sql`now()`,
-        })
-        .where(eq(artes.id, atual.id));
-      if (descartar.length) await tx.delete(arquivos).where(inArray(arquivos.id, descartar));
+          await tx
+            .update(artes)
+            .set({
+              produtoId: entrada.produtoId ?? atual.produtoId,
+              nome: nomeFinal,
+              corId: entrada.corId ?? atual.corId,
+              pdfId,
+              imagemId,
+              atualizadoPor: entrada.usuarioId,
+              atualizadoEm: sql`now()`,
+            })
+            .where(eq(artes.id, atual.id));
+          if (descartar.length) {
+            const apagados = await tx
+              .delete(arquivos)
+              .where(inArray(arquivos.id, descartar))
+              .returning({ chave: arquivos.chaveObjeto });
+            objetosDescartados = apagados.map((a) => a.chave);
+          }
 
-      if (entrada.maquinaIds) {
-        await tx.delete(arteMaquinas).where(eq(arteMaquinas.arteId, atual.id));
-        await tx
-          .insert(arteMaquinas)
-          .values(
-            [...new Set(entrada.maquinaIds)].map((maquinaId) => ({ arteId: atual.id, maquinaId })),
-          );
-      }
-      return true;
-    });
+          if (entrada.maquinaIds) {
+            await tx.delete(arteMaquinas).where(eq(arteMaquinas.arteId, atual.id));
+            await tx.insert(arteMaquinas).values(
+              [...new Set(entrada.maquinaIds)].map((maquinaId) => ({
+                arteId: atual.id,
+                maquinaId,
+              })),
+            );
+          }
+          return true;
+        }),
+      log,
+    );
+    await apagarObjetos(armazem, objetosDescartados, log);
     return encontrada ? obterArte(db, entrada.empresaId, entrada.arteId) : null;
   } catch (erro) {
     if (violouUnico(erro)) throw duplicada(nomeFinal ?? '');
@@ -256,18 +302,31 @@ export async function atualizarArte(db: Banco, entrada: EdicaoArte): Promise<Art
 
 // Remove a arte e seus arquivos numa transação; `false` quando a arte não existe na empresa. A arte cadastrada
 // na conclusão de uma tarefa não sai enquanto a tarefa existir (FK `tarefas_arte.arte_id`).
-export async function removerArte(db: Banco, empresaId: string, arteId: string): Promise<boolean> {
+export async function removerArte(
+  db: Banco,
+  empresaId: string,
+  arteId: string,
+  { armazem, log }: Armazenamento = NO_BANCO,
+): Promise<boolean> {
   try {
-    return await db.transaction(async (tx) => {
+    const chaves = await db.transaction(async (tx) => {
       const [arte] = await tx
         .delete(artes)
         .where(and(eq(artes.id, arteId), eq(artes.empresaId, empresaId)))
         .returning({ pdfId: artes.pdfId, imagemId: artes.imagemId });
-      if (!arte) return false;
+      if (!arte) return null;
       const ids = [arte.pdfId, arte.imagemId].filter((id): id is string => id !== null);
-      if (ids.length) await tx.delete(arquivos).where(inArray(arquivos.id, ids));
-      return true;
+      if (!ids.length) return [];
+      const apagados = await tx
+        .delete(arquivos)
+        .where(inArray(arquivos.id, ids))
+        .returning({ chave: arquivos.chaveObjeto });
+      return apagados.map((a) => a.chave);
     });
+    if (chaves === null) return false;
+    // A linha saiu primeiro: um objeto que não sair do bucket só fica órfão (log).
+    await apagarObjetos(armazem, chaves, log);
+    return true;
   } catch (erro) {
     // 23001: ON DELETE RESTRICT; 23503: FK em geral.
     if (['23001', '23503'].includes(codigoPostgres(erro) ?? '')) {

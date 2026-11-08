@@ -1,4 +1,5 @@
 import { criarApp } from '../../src/app.js';
+import type { ArmazemArquivos } from '../../src/arquivos/armazem.js';
 import type { Banco } from '../../src/db/cliente.js';
 
 // Segredo fictício, só para os testes.
@@ -16,8 +17,8 @@ export function criarRelogioFalso(inicio = new Date('2026-01-05T12:00:00.000Z'))
   };
 }
 
-export function criarAppTeste(db: Banco) {
+export function criarAppTeste(db: Banco, extras: { armazem?: ArmazemArquivos } = {}) {
   const relogio = criarRelogioFalso();
-  const app = criarApp({ db, jwtSegredo: SEGREDO_TESTE, relogio: relogio.agora });
+  const app = criarApp({ db, jwtSegredo: SEGREDO_TESTE, relogio: relogio.agora, ...extras });
   return { app, relogio };
 }

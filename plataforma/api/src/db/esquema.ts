@@ -216,8 +216,9 @@ export const maquinas = pgTable('maquinas', {
   nome: text('nome').notNull().unique(),
 });
 
-// O conteúdo fica no Postgres (decisão do plano; gatilho de revisão: ~20 GB). Tabela separada para que as
-// consultas de `artes` nunca carreguem os bytes.
+// Metadados de cada arquivo; o conteúdo fica no bucket S3 (`chave_objeto`) ou, sem bucket configurado e nos
+// arquivos antigos, na própria linha (`conteudo`, bytea). Tabela separada para que as consultas de `artes`
+// nunca carreguem os bytes.
 export const arquivos = pgTable(
   'arquivos',
   {
@@ -226,15 +227,18 @@ export const arquivos = pgTable(
     tipoMime: text('tipo_mime').notNull(),
     tamanho: integer('tamanho').notNull(),
     sha256: char('sha256', { length: 64 }).notNull(),
-    conteudo: bytea('conteudo').notNull(),
+    conteudo: bytea('conteudo'),
+    chaveObjeto: text('chave_objeto').unique(),
     criadoEm: instante('criado_em').notNull().defaultNow(),
   },
   (t) => [
     check(
       'arquivos_tamanho_confere',
-      sql`${t.tamanho} > 0 and ${t.tamanho} = octet_length(${t.conteudo})`,
+      sql`${t.tamanho} > 0 and (${t.conteudo} is null or ${t.tamanho} = octet_length(${t.conteudo}))`,
     ),
     check('arquivos_sha256_hex', sql`${t.sha256} ~ '^[0-9a-f]{64}$'`),
+    // Exatamente um lugar para o conteúdo: a linha ou o bucket.
+    check('arquivos_um_local', sql`(${t.conteudo} is null) <> (${t.chaveObjeto} is null)`),
   ],
 );
 

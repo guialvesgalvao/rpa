@@ -1,4 +1,5 @@
 import { criarApp } from './app.js';
+import { criarArmazemS3 } from './arquivos/s3.js';
 import { lerConfig } from './config.js';
 import { criarBanco } from './db/cliente.js';
 
@@ -9,7 +10,11 @@ const app = criarApp({
   jwtSegredo: config.jwtSegredo,
   logger: true,
   ...(config.bling && { bling: config.bling }),
+  ...(config.arquivosS3 && { armazem: criarArmazemS3(config.arquivosS3) }),
 });
+app.log.info(
+  config.arquivosS3 ? 'Arquivos no bucket S3' : 'Arquivos no Postgres (sem ARQUIVOS_S3_*)',
+);
 app.addHook('onClose', () => fechar());
 
 // O Railway encerra o processo com SIGTERM a cada deploy.

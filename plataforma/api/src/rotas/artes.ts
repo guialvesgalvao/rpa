@@ -8,8 +8,17 @@ import {
 } from '@plataforma/contratos';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 
-import { buscarCliente, ehUuid, idDaEmpresa, imagemDaArte } from '../artes/repositorio.js';
-import { type ArquivoRecebido, atualizarArte, criarArte, removerArte } from '../artes/servico.js';
+import { arquivoDaArte, buscarCliente, ehUuid, idDaEmpresa } from '../artes/repositorio.js';
+import {
+  type Armazenamento,
+  type ArquivoRecebido,
+  atualizarArte,
+  criarArte,
+  removerArte,
+} from '../artes/servico.js';
+import type { ArmazemArquivos } from '../arquivos/armazem.js';
+import { ARMAZEM_BANCO } from '../arquivos/banco.js';
+import { disposicaoAnexo, lerArquivo } from '../arquivos/repositorio.js';
 import type { Banco } from '../db/cliente.js';
 import { ErroApi } from '../erros.js';
 import { usuarioDe } from '../plugins/autenticacao.js';
@@ -139,7 +148,12 @@ export function conferirNovaArte(campos: CamposArte, produtoId: string): void {
 // Limites do parser multipart: o teto é o do maior arquivo; a imagem tem o limite próprio conferido acima.
 export const LIMITES_MULTIPART = { fileSize: LIMITES.pdfBytes, files: 2, fields: 20, parts: 30 };
 
-export function rotasArtes(app: FastifyInstance, { db }: { db: Banco }): void {
+export function rotasArtes(
+  app: FastifyInstance,
+  { db, armazem = ARMAZEM_BANCO }: { db: Banco; armazem?: ArmazemArquivos },
+): void {
+  const armazenamento = (request: FastifyRequest): Armazenamento => ({ armazem, log: request.log });
+
   // Registro encapsulado: o parser multipart vale só para estas rotas.
   void app.register(async (escopo) => {
     await escopo.register(multipart, { limits: LIMITES_MULTIPART });
@@ -174,37 +188,62 @@ export function rotasArtes(app: FastifyInstance, { db }: { db: Banco }): void {
         exigirIds(campos);
         conferirNovaArte(campos, campos.produtoId ?? '');
 
-        const arte = await criarArte(db, {
-          empresaId,
-          clienteId: cliente.id,
-          usuarioId: usuarioDe(request).usuarioId,
-          produtoId: campos.produtoId ?? '',
-          nome: campos.nome,
-          corId: campos.corId ?? '',
-          maquinaIds: campos.maquinaIds ?? [],
-          pdf: campos.pdf,
-          imagem: campos.imagem,
-        });
+        const arte = await criarArte(
+          db,
+          {
+            empresaId,
+            clienteId: cliente.id,
+            usuarioId: usuarioDe(request).usuarioId,
+            produtoId: campos.produtoId ?? '',
+            nome: campos.nome,
+            corId: campos.corId ?? '',
+            maquinaIds: campos.maquinaIds ?? [],
+            pdf: campos.pdf,
+            imagem: campos.imagem,
+          },
+          armazenamento(request),
+        );
         return reply.code(201).send(arte);
       },
     );
 
-    // Só a imagem é servida: o PDF da arte não tem rota de leitura nesta entrega.
+    // A imagem é servida para exibição; o PDF, para download. O conteúdo vem do bucket (stream) ou do banco.
     escopo.get(
       '/v1/empresas/:empresa/artes/:id/imagem',
       { preHandler: comEmpresa },
       async (request, reply) => {
         const empresaId = await empresaDe(request);
         const { id } = request.params as { id: string };
-        const imagem = ehUuid(id) ? await imagemDaArte(db, empresaId, id) : null;
+        const arquivoId = ehUuid(id) ? await arquivoDaArte(db, empresaId, id, 'imagem') : null;
+        const imagem = arquivoId ? await lerArquivo(db, armazem, arquivoId) : null;
         if (!imagem) {
           throw new ErroApi(404, 'imagem_nao_encontrada', 'Imagem da arte não encontrada.');
         }
         return reply
           .header('content-type', imagem.tipoMime)
+          .header('content-length', imagem.tamanho)
           .header('x-content-type-options', 'nosniff')
           .header('cache-control', 'private, no-cache')
-          .send(imagem.conteudo);
+          .send(imagem.corpo);
+      },
+    );
+
+    escopo.get(
+      '/v1/empresas/:empresa/artes/:id/pdf',
+      { preHandler: comEmpresa },
+      async (request, reply) => {
+        const empresaId = await empresaDe(request);
+        const { id } = request.params as { id: string };
+        const arquivoId = ehUuid(id) ? await arquivoDaArte(db, empresaId, id, 'pdf') : null;
+        const pdf = arquivoId ? await lerArquivo(db, armazem, arquivoId) : null;
+        if (!pdf) throw new ErroApi(404, 'pdf_nao_encontrado', 'PDF da arte não encontrado.');
+        return reply
+          .header('content-type', pdf.tipoMime)
+          .header('content-length', pdf.tamanho)
+          .header('content-disposition', disposicaoAnexo(pdf.nomeOriginal))
+          .header('x-content-type-options', 'nosniff')
+          .header('cache-control', 'private, no-cache')
+          .send(pdf.corpo);
       },
     );
 
@@ -218,12 +257,11 @@ export function rotasArtes(app: FastifyInstance, { db }: { db: Banco }): void {
 
         const campos = await lerCampos(request);
         exigirIds(campos);
-        const arte = await atualizarArte(db, {
-          empresaId,
-          arteId: id,
-          usuarioId: usuarioDe(request).usuarioId,
-          ...campos,
-        });
+        const arte = await atualizarArte(
+          db,
+          { empresaId, arteId: id, usuarioId: usuarioDe(request).usuarioId, ...campos },
+          armazenamento(request),
+        );
         if (!arte) throw arteNaoEncontrada();
         return arte;
       },
@@ -235,7 +273,9 @@ export function rotasArtes(app: FastifyInstance, { db }: { db: Banco }): void {
       async (request, reply) => {
         const empresaId = await empresaDe(request);
         const { id } = request.params as { id: string };
-        if (!ehUuid(id) || !(await removerArte(db, empresaId, id))) throw arteNaoEncontrada();
+        if (!ehUuid(id) || !(await removerArte(db, empresaId, id, armazenamento(request)))) {
+          throw arteNaoEncontrada();
+        }
         return reply.code(204).send();
       },
     );

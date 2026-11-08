@@ -1,6 +1,8 @@
 import { EMPRESAS_SINCRONIZACAO_BLING, type Saude } from '@plataforma/contratos';
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
 
+import type { ArmazemArquivos } from './arquivos/armazem.js';
+import { ARMAZEM_BANCO } from './arquivos/banco.js';
 import { criarLimite } from './auth/limite.js';
 import { criarTokens } from './auth/tokens.js';
 import { criarAgendadorBling, type Temporizador } from './bling/agendador.js';
@@ -31,6 +33,8 @@ export type DepsApp = Pick<FastifyServerOptions, 'logger'> & {
   jwtSegredo: string;
   // Fonte do "agora" para tokens, sessões e limite de tentativas; os testes injetam um relógio falso.
   relogio?: () => Date;
+  // Conteúdo dos arquivos: bucket S3 quando configurado; sem ele, bytea no Postgres.
+  armazem?: ArmazemArquivos;
   // Sincronização com o Bling; ausente, as rotas do Bling respondem 503. `fetch`, `esperar` (intervalo entre
   // chamadas ao Bling) e `temporizador` (ciclos do agendador) são injetáveis nos testes.
   bling?: ConfigBling & {
@@ -46,6 +50,7 @@ export function criarApp({
   relogio = () => new Date(),
   logger,
   bling,
+  armazem = ARMAZEM_BANCO,
 }: DepsApp): FastifyInstance {
   if (Buffer.byteLength(jwtSegredo) < 32)
     throw new Error('O segredo do JWT precisa de ao menos 32 bytes.');
@@ -63,9 +68,9 @@ export function criarApp({
   rotasAuth(app, { db, tokens, relogio, limite });
   rotasClientes(app, { db });
   rotasOpcoes(app, { db });
-  rotasArtes(app, { db });
+  rotasArtes(app, { db, armazem });
   rotasOp(app, { db });
-  rotasTarefas(app, { db });
+  rotasTarefas(app, { db, armazem });
   rotasUsuarios(app, { db, limite });
   const servicosBling = bling && criarServicosBling(app, { db, jwtSegredo, relogio, bling });
   rotasBling(app, { db, bling: servicosBling });

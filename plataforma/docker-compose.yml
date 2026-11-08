@@ -1,4 +1,4 @@
-# Postgres local, só para desenvolvimento e testes. Produção fica no Railway.
+# Postgres e S3 locais, só para desenvolvimento e testes. Produção fica no Railway.
 name: rpa-plataforma
 
 services:
@@ -19,6 +19,15 @@ services:
       interval: 2s
       timeout: 5s
       retries: 30
+
+  # S3 local (S3Mock), só para desenvolvimento e testes: aceita qualquer credencial e guarda em memória.
+  # Produção usa o Storage Bucket do Railway (variáveis ARQUIVOS_S3_*).
+  s3:
+    image: adobe/s3mock:4.7.0
+    ports:
+      - '127.0.0.1:9090:9090'
+    environment:
+      COM_ADOBE_TESTING_S3MOCK_STORE_INITIAL_BUCKETS: rpa-arquivos,rpa-arquivos-teste
 
 volumes:
   dados:

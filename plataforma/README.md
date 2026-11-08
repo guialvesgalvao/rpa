@@ -98,11 +98,11 @@ Dados de referência (ex.: as empresas `aba` e `roma`) entram por migração SQL
 
 O admin lista e cria usuários pela tela (site: menu **Usuários**; app: aba **Usuários**), só dentro das próprias empresas: admin só da ABA cria só na ABA, só da Roma só na Roma, e o das duas escolhe ABA, Roma ou as duas. As empresas do admin são lidas do banco (não do token). O admin define a senha inicial e o usuário criado nasce com `deve_trocar_senha` (migração `0010`): o login e `GET /v1/eu` devolvem `deveTrocarSenha: true`, e o site e o app levam à tela de troca antes de qualquer outra (a API não bloqueia as outras rotas).
 
-| Rota                 | Resposta                                                                                                                                                                                                                             |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `GET /v1/usuarios`   | só admin: usuários cujas empresas estão todas entre as do admin (sem hash)                                                                                                                                                           |
-| `POST /v1/usuarios`  | só admin: `{ nome, email, perfil, empresas, senha }` → `201`; empresa fora das do admin: `403 empresa_proibida`; e-mail repetido: `409 email_em_uso`                                                                                 |
-| `POST /v1/eu/senha`  | qualquer perfil: `{ senhaAtual, novaSenha, renovacao? }` → `204`; desliga o pedido de troca e revoga as outras sessões (a de `renovacao` continua); senha atual errada ou nova igual: `400`; 5 tentativas em 15 min: `429` |
+| Rota                | Resposta                                                                                                                                                                                                                   |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /v1/usuarios`  | só admin: usuários cujas empresas estão todas entre as do admin (sem hash)                                                                                                                                                 |
+| `POST /v1/usuarios` | só admin: `{ nome, email, perfil, empresas, senha }` → `201`; empresa fora das do admin: `403 empresa_proibida`; e-mail repetido: `409 email_em_uso`                                                                       |
+| `POST /v1/eu/senha` | qualquer perfil: `{ senhaAtual, novaSenha, renovacao? }` → `204`; desliga o pedido de troca e revoga as outras sessões (a de `renovacao` continua); senha atual errada ou nova igual: `400`; 5 tentativas em 15 min: `429` |
 
 Editar, desativar e trocar a senha de outro usuário continuam só na CLI `usuarios` (usuários criados por ela não precisam trocar a senha). Ela grava no banco de `DATABASE_PUBLIC_URL` ou, se ausente, de `DATABASE_URL`, mostra o host de destino e pede confirmação (`s/N`) antes de gravar. A senha é digitada no terminal, sem eco e duas vezes (mínimo de 10 caracteres); nunca vai na linha de comando. Precisa de um terminal interativo.
 
@@ -189,18 +189,18 @@ Produção, nesta ordem (executado pelo usuário):
 
 Registram o desenvolvimento de uma arte de um produto do catálogo para um cliente (uso no `README.md` da raiz). Comentários podem ter até 5 anexos (PDF ou imagem, com os limites e a detecção de tipo das artes; migração `0012`), gravados pelo armazém de arquivos. A tarefa tem `origem` (`manual` ou `bling_pedido`, com `pedidoNumero`) e cada empresa pode ter um responsável automático (migração `0013`). Tabelas `tarefas_arte`, `tarefas_arte_comentarios` e `tarefas_arte_historico` (migração `0009`); a regra "concluída exige arte" é um CHECK no banco, e a arte da tarefa não pode ser removida (FK `RESTRICT`, a API responde 409 `arte_em_tarefa`). Todas as rotas aceitam admin e arte finalista; o arte finalista só alcança as tarefas de que é responsável (as outras respondem 404).
 
-| Rota                                                                  | Resposta                                                                                                                                                                  |
-| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `POST /v1/empresas/:empresa/clientes/:id/produtos/:produtoId/tarefas` | `201` com a tarefa (`nao_iniciada`, responsável = quem criou) e o primeiro evento no histórico                                                                            |
-| `GET /v1/empresas/:empresa/tarefas?escopo&status`                     | tarefas, mais recentes primeiro; `escopo`: `minhas` (padrão), `andamento` (não terminadas) ou `todas`; o arte finalista sempre recebe só as próprias                      |
-| `GET /v1/empresas/:empresa/tarefas/:id`                               | a tarefa com os comentários                                                                                                                                               |
-| `PATCH /v1/empresas/:empresa/tarefas/:id/status`                      | `{ status }`: muda e grava o histórico (o mesmo status não gera evento); `concluida` sem arte: 409 `tarefa_sem_arte`                                                      |
-| `POST /v1/empresas/:empresa/tarefas/:id/concluir`                     | multipart com os campos do cadastro de arte (cliente e produto são os da tarefa): cadastra a arte e conclui numa transação; tarefa que já tem arte: 409 `tarefa_com_arte` |
+| Rota                                                                  | Resposta                                                                                                                                                                      |
+| --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /v1/empresas/:empresa/clientes/:id/produtos/:produtoId/tarefas` | `201` com a tarefa (`nao_iniciada`, responsável = quem criou) e o primeiro evento no histórico                                                                                |
+| `GET /v1/empresas/:empresa/tarefas?escopo&status`                     | tarefas, mais recentes primeiro; `escopo`: `minhas` (padrão), `andamento` (não terminadas) ou `todas`; o arte finalista sempre recebe só as próprias                          |
+| `GET /v1/empresas/:empresa/tarefas/:id`                               | a tarefa com os comentários                                                                                                                                                   |
+| `PATCH /v1/empresas/:empresa/tarefas/:id/status`                      | `{ status }`: muda e grava o histórico (o mesmo status não gera evento); `concluida` sem arte: 409 `tarefa_sem_arte`                                                          |
+| `POST /v1/empresas/:empresa/tarefas/:id/concluir`                     | multipart com os campos do cadastro de arte (cliente e produto são os da tarefa): cadastra a arte e conclui numa transação; tarefa que já tem arte: 409 `tarefa_com_arte`     |
 | `POST /v1/empresas/:empresa/tarefas/:id/comentarios`                  | JSON `{ texto }` (1 a 2000 caracteres, aparado) ou multipart (`texto` opcional + até 5 `anexos`): `201` com o comentário; 6 anexos: `400`; tipo trocado: `415`; grande: `413` |
-| `GET /v1/empresas/:empresa/tarefas/:id/comentarios/:c/anexos/:a`      | download do anexo (`Content-Disposition: attachment`), com o mesmo alcance da tarefa                                                                                      |
-| `GET /v1/empresas/:empresa/tarefas/contagem`                          | não terminadas por status (`nao_iniciada`, `em_desenvolvimento`, `aguardando_cliente`): as próprias para o arte finalista, todas para o admin                             |
-| `GET`/`PUT /v1/empresas/:empresa/tarefas/responsavel-automatico`      | só admin: o responsável das tarefas automáticas e as arte finalistas elegíveis; `PUT { responsavelId \| null }`, inelegível: `400`                                      |
-| `GET /v1/empresas/:empresa/tarefas/:id/historico`                     | mudanças de status, da criação à mais recente (anterior, novo, autor, data/hora)                                                                                          |
+| `GET /v1/empresas/:empresa/tarefas/:id/comentarios/:c/anexos/:a`      | download do anexo (`Content-Disposition: attachment`), com o mesmo alcance da tarefa                                                                                          |
+| `GET /v1/empresas/:empresa/tarefas/contagem`                          | não terminadas por status (`nao_iniciada`, `em_desenvolvimento`, `aguardando_cliente`): as próprias para o arte finalista, todas para o admin                                 |
+| `GET`/`PUT /v1/empresas/:empresa/tarefas/responsavel-automatico`      | só admin: o responsável das tarefas automáticas e as arte finalistas elegíveis; `PUT { responsavelId \| null }`, inelegível: `400`                                            |
+| `GET /v1/empresas/:empresa/tarefas/:id/historico`                     | mudanças de status, da criação à mais recente (anterior, novo, autor, data/hora)                                                                                              |
 
 ## Sincronização com o Bling (API v3)
 
@@ -254,22 +254,22 @@ Pendente de confirmação com a conta real (Task 15 do plano): o id da situaçã
 
 ## Ambiente
 
-| Variável                                 | Padrão                                        | Uso                                                                        |
-| ---------------------------------------- | --------------------------------------------- | -------------------------------------------------------------------------- |
-| `PORT`                                   | `3001`                                        | porta HTTP                                                                 |
-| `HOST`                                   | `::`                                          | interface (todas, IPv4 e IPv6)                                             |
-| `DATABASE_URL`                           | —                                             | banco da API e do `db:migrar` (obrigatória)                                |
-| `JWT_SEGREDO`                            | —                                             | chave do JWT, ao menos 32 bytes (obrigatória)                              |
-| `DATABASE_URL_TESTE`                     | `postgres://rpa:rpa@localhost:5433/rpa_teste` | banco dos testes (precisa terminar em `_teste`)                            |
-| `BLING_CLIENT_ID`, `BLING_CLIENT_SECRET` | —                                             | app cadastrado no Bling (opcionais; as quatro `BLING_*` juntas ou nenhuma) |
-| `BLING_REDIRECT_URI`                     | —                                             | link de redirecionamento cadastrado no app do Bling                        |
-| `BLING_CHAVE_TOKENS`                     | —                                             | 32 bytes em base64; cifra os tokens do Bling no banco                      |
-| `BLING_SINCRONIZACAO_AUTOMATICA`         | `false`                                       | `true` liga o agendador da sincronização (exige as quatro `BLING_*`)       |
-| `BLING_INTERVALO_MINUTOS`                | `15`                                          | minutos entre o fim de um ciclo e o próximo (5 a 1440)                     |
-| `BLING_COMPLETA_DIAS`                    | `3`                                           | dias entre duas sincronizações completas (1 a 30)                          |
-| `ARQUIVOS_S3_ENDPOINT`, `_REGIAO`, `_BUCKET`, `_CHAVE`, `_SEGREDO` | —                   | bucket S3 dos arquivos (as cinco ou nenhuma; sem elas, `bytea` no Postgres) |
-| `ARQUIVOS_S3_ESTILO_CAMINHO`             | `false`                                       | `true`: endereço `endpoint/bucket/chave` (S3Mock local; Railway conforme a aba Credentials) |
-| `ARQUIVOS_S3_TESTE_URL`                  | `http://localhost:9090`                       | S3 dos testes (S3Mock)                                                      |
+| Variável                                                           | Padrão                                        | Uso                                                                                         |
+| ------------------------------------------------------------------ | --------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `PORT`                                                             | `3001`                                        | porta HTTP                                                                                  |
+| `HOST`                                                             | `::`                                          | interface (todas, IPv4 e IPv6)                                                              |
+| `DATABASE_URL`                                                     | —                                             | banco da API e do `db:migrar` (obrigatória)                                                 |
+| `JWT_SEGREDO`                                                      | —                                             | chave do JWT, ao menos 32 bytes (obrigatória)                                               |
+| `DATABASE_URL_TESTE`                                               | `postgres://rpa:rpa@localhost:5433/rpa_teste` | banco dos testes (precisa terminar em `_teste`)                                             |
+| `BLING_CLIENT_ID`, `BLING_CLIENT_SECRET`                           | —                                             | app cadastrado no Bling (opcionais; as quatro `BLING_*` juntas ou nenhuma)                  |
+| `BLING_REDIRECT_URI`                                               | —                                             | link de redirecionamento cadastrado no app do Bling                                         |
+| `BLING_CHAVE_TOKENS`                                               | —                                             | 32 bytes em base64; cifra os tokens do Bling no banco                                       |
+| `BLING_SINCRONIZACAO_AUTOMATICA`                                   | `false`                                       | `true` liga o agendador da sincronização (exige as quatro `BLING_*`)                        |
+| `BLING_INTERVALO_MINUTOS`                                          | `15`                                          | minutos entre o fim de um ciclo e o próximo (5 a 1440)                                      |
+| `BLING_COMPLETA_DIAS`                                              | `3`                                           | dias entre duas sincronizações completas (1 a 30)                                           |
+| `ARQUIVOS_S3_ENDPOINT`, `_REGIAO`, `_BUCKET`, `_CHAVE`, `_SEGREDO` | —                                             | bucket S3 dos arquivos (as cinco ou nenhuma; sem elas, `bytea` no Postgres)                 |
+| `ARQUIVOS_S3_ESTILO_CAMINHO`                                       | `false`                                       | `true`: endereço `endpoint/bucket/chave` (S3Mock local; Railway conforme a aba Credentials) |
+| `ARQUIVOS_S3_TESTE_URL`                                            | `http://localhost:9090`                       | S3 dos testes (S3Mock)                                                                      |
 
 Site (`web/`), obrigatórias em produção:
 

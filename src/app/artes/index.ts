@@ -1,9 +1,9 @@
 import type { ArtesApi, TarefasApi } from '../api.js';
 import {
-  type EscopoTarefas,
+  ATALHOS_TAREFAS,
+  type AtalhoTarefas,
   type Perfil,
-  ROTULOS_ESCOPO_TAREFAS,
-  submenusTarefas,
+  rotuloAtalho,
   type TarefaDetalhe,
   tituloTarefa,
 } from '../plataforma/contratos.js';
@@ -18,8 +18,9 @@ import { montarTarefas } from './tarefas.js';
 type Visao = { encerrar(): void };
 
 /**
- * Navegação da aba Artes: a home (submenus de tarefas do perfil + lista de clientes) → cliente → nova
- * arte ou tarefa; e submenu → tarefas → tarefa → histórico ou conclusão. A lista fica montada (com a
+ * Navegação da aba Artes: a home (atalhos de tarefas com contador + lista de clientes) → cliente → nova
+ * arte ou tarefa; e atalho → tarefas → tarefa → histórico ou conclusão. Os contadores recarregam ao
+ * voltar para a home. A lista fica montada (com a
  * busca e o que já carregou) enquanto se vê o resto; `reiniciar` descarta tudo, para a troca de empresa
  * ou de usuário.
  */
@@ -35,14 +36,17 @@ export function criarArtes(
 
   let lista: Visao | undefined;
   let submenu: HTMLElement | undefined;
+  let atualizarAtalhos: (() => void) | undefined;
   let detalhe: Visao | undefined;
   let perfilAtual: Perfil = 'arte_finalista';
 
   function mostrarLista() {
+    const voltando = detalhe !== undefined;
     detalhe?.encerrar();
     detalhe = undefined;
     areaDetalhe.hidden = true;
     areaLista.hidden = false;
+    if (voltando) atualizarAtalhos?.();
   }
 
   function mostrarDetalhe(abrir: () => Visao) {
@@ -77,14 +81,14 @@ export function criarArtes(
     );
   }
 
-  function mostrarTarefas(escopo: EscopoTarefas) {
+  function mostrarTarefas(atalho: AtalhoTarefas) {
     mostrarDetalhe(() =>
       montarTarefas(areaDetalhe, {
         api: tarefas,
-        escopo,
+        ...(atalho.status ? { status: atalho.status } : {}),
         comResponsavel: perfilAtual === 'admin',
         voltar: mostrarLista,
-        abrir: (tarefa) => mostrarTarefa(tarefa.id, () => mostrarTarefas(escopo)),
+        abrir: (tarefa) => mostrarTarefa(tarefa.id, () => mostrarTarefas(atalho)),
       }),
     );
   }
@@ -126,12 +130,31 @@ export function criarArtes(
     );
   }
 
-  function montarSubmenu(perfil: Perfil): HTMLElement {
+  /** Atalhos com contador; sem a contagem (falha ou carregando), só os rótulos. */
+  function montarAtalhos(): { bloco: HTMLElement; atualizar(): void } {
     const bloco = criar('div', 'artes-submenu');
-    for (const escopo of submenusTarefas(perfil)) {
-      bloco.append(botao(ROTULOS_ESCOPO_TAREFAS[escopo], () => mostrarTarefas(escopo)));
+    const botoes = ATALHOS_TAREFAS.map((atalho) => {
+      const b = botao(rotuloAtalho(atalho), () => mostrarTarefas(atalho));
+      bloco.append(b);
+      return { atalho, botao: b };
+    });
+    let requisicao = 0;
+    async function atualizar() {
+      const minha = ++requisicao;
+      try {
+        const contagem = await tarefas.contagem();
+        if (minha !== requisicao) return;
+        for (const { atalho, botao: b } of botoes) b.textContent = rotuloAtalho(atalho, contagem);
+      } catch {
+        // Os atalhos continuam funcionando sem o contador.
+      }
     }
-    return bloco;
+    return {
+      bloco,
+      atualizar: () => {
+        if (bloco.isConnected) void atualizar();
+      },
+    };
   }
 
   function encerrar() {
@@ -139,6 +162,7 @@ export function criarArtes(
     lista = undefined;
     submenu?.remove();
     submenu = undefined;
+    atualizarAtalhos = undefined;
     mostrarLista();
   }
 
@@ -147,8 +171,11 @@ export function criarArtes(
     reiniciar(perfil) {
       encerrar();
       perfilAtual = perfil;
-      submenu = montarSubmenu(perfil);
+      const atalhos = montarAtalhos();
+      submenu = atalhos.bloco;
       areaLista.append(submenu);
+      atualizarAtalhos = atalhos.atualizar;
+      atualizarAtalhos();
       lista = montarLista(areaLista, {
         api,
         abrirCliente: (cliente) => mostrarCliente(cliente.id),

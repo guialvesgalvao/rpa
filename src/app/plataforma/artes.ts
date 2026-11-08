@@ -8,9 +8,11 @@ import {
   type ArteDoProduto,
   type Cliente,
   type ComentarioTarefa,
+  type ContagemTarefas,
   detectarTipo,
   type EscopoTarefas,
   EsquemaComentarioTarefa,
+  EsquemaContagemTarefas,
   EsquemaEventoTarefa,
   EsquemaTarefa,
   EsquemaTarefaDetalhe,
@@ -81,6 +83,7 @@ export type ClienteArtes = {
   /** Tarefa de desenvolvimento de arte do produto (catálogo) para o cliente. */
   criarTarefa(empresa: string, clienteId: string, produtoId: string): Promise<Tarefa>;
   listarTarefas(empresa: string, consulta: ConsultaTarefasApp): Promise<Tarefa[]>;
+  contagemTarefas(empresa: string): Promise<ContagemTarefas>;
   obterTarefa(empresa: string, id: string): Promise<TarefaDetalhe>;
   mudarStatusTarefa(empresa: string, id: string, status: StatusTarefa): Promise<Tarefa>;
   /** Cadastra a arte (multipart, como `cadastrar`) e conclui a tarefa. */
@@ -245,6 +248,9 @@ export function criarClienteArtes({
       if (status) params.set('status', status);
       const resposta = await chamar('GET', rota(empresa, `/tarefas?${params}`));
       return lerJson(resposta, z.array(EsquemaTarefa));
+    },
+    async contagemTarefas(empresa) {
+      return lerJson(await chamar('GET', rota(empresa, '/tarefas/contagem')), EsquemaContagemTarefas);
     },
     async obterTarefa(empresa, id) {
       const resposta = await chamar('GET', rota(empresa, `/tarefas/${encodeURIComponent(id)}`));

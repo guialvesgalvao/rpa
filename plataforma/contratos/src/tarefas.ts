@@ -116,15 +116,9 @@ export const ATALHOS_TAREFAS: readonly AtalhoTarefas[] = [
   { valor: 'todas', rotulo: 'Todos', status: null },
 ];
 
-// Submenus da home de Artes por perfil.
-export const submenusTarefas = (perfil: 'admin' | 'arte_finalista'): EscopoTarefas[] =>
-  perfil === 'admin' ? ['andamento'] : ['minhas'];
-
-export const ROTULOS_ESCOPO_TAREFAS: Record<EscopoTarefas, string> = {
-  minhas: 'Minhas tarefas',
-  andamento: 'Tarefas em andamento',
-  todas: 'Todas as tarefas',
-};
+// Ex.: "Pendentes (3)"; "Todos" não tem contador, nem os outros enquanto a contagem não chega.
+export const rotuloAtalho = (atalho: AtalhoTarefas, contagem?: ContagemTarefas | null): string =>
+  atalho.status && contagem ? `${atalho.rotulo} (${contagem[atalho.status]})` : atalho.rotulo;
 
 /** Opção do filtro da lista de tarefas: o rótulo e a consulta que ela faz. */
 export type FiltroTarefas = {

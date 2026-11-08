@@ -65,6 +65,7 @@ import {
   type ArteDoProduto,
   type Cliente,
   type ComentarioTarefa,
+  type ContagemTarefas,
   type EventoTarefa,
   type PaginaClientes,
   type Perfil,
@@ -589,6 +590,11 @@ ipcMain.handle(CHANNELS.tarefasListar, async (_event, input: unknown): Promise<T
   const consulta = validarConsultaTarefas(input);
   const { empresa } = await contexto();
   return artesApi.listarTarefas(empresa, consulta);
+});
+
+ipcMain.handle(CHANNELS.tarefasContagem, async (): Promise<ContagemTarefas> => {
+  const { empresa } = await contexto();
+  return artesApi.contagemTarefas(empresa);
 });
 
 ipcMain.handle(CHANNELS.tarefasObter, async (_event, input: unknown): Promise<TarefaDetalhe> => {

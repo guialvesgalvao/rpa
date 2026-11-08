@@ -1,7 +1,6 @@
 import {
   ESCOPOS_TAREFAS,
   filtrosDeTarefas,
-  ROTULOS_ESCOPO_TAREFAS,
   ROTULOS_STATUS_TAREFA,
   tituloTarefa,
   type EscopoTarefas,
@@ -20,7 +19,8 @@ export const metadata: Metadata = {
 const ehEscopo = (valor: unknown): valor is EscopoTarefas =>
   typeof valor === 'string' && (ESCOPOS_TAREFAS as readonly string[]).includes(valor);
 
-// "Minhas tarefas" (arte finalista) ou "Tarefas em andamento" (admin), com o filtro de status num GET simples.
+// Lista aberta pelos atalhos da home de Artes (`escopo=todas&filtro=<status>`), com o filtro de status num GET
+// simples. O arte finalista só vê as próprias (a API decide), qualquer que seja o escopo.
 export default async function Tarefas({
   params,
   searchParams,
@@ -28,11 +28,7 @@ export default async function Tarefas({
   const { empresa } = await params;
   const { escopo: escopoPedido, filtro: filtroPedido } = await searchParams;
   const eu = await usuarioDaSessao();
-  const escopo: EscopoTarefas = ehEscopo(escopoPedido)
-    ? escopoPedido
-    : eu.perfil === 'admin'
-      ? 'andamento'
-      : 'minhas';
+  const escopo: EscopoTarefas = ehEscopo(escopoPedido) ? escopoPedido : 'todas';
   const filtros = filtrosDeTarefas(escopo);
   const filtro = filtros.find((f) => f.valor === filtroPedido) ?? filtros[0]!;
   const tarefas = await tarefasDaEmpresa(empresa, filtro.consulta);
@@ -44,7 +40,7 @@ export default async function Tarefas({
         <Link href={`/${empresa}/artes`}>← Artes</Link>
       </p>
       <div className="card">
-        <h2>{ROTULOS_ESCOPO_TAREFAS[escopo]}</h2>
+        <h2>Tarefas de arte</h2>
         <form className="filtro" method="get">
           <input type="hidden" name="escopo" value={escopo} />
           <label htmlFor="filtro">Status</label>

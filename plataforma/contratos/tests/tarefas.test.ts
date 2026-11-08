@@ -7,9 +7,9 @@ import {
   EsquemaNovoComentario,
   precisaDaArteParaConcluir,
   ROTULOS_STATUS_TAREFA,
+  rotuloAtalho,
   STATUS_EM_ANDAMENTO,
   STATUS_TAREFA,
-  submenusTarefas,
   tituloTarefa,
 } from '../src/index.ts';
 
@@ -58,7 +58,23 @@ describe('tarefas de arte', () => {
     expect(new Set(ATALHOS_TAREFAS.map((a) => a.valor)).size).toBe(ATALHOS_TAREFAS.length);
   });
 
-  it('título, conclusão e submenus por perfil', () => {
+  it('rótulo do atalho: contador entre parênteses, menos em Todos e sem contagem', () => {
+    const contagem = { nao_iniciada: 3, em_desenvolvimento: 0, aguardando_cliente: 12 };
+    expect(ATALHOS_TAREFAS.map((a) => rotuloAtalho(a, contagem))).toEqual([
+      'Pendentes (3)',
+      'Em andamento (0)',
+      'Aguardando validação (12)',
+      'Todos',
+    ]);
+    expect(ATALHOS_TAREFAS.map((a) => rotuloAtalho(a, null))).toEqual([
+      'Pendentes',
+      'Em andamento',
+      'Aguardando validação',
+      'Todos',
+    ]);
+  });
+
+  it('título e conclusão', () => {
     expect(
       tituloTarefa({
         cliente: { id: 'c', nome: 'Pizzaria Ficticia' },
@@ -67,7 +83,5 @@ describe('tarefas de arte', () => {
     ).toBe('Arte de Caixa 35x35 para Pizzaria Ficticia');
     expect(precisaDaArteParaConcluir({ arteId: null })).toBe(true);
     expect(precisaDaArteParaConcluir({ arteId: 'a' })).toBe(false);
-    expect(submenusTarefas('arte_finalista')).toEqual(['minhas']);
-    expect(submenusTarefas('admin')).toEqual(['andamento']);
   });
 });

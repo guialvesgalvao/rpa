@@ -2,12 +2,14 @@ import 'server-only';
 
 import {
   EsquemaCliente,
+  EsquemaContagemTarefas,
   EsquemaEventoTarefa,
   EsquemaOpcao,
   EsquemaProdutoDoCliente,
   EsquemaTarefa,
   EsquemaTarefaDetalhe,
   type Cliente,
+  type ContagemTarefas,
   type EscopoTarefas,
   type EventoTarefa,
   type Opcao,
@@ -17,7 +19,7 @@ import {
   type TarefaDetalhe,
 } from '@plataforma/contratos';
 import { cookies } from 'next/headers';
-import { notFound, redirect } from 'next/navigation';
+import { notFound, redirect, unstable_rethrow } from 'next/navigation';
 import { z } from 'zod';
 
 import { criarApi } from './api';
@@ -79,6 +81,16 @@ export function tarefasDaEmpresa(
   const params = new URLSearchParams({ escopo: consulta.escopo });
   if (consulta.status) params.set('status', consulta.status);
   return lerDaApi(`${base(empresa)}/tarefas?${params}`, z.array(EsquemaTarefa));
+}
+
+// Contadores dos atalhos da home de Artes; se a API falhar, os atalhos aparecem sem contador.
+export async function contagemTarefas(empresa: string): Promise<ContagemTarefas | null> {
+  try {
+    return await lerDaApi(`${base(empresa)}/tarefas/contagem`, EsquemaContagemTarefas);
+  } catch (erro) {
+    unstable_rethrow(erro);
+    return null;
+  }
 }
 
 export const tarefaDaEmpresa = (empresa: string, id: string): Promise<TarefaDetalhe> =>

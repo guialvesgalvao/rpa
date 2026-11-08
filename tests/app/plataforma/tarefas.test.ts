@@ -58,6 +58,20 @@ describe('tarefas no cliente da API', () => {
     ]);
   });
 
+  it('contagem pela rota dos atalhos', async () => {
+    const contagem = { nao_iniciada: 2, em_desenvolvimento: 1, aguardando_cliente: 0 };
+    const { cliente, chamadas } = api(() => json(contagem));
+    expect(await cliente.contagemTarefas('roma')).toEqual(contagem);
+    expect(chamadas).toEqual([
+      { url: 'http://api.local/v1/empresas/roma/tarefas/contagem', metodo: 'GET', corpo: undefined },
+    ]);
+  });
+
+  it('contagem com resposta fora do contrato: erro', async () => {
+    const { cliente } = api(() => json({ nao_iniciada: -1 }));
+    await expect(cliente.contagemTarefas('roma')).rejects.toThrow();
+  });
+
   it('lista com escopo e status na consulta', async () => {
     const { cliente, chamadas } = api(() => json([tarefa()]));
     await cliente.listarTarefas('roma', { escopo: 'andamento' });

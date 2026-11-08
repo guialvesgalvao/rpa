@@ -1,8 +1,7 @@
 import type { TarefasApi } from '../api.js';
 import {
-  type EscopoTarefas,
-  ROTULOS_ESCOPO_TAREFAS,
   ROTULOS_STATUS_TAREFA,
+  type StatusTarefa,
   type Tarefa,
   tituloTarefa,
 } from '../plataforma/contratos.js';
@@ -11,7 +10,8 @@ import { filtrosDeTarefas, formatarDataHora } from './tarefas-dados.js';
 
 export type DepsTarefas = {
   api: Pick<TarefasApi, 'listar'>;
-  escopo: EscopoTarefas;
+  /** Status inicial do filtro (o do atalho); sem status, todas. */
+  status?: StatusTarefa;
   /** Mostra o responsável em cada linha (visão do admin). */
   comResponsavel: boolean;
   voltar: () => void;
@@ -25,24 +25,28 @@ export function seloStatus(tarefa: Pick<Tarefa, 'status'>): HTMLElement {
   return selo;
 }
 
-/** "Minhas tarefas" ou "Tarefas em andamento": lista com filtro de status, mais recentes primeiro. */
+/**
+ * Lista aberta por um atalho da home: filtro de status, mais recentes primeiro. O arte finalista só vê as
+ * próprias (a API decide); o admin, todas da empresa.
+ */
 export function montarTarefas(
   raiz: HTMLElement,
-  { api, escopo, comResponsavel, voltar, abrir }: DepsTarefas,
+  { api, status, comResponsavel, voltar, abrir }: DepsTarefas,
 ): { encerrar(): void } {
   let encerrado = false;
   let requisicao = 0;
-  const filtros = filtrosDeTarefas(escopo);
+  const filtros = filtrosDeTarefas('todas');
 
   const filtro = criar('select', 'tarefas-filtro');
   filtro.setAttribute('aria-label', 'Filtrar por status');
   for (const { valor, rotulo } of filtros) filtro.append(new Option(rotulo, valor));
+  filtro.value = status ?? '';
   const lista = criar('ul', 'artes-lista');
   const situacao = criar('div', 'artes-situacao');
   const topo = criar('div', 'artes-topo tarefas-topo');
   topo.append(botao('Voltar', voltar), filtro);
   const card = criar('div', 'card');
-  card.append(criar('h2', undefined, ROTULOS_ESCOPO_TAREFAS[escopo]), topo, lista, situacao);
+  card.append(criar('h2', undefined, 'Tarefas de arte'), topo, lista, situacao);
   raiz.append(card);
 
   function linha(tarefa: Tarefa): HTMLElement {
@@ -64,7 +68,7 @@ export function montarTarefas(
 
   async function carregar() {
     const minha = ++requisicao;
-    const consulta = filtros.find((f) => f.valor === filtro.value)?.consulta ?? { escopo };
+    const consulta = filtros.find((f) => f.valor === filtro.value)?.consulta ?? { escopo: 'todas' };
     lista.replaceChildren();
     situacao.replaceChildren(criar('div', 'hint', 'Carregando…'));
     try {

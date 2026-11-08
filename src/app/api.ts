@@ -13,6 +13,7 @@ import type { ItemOpTela, PedidoOpTela } from './plataforma/op.js';
 import type {
   Cliente,
   ComentarioTarefa,
+  ContagemTarefas,
   EventoTarefa,
   PaginaClientes,
   Perfil,
@@ -82,6 +83,8 @@ export type { ConsultaTarefasApp };
 export type TarefasApi = {
   criar(clienteId: string, produtoId: string): Promise<Tarefa>;
   listar(consulta: ConsultaTarefasApp): Promise<Tarefa[]>;
+  /** Contadores dos atalhos da home de Artes (não terminadas, por status). */
+  contagem(): Promise<ContagemTarefas>;
   obter(id: string): Promise<TarefaDetalhe>;
   mudarStatus(id: string, status: StatusTarefa): Promise<Tarefa>;
   /** Cadastra a arte e conclui; erros de validação voltam por campo, como no cadastro. */
@@ -247,6 +250,7 @@ export const CHANNELS = {
   artesCadastrar: 'rpa:artes:cadastrar',
   tarefasCriar: 'rpa:tarefas:criar',
   tarefasListar: 'rpa:tarefas:listar',
+  tarefasContagem: 'rpa:tarefas:contagem',
   tarefasObter: 'rpa:tarefas:obter',
   tarefasMudarStatus: 'rpa:tarefas:mudar-status',
   tarefasConcluir: 'rpa:tarefas:concluir',

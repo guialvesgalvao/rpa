@@ -111,7 +111,7 @@ No topo da home de Artes, o arte-finalista vê **Minhas tarefas** (só as própr
 Na lista de pedidos da aba OP, cada produto marcado tem o botão **Pré-preencher OP**. Ele abre um formulário com os campos que antes saíam sempre em branco no PDF:
 
 - **Data entrega de produção**;
-- **Descrição do Processo:** para cada um dos 9 passos, Sim/Não, Quantidade, Responsável e Data (o Visto continua para o papel);
+- **Descrição do Processo:** para cada um dos 7 passos, Sim/Não, Quantidade, Responsável e Data (o Visto continua para o papel);
 - **Observação:** até 400 caracteres e 4 linhas; as quebras a mais viram espaço, para a OP continuar em 1 página.
 
 Salvo, o botão vira **Editar dados da OP ✓** e o resumo da seleção conta as OPs pré-preenchidas. A geração usa esses dados; campo vazio sai em branco, como antes. O pré-preenchimento vale só para a próxima geração: fica na tela enquanto o pedido estiver na lista (inclusive ao buscar de novo) e não é salvo em lugar nenhum.

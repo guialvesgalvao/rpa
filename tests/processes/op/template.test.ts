@@ -76,7 +76,7 @@ describe('htmlDaOp', () => {
     expect(html).toMatch(/1,00<\/td>\s*<td class="num">1\.000,00/);
   });
 
-  it('lista os 9 passos do processo com Sim/Não e data em branco', () => {
+  it('lista os 7 passos do processo com Sim/Não e data em branco', () => {
     const html = htmlDaOp(opBase());
     PASSOS_PROCESSO.forEach((passo, i) => expect(html).toContain(`${i + 1}) ${passo}`));
     expect(html.match(/class="marca">\( \)/g)).toHaveLength(PASSOS_PROCESSO.length * 2);
@@ -107,12 +107,12 @@ describe('htmlDaOp', () => {
     ];
     const html = htmlDaOp(op);
     expect(html).toMatch(
-      /1\) Guilhotina<\/td>\s*<td class="marca">\(X\)<\/td><td class="marca">\( \)<\/td>\s*<td class="qtde">1000<\/td><td class="responsavel">Operador Ficticio<\/td>\s*<td class="data">03\/11\/2026<\/td>/,
+      /1\) Off-Set<\/td>\s*<td class="marca">\(X\)<\/td><td class="marca">\( \)<\/td>\s*<td class="qtde">1000<\/td><td class="responsavel">Operador Ficticio<\/td>\s*<td class="data">03\/11\/2026<\/td>/,
     );
     expect(html).toMatch(
-      /2\) Off-Set<\/td>\s*<td class="marca">\( \)<\/td><td class="marca">\(X\)/,
+      /2\) Acoplagem<\/td>\s*<td class="marca">\( \)<\/td><td class="marca">\(X\)/,
     );
-    // Os passos sem dados (3 a 9) e o 2 (sem data) continuam em branco.
+    // Os passos sem dados (3 a 7) e o 2 (sem data) continuam em branco.
     expect(html.match(/____\/____\/______/g)).toHaveLength(PASSOS_PROCESSO.length - 1);
     expect(html.match(/\(X\)/g)).toHaveLength(2);
   });

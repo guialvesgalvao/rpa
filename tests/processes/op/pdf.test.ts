@@ -78,8 +78,8 @@ describe('PDF da OP', () => {
     ]) {
       expect(pdf.texto).toContain(texto);
     }
-    // "Máquina" só aparece no passo "Verniz Máquina", não no bloco de arte.
-    expect(pdf.texto.match(/Máquina/g)).toHaveLength(1);
+    // Sem arte, o bloco de arte (com "Máquina") não aparece.
+    expect(pdf.texto).not.toContain('Máquina');
     expect(pdf.imagens).toBe(0);
   });
 
@@ -87,7 +87,7 @@ describe('PDF da OP', () => {
     const arte = { imagem: { bytes: png, mime: 'image/png' }, maquinas: ['Favorit'], cor: '4x0' };
     const pdf = await resumirPdf(await gerarPdfOp(page, op({ arte })));
     expect(pdf.paginas).toBe(1);
-    expect(pdf.texto.match(/Máquina/g)).toHaveLength(2);
+    expect(pdf.texto.match(/Máquina/g)).toHaveLength(1);
     expect(pdf.texto).toContain('Favorit');
     expect(pdf.texto).toContain('4x0');
     expect(pdf.imagens).toBe(1);

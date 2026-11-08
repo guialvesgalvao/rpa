@@ -2,13 +2,11 @@ import type { ImagemOp, LinhaProcessoDaOp, OrdemProducao } from './tipos.js';
 
 /** Passos fixos da tabela "Descrição do Processo" (`table-example.jpeg`). */
 export const PASSOS_PROCESSO = [
-  'Guilhotina',
   'Off-Set',
-  'Inspeção Visual',
-  'Verniz Máquina',
   'Acoplagem',
+  'Guilhotina',
   'Corte e Vinco',
-  'Montagem',
+  'Colagem',
   'Inspeção Final',
   'Despacho',
 ] as const;

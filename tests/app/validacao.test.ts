@@ -15,6 +15,7 @@ import {
   validarSelecao,
   validarSlug,
 } from '../../src/app/validacao.js';
+import { PASSOS_PROCESSO } from '../../src/processes/op/template.js';
 
 describe('validarSelecao', () => {
   it('aceita a seleção e remove pedidos sem documento', () => {
@@ -171,7 +172,7 @@ describe('validarItensOp', () => {
   });
 
   it('aceita o pré-preenchimento e o devolve normalizado; vazio some', () => {
-    const processo = Array.from({ length: 9 }, () => ({}));
+    const processo = Array.from({ length: PASSOS_PROCESSO.length }, () => ({}));
     processo[0] = { aplica: 'sim', quantidade: ' 10 ', data: '2026-11-03' };
     expect(
       validarItensOp([
@@ -197,8 +198,12 @@ describe('validarItensOp', () => {
       { dataEntrega: '20/11/2026' },
       { dataEntrega: '2026-02-30' },
       { processo: [{ aplica: 'sim' }] },
-      { processo: Array.from({ length: 9 }, () => ({ aplica: 'talvez' })) },
-      { processo: Array.from({ length: 9 }, () => ({ responsavel: 'x'.repeat(29) })) },
+      { processo: Array.from({ length: PASSOS_PROCESSO.length }, () => ({ aplica: 'talvez' })) },
+      {
+        processo: Array.from({ length: PASSOS_PROCESSO.length }, () => ({
+          responsavel: 'x'.repeat(29),
+        })),
+      },
       { observacao: 'x'.repeat(401) },
     ]) {
       expect(() => validarItensOp(item(preenchimento))).toThrow('Seleção de produtos inválida.');

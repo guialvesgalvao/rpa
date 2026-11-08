@@ -11,6 +11,8 @@ import {
   chaveItem,
   type EscolhaItem,
   itensParaGerar,
+  type LinhaConfirmacao,
+  linhasConfirmacao,
   montarEscolhas,
   resumirSelecao,
 } from './lista.js';
@@ -56,6 +58,8 @@ export function criarOp({ api, artes, escolherPasta, abrirPasta }: DepsOp): Tela
   const erroGeral = $('op-erro-geral');
   const resultado = $('op-resultado');
   const linhasResultado = $('op-itens');
+  const dialogConfirmacao = $<HTMLDialogElement>('op-confirmacao');
+  const listaConfirmacao = $('op-confirmacao-lista');
 
   let pedidos: PedidoOpTela[] = [];
   let escolhas = new Map<string, EscolhaItem>();
@@ -255,10 +259,44 @@ export function criarOp({ api, artes, escolherPasta, abrirPasta }: DepsOp): Tela
     resultado.hidden = itens.length === 0;
   }
 
+  /** Lista "Produto → Arte" agrupada por pedido; resolve `true` só no botão "Gerar OPs". */
+  function confirmarGeracao(confirmacao: readonly LinhaConfirmacao[]): Promise<boolean> {
+    listaConfirmacao.replaceChildren();
+    let ul: HTMLUListElement | undefined;
+    let anterior: string | undefined;
+    for (const linha of confirmacao) {
+      if (linha.pedido !== anterior || !ul) {
+        const titulo = document.createElement('h3');
+        titulo.textContent = `Pedido ${linha.pedido}`;
+        ul = document.createElement('ul');
+        listaConfirmacao.append(titulo, ul);
+        anterior = linha.pedido;
+      }
+      const li = document.createElement('li');
+      li.textContent = `${linha.produto} → `;
+      const arte = document.createElement('span');
+      arte.textContent = linha.arte ?? 'sem arte';
+      if (linha.arte === null) arte.className = 'sem-arte';
+      li.appendChild(arte);
+      ul.appendChild(li);
+    }
+    dialogConfirmacao.returnValue = '';
+    return new Promise((resolve) => {
+      dialogConfirmacao.addEventListener(
+        'close',
+        () => resolve(dialogConfirmacao.returnValue === 'gerar'),
+        { once: true },
+      );
+      dialogConfirmacao.showModal();
+    });
+  }
+
   async function gerarOps() {
     const itens = itensParaGerar(pedidos, escolhas);
     if (!itens.length) return;
     const minha = geracao;
+    const confirmado = await confirmarGeracao(linhasConfirmacao(pedidos, escolhas));
+    if (!confirmado || minha !== geracao) return;
     erroGeral.textContent = '';
     resumo.textContent = 'Gerando as OPs…';
     montarResultados(itens);
@@ -310,6 +348,7 @@ export function criarOp({ api, artes, escolherPasta, abrirPasta }: DepsOp): Tela
 
   function limpar() {
     geracao++;
+    if (dialogConfirmacao.open) dialogConfirmacao.close();
     mostrarPrincipal();
     for (const el of [numeros, de, ate, pasta]) el.value = '';
     pastaPadrao = '';

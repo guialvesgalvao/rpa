@@ -8,6 +8,7 @@ import {
   descreverArte,
   type EscolhaItem,
   itensParaGerar,
+  linhasConfirmacao,
   montarEscolhas,
   nomeDoCliente,
   resumirSelecao,
@@ -227,6 +228,42 @@ describe('itensParaGerar e resumo', () => {
     const escolhas = montarEscolhas(pedidos);
     escolhas.set(chaveItem('9001', 0), { marcado: true, arteId: undefined });
     expect(itensParaGerar(pedidos, escolhas)[0]).toEqual({ numero: '9001', indice: 0 });
+  });
+});
+
+describe('linhasConfirmacao', () => {
+  const pedidos: PedidoOpTela[] = [
+    pedido('9001', [item(0, { artes: [A, B] }), item(1), item(2, { artes: [A] })]),
+    pedido('9002', [item(0, { artes: [A] }), item(1, { erro: 'Produto sem insumos cadastrados' })]),
+    { numero: '9003', situacao: 'erro', erro: 'Pedido não encontrado', passos: [] },
+  ];
+
+  it('lista Produto → Arte na ordem da tela, com "sem arte" como null', () => {
+    const escolhas = montarEscolhas(pedidos);
+    escolhas.set(chaveItem('9001', 2), { marcado: true, arteId: undefined });
+    expect(linhasConfirmacao(pedidos, escolhas)).toEqual([
+      { pedido: '9001', produto: 'Produto 0 (XX0000)', arte: 'Nova' },
+      { pedido: '9001', produto: 'Produto 1 (XX0001)', arte: null },
+      { pedido: '9001', produto: 'Produto 2 (XX0002)', arte: null },
+      { pedido: '9002', produto: 'Produto 0 (XX0000)', arte: 'Antiga' },
+    ]);
+  });
+
+  it('item não marcado e item com erro ficam de fora', () => {
+    const escolhas = montarEscolhas(pedidos);
+    escolhas.set(chaveItem('9001', 0), { marcado: false, arteId: 'b' });
+    escolhas.set(chaveItem('9002', 1), { marcado: true });
+    expect(linhasConfirmacao(pedidos, escolhas).map((l) => [l.pedido, l.produto])).toEqual([
+      ['9001', 'Produto 1 (XX0001)'],
+      ['9001', 'Produto 2 (XX0002)'],
+      ['9002', 'Produto 0 (XX0000)'],
+    ]);
+  });
+
+  it('nada marcado: lista vazia', () => {
+    const escolhas = montarEscolhas(pedidos);
+    for (const chave of escolhas.keys()) escolhas.set(chave, { marcado: false });
+    expect(linhasConfirmacao(pedidos, escolhas)).toEqual([]);
   });
 });
 

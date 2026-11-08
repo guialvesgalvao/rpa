@@ -124,6 +124,24 @@ export function itensParaGerar(
   return itens;
 }
 
+/** Linha do diálogo de confirmação: produto como "<descrição> (<código>)" e a arte (`null` = sem arte). */
+export type LinhaConfirmacao = { pedido: string; produto: string; arte: string | null };
+
+/** O que vai ser gerado, na ordem da tela, para o usuário confirmar antes de gerar as OPs. */
+export function linhasConfirmacao(
+  pedidos: readonly PedidoOpTela[],
+  escolhas: ReadonlyMap<string, EscolhaItem>,
+): LinhaConfirmacao[] {
+  return itensParaGerar(pedidos, escolhas).flatMap(({ numero, indice, arteId }) => {
+    const pedido = pedidos.find((p) => p.numero === numero);
+    const item =
+      pedido?.situacao === 'ok' ? pedido.itens.find((i) => i.indice === indice) : undefined;
+    if (!item) return [];
+    const arte = arteId ? (item.artes.find((a) => a.id === arteId)?.nome ?? null) : null;
+    return [{ pedido: numero, produto: `${item.descricao} (${item.codigo})`, arte }];
+  });
+}
+
 /** Contagem para o resumo da seleção. */
 export function resumirSelecao(
   pedidos: readonly PedidoOpTela[],

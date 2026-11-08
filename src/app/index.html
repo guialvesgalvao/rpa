@@ -149,6 +149,24 @@
         cursor: default;
         opacity: 1;
       }
+      #op-confirmacao p {
+        margin: 0;
+      }
+      .op-confirmacao-lista {
+        max-height: 50vh;
+        overflow-y: auto;
+      }
+      .op-confirmacao-lista h3 {
+        margin: 0 0 4px;
+        font-size: 14px;
+      }
+      .op-confirmacao-lista ul {
+        margin: 0 0 10px;
+        padding-left: 18px;
+      }
+      .op-confirmacao-lista .sem-arte {
+        color: var(--muted);
+      }
       .empresas-lista {
         display: grid;
         gap: 8px;
@@ -1111,6 +1129,20 @@
         <div class="actions">
           <button id="cfg-salvar" class="primary" type="submit">Salvar</button>
           <button id="cfg-cancelar" type="button">Cancelar</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="op-confirmacao">
+      <form method="dialog">
+        <h2>Gerar OPs</h2>
+        <p>Tem certeza que você quer gerar as seguintes OP's com as respectivas artes?</p>
+        <div id="op-confirmacao-lista" class="op-confirmacao-lista"></div>
+        <div class="actions">
+          <button id="op-confirmacao-gerar" class="primary" type="submit" value="gerar">
+            Gerar OPs
+          </button>
+          <button type="submit" value="cancelar">Cancelar</button>
         </div>
       </form>
     </dialog>

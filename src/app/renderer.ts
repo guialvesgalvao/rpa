@@ -105,6 +105,9 @@ const usuarioNome = $('usuario-nome');
 const sair = $<HTMLButtonElement>('sair');
 const cfgCampos = $('cfg-campos');
 const cfgSincronizacao = $('cfg-sincronizacao');
+const cfgResponsavel = $('cfg-responsavel');
+const cfgResponsavelSelect = $<HTMLSelectElement>('cfg-responsavel-select');
+const cfgResponsavelStatus = $('cfg-responsavel-status');
 const cfgSincronizar = $<HTMLButtonElement>('cfg-sincronizar');
 const cfgSincronizacaoStatus = $('cfg-sincronizacao-status');
 const cfgSincronizacaoAutomatica = $('cfg-sincronizacao-automatica');
@@ -407,10 +410,46 @@ async function atualizarAutomatica() {
   }
 }
 
+// Responsável pelas tarefas automáticas (só admin): carrega ao abrir as Configurações e grava ao mudar.
+async function carregarResponsavel() {
+  if (cfgResponsavel.hidden) return;
+  cfgResponsavelStatus.textContent = 'Carregando…';
+  cfgResponsavelSelect.disabled = true;
+  try {
+    const { responsavelId, elegiveis } = await window.rpa.tarefas.responsavelAutomatico();
+    cfgResponsavelSelect.replaceChildren(
+      new Option('Sem escolha (única arte finalista)', ''),
+      ...elegiveis.map((u) => new Option(u.nome, u.id)),
+    );
+    cfgResponsavelSelect.value = responsavelId ?? '';
+    cfgResponsavelStatus.textContent = elegiveis.length
+      ? ''
+      : 'Nenhuma arte finalista ativa nesta empresa.';
+    cfgResponsavelSelect.disabled = false;
+  } catch (erro) {
+    cfgResponsavelStatus.textContent = mensagemErro(erro);
+  }
+}
+
+cfgResponsavelSelect.addEventListener('change', async () => {
+  cfgResponsavelSelect.disabled = true;
+  cfgResponsavelStatus.textContent = 'Salvando…';
+  try {
+    await window.rpa.tarefas.definirResponsavelAutomatico(cfgResponsavelSelect.value || null);
+    cfgResponsavelStatus.textContent = 'Responsável salvo.';
+  } catch (erro) {
+    cfgResponsavelStatus.textContent = mensagemErro(erro);
+    void carregarResponsavel();
+  } finally {
+    cfgResponsavelSelect.disabled = false;
+  }
+});
+
 async function abrirConfiguracoes(config?: ConfigTela) {
   preencherConfig(config ?? (await window.rpa.obterConfig()));
   dialogConfig.showModal();
   void atualizarAutomatica();
+  void carregarResponsavel();
 }
 
 abrirConfig.addEventListener('click', () => void abrirConfiguracoes());
@@ -558,6 +597,7 @@ function aplicarSessao(sessao: SessaoTela) {
   cfgCampos.hidden = !admin;
   cfgSalvar.hidden = !admin;
   cfgSincronizacao.hidden = !podeSincronizarBling(sessao.perfil, sessao.empresa?.slug);
+  cfgResponsavel.hidden = !admin;
   usuarioNome.textContent = sessao.nome;
 
   aplicarEmpresa(sessao.empresa, sessao.empresas.length);

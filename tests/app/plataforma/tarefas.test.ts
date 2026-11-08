@@ -110,6 +110,19 @@ describe('tarefas no cliente da API', () => {
     );
   });
 
+  it('responsável automático: lê e grava pela rota da empresa', async () => {
+    const config = { responsavelId: USUARIO, elegiveis: [{ id: USUARIO, nome: 'Ana Ficticia' }] };
+    const { cliente, chamadas } = api(() => json(config));
+    expect(await cliente.obterResponsavelAutomatico('roma')).toEqual(config);
+    expect(await cliente.definirResponsavelAutomatico('roma', null)).toEqual(config);
+    const url = 'http://api.local/v1/empresas/roma/tarefas/responsavel-automatico';
+    expect(chamadas.map((c) => [c.url, c.metodo])).toEqual([
+      [url, 'GET'],
+      [url, 'PUT'],
+    ]);
+    expect(JSON.parse(String(chamadas[1]?.corpo))).toEqual({ responsavelId: null });
+  });
+
   it('contagem pela rota dos atalhos', async () => {
     const contagem = { nao_iniciada: 2, em_desenvolvimento: 1, aguardando_cliente: 0 };
     const { cliente, chamadas } = api(() => json(contagem));

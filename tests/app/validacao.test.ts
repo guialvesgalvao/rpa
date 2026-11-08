@@ -13,6 +13,7 @@ import {
   validarMudancaStatus,
   validarNovaTarefa,
   validarNovoUsuario,
+  validarResponsavelAutomatico,
   validarNumerosOp,
   validarSelecao,
   validarSlug,
@@ -271,6 +272,12 @@ describe('tarefas de arte', () => {
       validarComentario({ id, texto: 'ok', anexoIds: Array.from({ length: 6 }, () => id) }),
     ).toThrow('no máximo 5');
     expect(() => validarComentario({ id, texto: 'ok', anexoIds: ['../x'] })).toThrow();
+  });
+
+  it('responsável automático: id ou null', () => {
+    expect(validarResponsavelAutomatico(id)).toBe(id);
+    expect(validarResponsavelAutomatico(null)).toBeNull();
+    expect(() => validarResponsavelAutomatico('x')).toThrow('Responsável inválido.');
   });
 
   it('anexo para baixar: ids e nome', () => {

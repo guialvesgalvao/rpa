@@ -18,6 +18,7 @@ import type {
   PaginaClientes,
   Perfil,
   ProdutoDoCliente,
+  ResponsavelAutomatico,
   SincronizacaoAutomaticaBling,
   StatusTarefa,
   Tarefa,
@@ -103,6 +104,9 @@ export type TarefasApi = {
   listar(consulta: ConsultaTarefasApp): Promise<Tarefa[]>;
   /** Contadores dos atalhos da home de Artes (não terminadas, por status). */
   contagem(): Promise<ContagemTarefas>;
+  /** Responsável pelas tarefas automáticas da empresa em uso (só admin). */
+  responsavelAutomatico(): Promise<ResponsavelAutomatico>;
+  definirResponsavelAutomatico(responsavelId: string | null): Promise<ResponsavelAutomatico>;
   obter(id: string): Promise<TarefaDetalhe>;
   mudarStatus(id: string, status: StatusTarefa): Promise<Tarefa>;
   /** Cadastra a arte e conclui; erros de validação voltam por campo, como no cadastro. */
@@ -287,6 +291,8 @@ export const CHANNELS = {
   tarefasCriar: 'rpa:tarefas:criar',
   tarefasListar: 'rpa:tarefas:listar',
   tarefasContagem: 'rpa:tarefas:contagem',
+  tarefasResponsavelObter: 'rpa:tarefas:responsavel-obter',
+  tarefasResponsavelDefinir: 'rpa:tarefas:responsavel-definir',
   tarefasObter: 'rpa:tarefas:obter',
   tarefasMudarStatus: 'rpa:tarefas:mudar-status',
   tarefasConcluir: 'rpa:tarefas:concluir',

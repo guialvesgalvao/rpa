@@ -283,6 +283,13 @@ export function validarNovoUsuario(input: unknown): NovoUsuario {
   return parsed.data;
 }
 
+/** Responsável automático: um id ou `null` (sem escolha). */
+export function validarResponsavelAutomatico(input: unknown): string | null {
+  const parsed = z.uuid().nullable().safeParse(input);
+  if (!parsed.success) throw new Error('Responsável inválido.');
+  return parsed.data;
+}
+
 const trocaSenhaSchema = z.object({
   senhaAtual: z.string().min(1, 'Informe a senha atual.').max(SENHA_MAXIMA),
   novaSenha: z

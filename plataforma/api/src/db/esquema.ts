@@ -313,9 +313,13 @@ export const tarefasArte = pgTable(
       .references(() => empresas.id),
     clienteId: uuid('cliente_id').notNull(),
     produtoId: uuid('produto_id').notNull(),
-    // Quem criou a tarefa; é quem a vê em "Minhas tarefas".
+    // Na tarefa manual, quem a criou; na automática (pedido do Bling), o responsável automático da empresa
+    // (nulo quando não há um: a tarefa aparece só para o admin).
     responsavelId: uuid('responsavel_id').references(() => usuarios.id, { onDelete: 'set null' }),
     status: text('status').notNull().default('nao_iniciada'),
+    // `manual` (tela) ou `bling_pedido` (worker dos pedidos de venda, com o número do pedido).
+    origem: text('origem').notNull().default('manual'),
+    pedidoNumero: text('pedido_numero'),
     // A arte cadastrada na conclusão. Não pode ser removida enquanto a tarefa existir.
     arteId: uuid('arte_id').references(() => artes.id, { onDelete: 'restrict' }),
     criadoEm: instante('criado_em').notNull().defaultNow(),
@@ -333,6 +337,7 @@ export const tarefasArte = pgTable(
       foreignColumns: [produtos.id, produtos.empresaId],
     }),
     check('tarefas_arte_status_valido', sql`${t.status} in ${STATUS_TAREFA_SQL}`),
+    check('tarefas_arte_origem_valida', sql`${t.origem} in ('manual', 'bling_pedido')`),
     // "Para ser concluída, deve ter todos os campos cadastrados": a arte existe.
     check(
       'tarefas_arte_concluida_com_arte',
@@ -342,6 +347,17 @@ export const tarefasArte = pgTable(
     index('tarefas_arte_responsavel_idx').on(t.responsavelId),
   ],
 );
+
+// Configuração das tarefas por empresa: a arte finalista que recebe as tarefas automáticas. Sem ela (ou se
+// deixar de ser elegível), vale a única arte finalista ativa da empresa, se houver só uma.
+export const tarefasConfig = pgTable('tarefas_config', {
+  empresaId: uuid('empresa_id')
+    .primaryKey()
+    .references(() => empresas.id, { onDelete: 'cascade' }),
+  responsavelAutomaticoId: uuid('responsavel_automatico_id').references(() => usuarios.id, {
+    onDelete: 'set null',
+  }),
+});
 
 export const tarefasArteComentarios = pgTable(
   'tarefas_arte_comentarios',

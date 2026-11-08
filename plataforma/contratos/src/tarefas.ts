@@ -39,13 +39,19 @@ export const EsquemaConsultaTarefas = z.object({
   status: EsquemaStatusTarefa.optional(),
 });
 
+export const ORIGENS_TAREFA = ['manual', 'bling_pedido'] as const;
+export type OrigemTarefa = (typeof ORIGENS_TAREFA)[number];
+
 export const EsquemaTarefa = z.object({
   id: z.uuid(),
   cliente: EsquemaOpcao,
   produto: EsquemaOpcao,
-  // `null` se o usuário foi removido.
+  // `null` se o usuário foi removido ou se a tarefa automática nasceu sem responsável.
   responsavel: EsquemaOpcao.nullable(),
   status: EsquemaStatusTarefa,
+  // Tarefa criada na tela (`manual`) ou a partir de um pedido de venda do Bling (com o número).
+  origem: z.enum(ORIGENS_TAREFA).default('manual'),
+  pedidoNumero: z.string().nullable().default(null),
   // Arte cadastrada na conclusão; `null` até concluir.
   arteId: z.uuid().nullable(),
   criadoEm: z.iso.datetime(),
@@ -90,6 +96,16 @@ export const EsquemaNovoComentario = z.object({
 });
 
 export const EsquemaMudancaStatus = z.object({ status: EsquemaStatusTarefa });
+
+// Responsável pelas tarefas automáticas da empresa (só admin). `responsavelId`: o configurado (`null` = nenhum;
+// vale a única arte finalista ativa, se houver só uma). `elegiveis`: arte finalistas ativos da empresa.
+export const EsquemaResponsavelAutomatico = z.object({
+  responsavelId: z.uuid().nullable(),
+  elegiveis: z.array(EsquemaOpcao),
+});
+export const EsquemaDefinirResponsavelAutomatico = z.object({ responsavelId: z.uuid().nullable() });
+
+export type ResponsavelAutomatico = z.infer<typeof EsquemaResponsavelAutomatico>;
 
 export type ConsultaTarefas = z.infer<typeof EsquemaConsultaTarefas>;
 export type Tarefa = z.infer<typeof EsquemaTarefa>;

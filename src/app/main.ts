@@ -71,6 +71,7 @@ import {
   type PaginaClientes,
   type Perfil,
   type ProdutoDoCliente,
+  type ResponsavelAutomatico,
   type Tarefa,
   type TarefaDetalhe,
   temaDaEmpresa,
@@ -100,6 +101,7 @@ import {
   validarMudancaStatus,
   validarNovaTarefa,
   validarNovoUsuario,
+  validarResponsavelAutomatico,
   validarTrocaSenha,
   validarConsultaClientes,
   validarId,
@@ -627,6 +629,25 @@ ipcMain.handle(CHANNELS.tarefasListar, async (_event, input: unknown): Promise<T
   const { empresa } = await contexto();
   return artesApi.listarTarefas(empresa, consulta);
 });
+
+// Só o admin escolhe quem recebe as tarefas automáticas; a API confere de novo.
+ipcMain.handle(CHANNELS.tarefasResponsavelObter, async (): Promise<ResponsavelAutomatico> => {
+  exigirAdmin();
+  const { empresa } = await contexto();
+  return artesApi.obterResponsavelAutomatico(empresa);
+});
+
+ipcMain.handle(
+  CHANNELS.tarefasResponsavelDefinir,
+  async (_event, input: unknown): Promise<ResponsavelAutomatico> => {
+    exigirAdmin();
+    const responsavelId = validarResponsavelAutomatico(input);
+    const { empresa } = await contexto();
+    const resultado = await artesApi.definirResponsavelAutomatico(empresa, responsavelId);
+    logger.info({ empresa }, 'Responsável automático das tarefas definido');
+    return resultado;
+  },
+);
 
 ipcMain.handle(CHANNELS.tarefasContagem, async (): Promise<ContagemTarefas> => {
   const { empresa } = await contexto();

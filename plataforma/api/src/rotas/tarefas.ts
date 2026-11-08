@@ -5,9 +5,11 @@ import {
   type ComentarioTarefa,
   type ContagemTarefas,
   EsquemaConsultaTarefas,
+  EsquemaDefinirResponsavelAutomatico,
   EsquemaMudancaStatus,
   EsquemaNovoComentario,
   type EventoTarefa,
+  type ResponsavelAutomatico,
   type Tarefa,
   type TarefaDetalhe,
   detectarTipo,
@@ -35,6 +37,10 @@ import {
   mudarStatus,
   obterTarefa,
 } from '../tarefas/servico.js';
+import {
+  definirResponsavelAutomatico,
+  obterResponsavelAutomatico,
+} from '../tarefas/responsavel.js';
 import { conferirNovaArte, exigirIds, LIMITES_MULTIPART, lerCampos } from './artes.js';
 
 const tarefaNaoEncontrada = () =>
@@ -171,6 +177,29 @@ export function rotasTarefas(
       async (request): Promise<Tarefa[]> => {
         const consulta = lerCorpo(EsquemaConsultaTarefas, request.query);
         return listarTarefas(db, await empresaDe(request), acessoDe(request), consulta);
+      },
+    );
+
+    // Responsável pelas tarefas automáticas da empresa: só o admin vê e muda.
+    const soAdmin = [
+      escopo.autenticacao.exigirUsuario,
+      escopo.autenticacao.exigirEmpresa('empresa'),
+      escopo.autenticacao.exigirPerfil('admin'),
+    ];
+
+    escopo.get(
+      '/v1/empresas/:empresa/tarefas/responsavel-automatico',
+      { preHandler: soAdmin },
+      async (request): Promise<ResponsavelAutomatico> =>
+        obterResponsavelAutomatico(db, await empresaDe(request)),
+    );
+
+    escopo.put(
+      '/v1/empresas/:empresa/tarefas/responsavel-automatico',
+      { preHandler: soAdmin },
+      async (request): Promise<ResponsavelAutomatico> => {
+        const { responsavelId } = lerCorpo(EsquemaDefinirResponsavelAutomatico, request.body);
+        return definirResponsavelAutomatico(db, await empresaDe(request), responsavelId);
       },
     );
 

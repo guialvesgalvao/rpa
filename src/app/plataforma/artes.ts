@@ -14,6 +14,7 @@ import {
   type EscopoTarefas,
   EsquemaComentarioTarefa,
   EsquemaContagemTarefas,
+  EsquemaResponsavelAutomatico,
   EsquemaUsuarioResumo,
   EsquemaEventoTarefa,
   EsquemaTarefa,
@@ -36,6 +37,7 @@ import {
   type TarefaDetalhe,
   type TipoDetectado,
   type NovoUsuario,
+  type ResponsavelAutomatico,
   type UsuarioResumo,
   validarNovaArte,
 } from './contratos.js';
@@ -88,6 +90,12 @@ export type ClienteArtes = {
   criarTarefa(empresa: string, clienteId: string, produtoId: string): Promise<Tarefa>;
   listarTarefas(empresa: string, consulta: ConsultaTarefasApp): Promise<Tarefa[]>;
   contagemTarefas(empresa: string): Promise<ContagemTarefas>;
+  /** Arte finalista que recebe as tarefas automáticas da empresa (só admin). */
+  obterResponsavelAutomatico(empresa: string): Promise<ResponsavelAutomatico>;
+  definirResponsavelAutomatico(
+    empresa: string,
+    responsavelId: string | null,
+  ): Promise<ResponsavelAutomatico>;
   /** Usuários nas empresas do admin (a API confere perfil e empresas). */
   listarUsuarios(): Promise<UsuarioResumo[]>;
   criarUsuario(novo: NovoUsuario): Promise<UsuarioResumo>;
@@ -132,7 +140,7 @@ export function criarClienteArtes({
   const base = baseUrl.replace(/\/+$/, '');
 
   async function chamar(
-    metodo: 'GET' | 'POST' | 'PATCH',
+    metodo: 'GET' | 'POST' | 'PATCH' | 'PUT',
     caminho: string,
     opcoes: { corpo?: FormData; json?: unknown; timeout?: number } = {},
   ): Promise<Response> {
@@ -270,6 +278,16 @@ export function criarClienteArtes({
     },
     async criarUsuario(novo) {
       return lerJson(await chamar('POST', '/v1/usuarios', { json: novo }), EsquemaUsuarioResumo);
+    },
+    async obterResponsavelAutomatico(empresa) {
+      const resposta = await chamar('GET', rota(empresa, '/tarefas/responsavel-automatico'));
+      return lerJson(resposta, EsquemaResponsavelAutomatico);
+    },
+    async definirResponsavelAutomatico(empresa, responsavelId) {
+      const resposta = await chamar('PUT', rota(empresa, '/tarefas/responsavel-automatico'), {
+        json: { responsavelId },
+      });
+      return lerJson(resposta, EsquemaResponsavelAutomatico);
     },
     async contagemTarefas(empresa) {
       return lerJson(await chamar('GET', rota(empresa, '/tarefas/contagem')), EsquemaContagemTarefas);

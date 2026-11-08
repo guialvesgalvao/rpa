@@ -47,6 +47,9 @@ const api: RpaApi = {
       ipcRenderer.invoke(CHANNELS.tarefasCriar, { clienteId, produtoId }),
     listar: (consulta) => ipcRenderer.invoke(CHANNELS.tarefasListar, consulta),
     contagem: () => ipcRenderer.invoke(CHANNELS.tarefasContagem),
+    responsavelAutomatico: () => ipcRenderer.invoke(CHANNELS.tarefasResponsavelObter),
+    definirResponsavelAutomatico: (responsavelId) =>
+      ipcRenderer.invoke(CHANNELS.tarefasResponsavelDefinir, responsavelId),
     obter: (id) => ipcRenderer.invoke(CHANNELS.tarefasObter, id),
     mudarStatus: (id, status) => ipcRenderer.invoke(CHANNELS.tarefasMudarStatus, { id, status }),
     concluir: (entrada) => ipcRenderer.invoke(CHANNELS.tarefasConcluir, entrada),

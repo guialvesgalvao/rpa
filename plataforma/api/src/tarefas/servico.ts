@@ -4,6 +4,7 @@ import {
   nomeOuPadrao,
   type EscopoTarefas,
   type EventoTarefa,
+  type OrigemTarefa,
   type Perfil,
   STATUS_EM_ANDAMENTO,
   type StatusTarefa,
@@ -51,6 +52,8 @@ const colunasTarefa = {
   responsavelNome: responsavel.nome,
   status: tarefasArte.status,
   arteId: tarefasArte.arteId,
+  origem: tarefasArte.origem,
+  pedidoNumero: tarefasArte.pedidoNumero,
   criadoEm: tarefasArte.criadoEm,
   atualizadoEm: tarefasArte.atualizadoEm,
 };
@@ -65,6 +68,8 @@ type LinhaTarefa = {
   responsavelNome: string | null;
   status: string;
   arteId: string | null;
+  origem: string;
+  pedidoNumero: string | null;
   criadoEm: Date;
   atualizadoEm: Date;
 };
@@ -79,6 +84,8 @@ function paraTarefa(linha: LinhaTarefa): Tarefa {
     produto: { id: linha.produtoId, nome: linha.produtoNome },
     responsavel: pessoa(linha.responsavelId, linha.responsavelNome),
     status: linha.status as StatusTarefa,
+    origem: linha.origem as OrigemTarefa,
+    pedidoNumero: linha.pedidoNumero,
     arteId: linha.arteId,
     criadoEm: linha.criadoEm.toISOString(),
     atualizadoEm: linha.atualizadoEm.toISOString(),
@@ -114,10 +121,22 @@ export async function obterTarefa(
   return linha ? paraTarefa(linha) : null;
 }
 
+// Tarefa manual: `usuarioId` é quem cria e o responsável. Automática (worker dos pedidos): `usuarioId` nulo (o
+// autor do primeiro evento é o sistema), `responsavelId` o automático (ou nulo) e a origem com o pedido.
 export async function criarTarefa(
   db: Banco,
-  entrada: { empresaId: string; clienteId: string; produtoId: string; usuarioId: string },
+  entrada: {
+    empresaId: string;
+    clienteId: string;
+    produtoId: string;
+    usuarioId: string | null;
+    responsavelId?: string | null;
+    origem?: OrigemTarefa;
+    pedidoNumero?: string;
+  },
 ): Promise<Tarefa> {
+  const responsavelId =
+    entrada.responsavelId === undefined ? entrada.usuarioId : entrada.responsavelId;
   const tarefaId = await db.transaction(async (tx) => {
     const [tarefa] = await tx
       .insert(tarefasArte)
@@ -125,7 +144,9 @@ export async function criarTarefa(
         empresaId: entrada.empresaId,
         clienteId: entrada.clienteId,
         produtoId: entrada.produtoId,
-        responsavelId: entrada.usuarioId,
+        responsavelId,
+        origem: entrada.origem ?? 'manual',
+        pedidoNumero: entrada.pedidoNumero ?? null,
       })
       .returning({ id: tarefasArte.id, status: tarefasArte.status });
     if (!tarefa) throw new Error('Tarefa não criada.');
@@ -138,7 +159,7 @@ export async function criarTarefa(
     return tarefa.id;
   });
   const criada = await obterTarefa(db, entrada.empresaId, tarefaId, {
-    usuarioId: entrada.usuarioId,
+    usuarioId: entrada.usuarioId ?? '',
     perfil: 'admin',
   });
   if (!criada) throw new Error('Tarefa não criada.');

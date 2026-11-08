@@ -6,3 +6,4 @@ export * from './empresas.ts';
 export * from './op.ts';
 export * from './saude.ts';
 export * from './tarefas.ts';
+export * from './usuarios.ts';

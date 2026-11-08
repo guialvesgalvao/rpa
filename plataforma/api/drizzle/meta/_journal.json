@@ -71,6 +71,13 @@
       "when": 1793906246140,
       "tag": "0009_tarefas_arte",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1794107083650,
+      "tag": "0010_troca_senha",
+      "breakpoints": true
     }
   ]
 }

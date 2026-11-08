@@ -1,3 +1,4 @@
+import { SENHA_MINIMA } from '@plataforma/contratos';
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
@@ -12,11 +13,19 @@ import {
   usuarios,
 } from '../db/esquema.js';
 
-export const SENHA_MINIMA = 10;
+export { SENHA_MINIMA };
 
 // Erro de regra de negócio: a mensagem pode ser mostrada como está.
 export class ErroUsuario extends Error {
   override name = 'ErroUsuario';
+
+  constructor(
+    mensagem: string,
+    // Para a API escolher o status; os demais são dado inválido.
+    readonly codigo?: 'email_em_uso',
+  ) {
+    super(mensagem);
+  }
 }
 
 export type NovoUsuario = {
@@ -25,6 +34,8 @@ export type NovoUsuario = {
   perfil: Perfil;
   senha: string;
   empresas: string[];
+  // Senha inicial definida pelo admin na tela: a tela pede a troca no login. A CLI cria com `false`.
+  deveTrocarSenha?: boolean;
 };
 
 export type UsuarioListado = {
@@ -99,7 +110,7 @@ export async function criarUsuario(db: Banco, dados: NovoUsuario): Promise<Usuar
     const id = await db.transaction(async (tx) => {
       const [usuario] = await tx
         .insert(usuarios)
-        .values({ email, nome, perfil, senhaHash })
+        .values({ email, nome, perfil, senhaHash, deveTrocarSenha: dados.deveTrocarSenha ?? false })
         .returning({ id: usuarios.id });
       if (!usuario) throw new Error('Usuário não criado.');
       await vincularEmpresas(tx, usuario.id, slugs);
@@ -109,7 +120,8 @@ export async function criarUsuario(db: Banco, dados: NovoUsuario): Promise<Usuar
     if (!criado) throw new Error('Usuário não criado.');
     return criado;
   } catch (erro) {
-    if (violouUnico(erro)) throw new ErroUsuario(`Já existe um usuário com o e-mail ${email}.`);
+    if (violouUnico(erro))
+      throw new ErroUsuario(`Já existe um usuário com o e-mail ${email}.`, 'email_em_uso');
     throw erro;
   }
 }
@@ -209,6 +221,19 @@ export async function buscarPerfil(db: Banco, id: string): Promise<PerfilUsuario
     empresaSlug && empresaNome ? [{ slug: empresaSlug, nome: empresaNome }] : [],
   );
   return { id, nome, email, perfil, ativo, empresas: vinculadas };
+}
+
+// Usuários (com ao menos uma empresa) cujas empresas estão todas entre as informadas: o que o admin dessas
+// empresas pode ver na tela. Nunca devolve o hash da senha.
+export async function listarDoEscopo(
+  db: Banco,
+  slugs: readonly string[],
+): Promise<UsuarioListado[]> {
+  const todos = await listar(db);
+  return todos.filter(
+    (usuario) =>
+      usuario.empresas.length > 0 && usuario.empresas.every((slug) => slugs.includes(slug)),
+  );
 }
 
 // Nunca devolve o hash da senha.

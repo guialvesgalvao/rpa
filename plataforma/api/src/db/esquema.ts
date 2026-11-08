@@ -43,6 +43,8 @@ export const usuarios = pgTable(
     senhaHash: text('senha_hash').notNull(),
     perfil: text('perfil').$type<Perfil>().notNull(),
     ativo: boolean('ativo').notNull().default(true),
+    // Criado pela tela com a senha inicial do admin: a tela pede a troca no login (a API não bloqueia).
+    deveTrocarSenha: boolean('deve_trocar_senha').notNull().default(false),
     criadoEm: instante('criado_em').notNull().defaultNow(),
     atualizadoEm: instante('atualizado_em').notNull().defaultNow(),
   },

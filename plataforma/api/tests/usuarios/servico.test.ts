@@ -61,7 +61,7 @@ describe('criarUsuario', () => {
   it('recusa e-mail duplicado, mesmo com outra caixa', async () => {
     await criarUsuario(db, dados());
     await expect(criarUsuario(db, dados({ email: 'ANA@exemplo.com' }))).rejects.toThrow(
-      new ErroUsuario('Já existe um usuário com o e-mail ana@exemplo.com.'),
+      new ErroUsuario('Já existe um usuário com o e-mail ana@exemplo.com.', 'email_em_uso'),
     );
   });
 

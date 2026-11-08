@@ -63,6 +63,8 @@ function blingFalso() {
         data: [1, 2].map((id) => ({ id, nome: `Produto ${id}`, codigo: `SKU${id}`, formato: 'S' })),
       });
     if (caminho === '/contatos/tipos') return json({ data: [{ id: 5, descricao: 'Cliente' }] });
+    // Sem pedidos de venda em aberto: a etapa das tarefas automáticas não cria nada.
+    if (caminho === '/pedidos/vendas') return json({ data: [] });
     if (caminho === '/contatos')
       return json({ data: [{ id: 100, nome: 'Empresa Fictícia', situacao: 'A' }] });
     // Detalhe preso até o teste liberar, ou até a chamada ser cancelada (como o `fetch` real).

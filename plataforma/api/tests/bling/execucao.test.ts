@@ -322,4 +322,23 @@ describe('execução da sincronização', () => {
     expect(aoFalhar).toHaveBeenCalledTimes(1);
     expect(execucao.estado('roma').situacao).toBe('concluida');
   });
+
+  it('a etapa depois da gravação roda no mesmo job, com o acesso, e os avisos dela vão para o resumo', async () => {
+    const aposSalvar = vi.fn(async () => ['1 tarefa(s) de arte criada(s) a partir dos pedidos.']);
+    const execucao = criarExecucaoSincronizacao({
+      sincronizar: async () => DADOS,
+      armazem: armazemFalso(),
+      aposSalvar,
+    });
+    execucao.iniciar(ROMA, acesso, COMPLETA, 'botao');
+    await execucao.termino('roma');
+    expect(aposSalvar).toHaveBeenCalledWith(ROMA, acesso, expect.any(AbortSignal));
+    const estado = execucao.estado('roma');
+    if (estado.situacao !== 'concluida') throw new Error('esperava concluída');
+    expect(estado.resumo.avisos).toEqual([
+      'aviso sintético',
+      '1 cliente sem CNPJ válido ficou de fora.',
+      '1 tarefa(s) de arte criada(s) a partir dos pedidos.',
+    ]);
+  });
 });

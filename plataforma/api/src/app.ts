@@ -13,7 +13,9 @@ import { criarConexoesBling } from './bling/conexoes.js';
 import { criarEstadoSincronizacao } from './bling/estado.js';
 import { criarExecucaoSincronizacao } from './bling/execucao.js';
 import { criarOAuthBling } from './bling/oauth.js';
+import { lerPedidosAbertos } from './bling/pedidos.js';
 import { sincronizarBling } from './bling/sincronizacao.js';
+import { criarTarefasDosPedidos } from './bling/tarefas-pedidos.js';
 import type { ConfigBling } from './config.js';
 import type { Banco } from './db/cliente.js';
 import { configurarErros } from './erros.js';
@@ -132,6 +134,36 @@ function criarServicosBling(
         'Falha na sincronização do Bling',
       ),
     aoConcluir: (empresa, resultado) => estado.registrar(empresa.id, resultado),
+    // Depois de gravar clientes e produtos: tarefas de arte dos pedidos de venda em aberto, com o mesmo
+    // cliente HTTP (mesmo ritmo de chamadas). Falha aqui não derruba a sincronização: vira aviso.
+    aposSalvar: async (empresa, acesso, sinal) => {
+      try {
+        const pedidos = await lerPedidosAbertos(cliente, acesso, { sinal });
+        const resultado = await criarTarefasDosPedidos(db, empresa.id, pedidos);
+        app.log.info(
+          {
+            empresa: empresa.slug,
+            pedidos: pedidos.length,
+            criadas: resultado.criadas,
+            jaAtendidos: resultado.jaAtendidos,
+            semCliente: resultado.semCliente,
+            semProduto: resultado.semProduto,
+            semResponsavel: resultado.semResponsavel,
+          },
+          'Tarefas dos pedidos de venda',
+        );
+        return resultado.avisos;
+      } catch (erro) {
+        if (sinal.aborted) throw erro;
+        app.log.warn(
+          { erro: erro instanceof Error ? erro.name : 'desconhecido' },
+          'Falha nas tarefas dos pedidos de venda',
+        );
+        return [
+          'Não foi possível ler os pedidos de venda do Bling; as tarefas automáticas ficam para a próxima sincronização.',
+        ];
+      }
+    },
   });
   return { oauth, execucao, estado, automatica: bling.automatica };
 }

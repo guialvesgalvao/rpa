@@ -58,8 +58,16 @@ export function criarExecucaoSincronizacao({
   relogio = () => new Date(),
   aoFalhar = () => {},
   aoConcluir = async () => {},
+  aposSalvar,
 }: {
   sincronizar: ExecutarSincronizacao;
+  // Etapa seguinte à gravação, no mesmo job (mesmo lease e mesmo acesso): hoje, as tarefas dos pedidos de venda.
+  // Devolve avisos para o resumo; deve tratar as próprias falhas (só o aborto deve subir).
+  aposSalvar?: (
+    empresa: EmpresaSincronizacao,
+    acesso: AcessoBling,
+    sinal: AbortSignal,
+  ) => Promise<string[]>;
   armazem: ArmazemSincronizacao;
   relogio?: () => Date;
   // Só para erros inesperados (`erro_interno`, ou falha do `aoConcluir`); nunca recebe tokens nem dados do Bling.
@@ -94,6 +102,8 @@ export function criarExecucaoSincronizacao({
       });
       sinal.throwIfAborted();
       const gravado = await armazem.salvar(empresaId, dados, { modo: dados.modo });
+      const avisosApos = aposSalvar ? await aposSalvar(empresaAlvo, acesso, sinal) : [];
+      sinal.throwIfAborted();
       // Contagens do que foi gravado (inseridos + atualizados), não do que foi lido.
       const resumo = {
         empresa,
@@ -101,7 +111,7 @@ export function criarExecucaoSincronizacao({
         concluidaEm: relogio().toISOString(),
         produtos: gravado.produtos.inseridos + gravado.produtos.atualizados,
         clientes: gravado.clientes.inseridos + gravado.clientes.atualizados,
-        avisos: [...dados.avisos, ...gravado.avisos],
+        avisos: [...dados.avisos, ...gravado.avisos, ...avisosApos],
       };
       estados.set(empresa, { situacao: 'concluida', resumo });
       resultado = {

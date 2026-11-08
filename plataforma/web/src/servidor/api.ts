@@ -5,8 +5,10 @@ import {
   EsquemaRespostaEntrar,
   EsquemaTokens,
   type Eu,
+  EsquemaErro,
   type RespostaEntrar,
   type Tokens,
+  type TrocaSenha,
 } from '@plataforma/contratos';
 import type { z } from 'zod';
 
@@ -67,6 +69,25 @@ export function criarApi({ url, buscar = fetch }: { url: string; buscar?: Buscar
         await chamar('/v1/eu', { headers: { authorization: `Bearer ${acesso}` } }),
         EsquemaEu,
       ),
+    // Troca da própria senha; `codigo` é o da recusa da API (ex.: `senha_atual_incorreta`).
+    trocarSenha: async (
+      acesso: string,
+      corpo: TrocaSenha,
+    ): Promise<{ ok: true } | { ok: false; status: number; codigo?: string }> => {
+      const resposta = await chamar('/v1/eu/senha', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${acesso}` },
+        body: JSON.stringify(corpo),
+      });
+      if (!resposta) return { ok: false, status: 502 };
+      if (resposta.ok) return { ok: true };
+      const erro = EsquemaErro.safeParse(await resposta.json().catch(() => null));
+      return {
+        ok: false,
+        status: resposta.status,
+        ...(erro.success ? { codigo: erro.data.erro.codigo } : {}),
+      };
+    },
     repassar: (destino: URL, init: RequestInit) => buscar(destino, init),
   };
 }

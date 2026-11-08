@@ -14,7 +14,13 @@ const DURACAO_EMPRESA_S = 365 * 24 * 60 * 60;
 const MARGEM_RENOVACAO_MS = 30_000;
 
 // Os prefixos da API que o proxy `/api/v1/**` repassa; `/v1/auth/**` fica de fora (só pelas rotas de sessão).
-const PREFIXOS_PERMITIDOS = ['/v1/eu', '/v1/empresas/', '/v1/cores', '/v1/maquinas'];
+const PREFIXOS_PERMITIDOS = [
+  '/v1/eu',
+  '/v1/empresas/',
+  '/v1/cores',
+  '/v1/maquinas',
+  '/v1/usuarios',
+];
 
 const BASE_LOCAL = 'http://local.invalid';
 

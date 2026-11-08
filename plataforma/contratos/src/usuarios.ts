@@ -1,6 +1,11 @@
 import { z } from 'zod';
 
-import { EsquemaPerfil } from './auth.ts';
+import { EsquemaPerfil, type Perfil } from './auth.ts';
+
+export const ROTULOS_PERFIL: Record<Perfil, string> = {
+  admin: 'Administrador',
+  arte_finalista: 'Arte finalista',
+};
 
 // Senha mínima de qualquer cadastro ou troca (a API confere de novo).
 export const SENHA_MINIMA = 10;

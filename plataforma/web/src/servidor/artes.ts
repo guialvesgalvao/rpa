@@ -27,7 +27,7 @@ import { lerConfig } from './config';
 import { COOKIE_ACESSO } from './sessao';
 
 // Leitura da API pelas páginas (servidor), com o token do cookie. Sessão recusada → `/entrar`; 404 → página 404.
-async function lerDaApi<T>(caminho: string, esquema: z.ZodType<T>): Promise<T> {
+export async function lerDaApi<T>(caminho: string, esquema: z.ZodType<T>): Promise<T> {
   const acesso = (await cookies()).get(COOKIE_ACESSO)?.value;
   if (!acesso) redirect('/entrar');
 

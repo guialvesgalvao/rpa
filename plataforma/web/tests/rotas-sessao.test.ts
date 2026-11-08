@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { POST as escolherEmpresa } from '../src/app/api/sessao/empresa/route';
 import { POST as entrar } from '../src/app/api/sessao/entrar/route';
 import { POST as sair } from '../src/app/api/sessao/sair/route';
+import { POST as trocarSenha } from '../src/app/api/sessao/senha/route';
 import {
   API_URL,
   apiFalsa,
@@ -11,6 +12,8 @@ import {
   requisicao,
   respostaEntrar,
   SITE_URL,
+  tokenAcesso,
+  tokensFicticios,
 } from './apoio/api-falsa';
 
 beforeEach(() => {
@@ -245,5 +248,105 @@ describe('POST /api/sessao/empresa', () => {
 
     expect(resposta.status).toBe(403);
     expect(resposta.cookies.get('rpa_empresa')).toBeUndefined();
+  });
+});
+
+describe('POST /api/sessao/senha', () => {
+  const acesso = () => tokenAcesso(Date.now() + 10 * 60 * 1000);
+  const campos = {
+    senhaAtual: 'senha-inicial-123',
+    novaSenha: 'senha-nova-456789',
+    confirmacao: 'senha-nova-456789',
+    empresa: 'roma',
+  };
+  const postSenha = (
+    valores: Record<string, string>,
+    cookies: Record<string, string> = { rpa_acesso: acesso(), rpa_renovacao: 'renovacao-atual' },
+    origem = SITE_URL,
+  ) =>
+    trocarSenha(
+      requisicao('/api/sessao/senha', {
+        metodo: 'POST',
+        origem,
+        corpo: formulario(valores),
+        cookies,
+      }),
+    );
+
+  it('troca mantendo a sessão deste navegador e volta para a empresa', async () => {
+    const { chamadas } = apiFalsa({
+      'POST /v1/eu/senha': () => new Response(null, { status: 204 }),
+    });
+
+    const resposta = await postSenha(campos);
+
+    expect(resposta.status).toBe(303);
+    expect(resposta.headers.get('location')).toBe(`${SITE_URL}/roma/artes`);
+    expect(corpoJson(chamadas[0])).toEqual({
+      senhaAtual: campos.senhaAtual,
+      novaSenha: campos.novaSenha,
+      renovacao: 'renovacao-atual',
+    });
+    expect(new Headers(chamadas[0]?.init.headers).get('authorization')).toMatch(/^Bearer /);
+  });
+
+  it('com o acesso renovado agora, manda a renovação nova e grava os cookies', async () => {
+    const tokens = tokensFicticios();
+    const { chamadas } = apiFalsa({
+      'POST /v1/auth/renovar': () => Response.json(tokens),
+      'POST /v1/eu/senha': () => new Response(null, { status: 204 }),
+    });
+
+    const resposta = await postSenha(campos, { rpa_renovacao: 'renovacao-velha' });
+
+    expect(resposta.status).toBe(303);
+    expect(corpoJson(chamadas[1])).toMatchObject({ renovacao: tokens.renovacao });
+    expect(resposta.cookies.get('rpa_renovacao')?.value).toBe(tokens.renovacao);
+  });
+
+  it.each<[Record<string, string>, string]>([
+    [{ ...campos, novaSenha: 'curta', confirmacao: 'curta' }, 'senha_curta'],
+    [{ ...campos, confirmacao: 'outra-senha-123' }, 'confirmacao'],
+  ])('recusa sem chamar a API: %j → %s', async (valores, codigo) => {
+    const { chamadas } = apiFalsa({});
+
+    const resposta = await postSenha(valores);
+
+    expect(resposta.headers.get('location')).toBe(`${SITE_URL}/trocar-senha?erro=${codigo}`);
+    expect(chamadas).toHaveLength(0);
+  });
+
+  it('recusa da API volta com o código dela', async () => {
+    apiFalsa({
+      'POST /v1/eu/senha': () =>
+        Response.json(
+          { erro: { codigo: 'senha_atual_incorreta', mensagem: 'Senha atual incorreta.' } },
+          { status: 400 },
+        ),
+    });
+
+    const resposta = await postSenha(campos);
+
+    expect(resposta.headers.get('location')).toBe(
+      `${SITE_URL}/trocar-senha?erro=senha_atual_incorreta`,
+    );
+  });
+
+  it('sem sessão: vai para /entrar e apaga os cookies', async () => {
+    apiFalsa({});
+
+    const resposta = await postSenha(campos, {});
+
+    expect(resposta.headers.get('location')).toBe(`${SITE_URL}/entrar`);
+    expect(resposta.cookies.get('rpa_acesso')?.value).toBe('');
+  });
+
+  it('recusa com 403 o POST de outra origem', async () => {
+    const { chamadas } = apiFalsa({});
+
+    const resposta = await postSenha(campos, undefined, 'https://mal.exemplo');
+
+    expect(resposta.status).toBe(403);
+    expect(chamadas).toHaveLength(0);
   });
 });

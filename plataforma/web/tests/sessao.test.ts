@@ -94,12 +94,17 @@ describe('origemPermitida', () => {
 });
 
 describe('caminhoPermitido', () => {
-  it.each(['/v1/eu', '/v1/empresas/aba/artes', '/v1/cores', '/v1/cores/1', '/v1/maquinas'])(
-    'permite %s',
-    (caminho) => {
-      expect(caminhoPermitido(caminho)).toBe(true);
-    },
-  );
+  it.each([
+    '/v1/eu',
+    '/v1/eu/senha',
+    '/v1/empresas/aba/artes',
+    '/v1/cores',
+    '/v1/cores/1',
+    '/v1/maquinas',
+    '/v1/usuarios',
+  ])('permite %s', (caminho) => {
+    expect(caminhoPermitido(caminho)).toBe(true);
+  });
 
   it.each([
     '/v1/auth/entrar',

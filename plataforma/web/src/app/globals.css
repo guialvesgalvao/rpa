@@ -604,18 +604,27 @@ footer {
   overflow-wrap: anywhere;
   margin-top: 2px;
 }
-.tabela-historico {
+.tabela-historico,
+.tabela {
   width: 100%;
   border-collapse: collapse;
   font-size: 14px;
 }
 .tabela-historico th,
-.tabela-historico td {
+.tabela-historico td,
+.tabela th,
+.tabela td {
   text-align: left;
   padding: 8px 6px;
   border-bottom: 1px solid var(--border);
 }
-.tabela-historico th {
+.tabela-historico th,
+.tabela th {
   font-size: 12px;
   color: var(--muted);
+}
+
+/* Usuários: a tabela rola de lado em telas estreitas. */
+.tabela-rolagem {
+  overflow-x: auto;
 }

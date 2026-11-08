@@ -355,11 +355,28 @@ export const tarefasArteComentarios = pgTable(
     criadoEm: instante('criado_em').notNull().defaultNow(),
   },
   (t) => [
-    check(
-      'tarefas_arte_comentarios_texto_valido',
-      sql`btrim(${t.texto}) <> '' and char_length(${t.texto}) <= 2000`,
-    ),
+    // Texto pode ficar vazio quando há anexo; a regra "texto ou anexo" é da API.
+    check('tarefas_arte_comentarios_texto_valido', sql`char_length(${t.texto}) <= 2000`),
     index('tarefas_arte_comentarios_tarefa_idx').on(t.tarefaId, t.criadoEm),
+  ],
+);
+
+// Anexos (PDF ou imagem) de um comentário, na ordem do envio. O arquivo é de um só anexo.
+export const tarefasArteComentarioAnexos = pgTable(
+  'tarefas_arte_comentario_anexos',
+  {
+    comentarioId: uuid('comentario_id')
+      .notNull()
+      .references(() => tarefasArteComentarios.id, { onDelete: 'cascade' }),
+    arquivoId: uuid('arquivo_id')
+      .notNull()
+      .references(() => arquivos.id)
+      .unique(),
+    ordem: integer('ordem').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.comentarioId, t.ordem] }),
+    check('tarefas_arte_comentario_anexos_ordem_valida', sql`${t.ordem} between 0 and 4`),
   ],
 );
 

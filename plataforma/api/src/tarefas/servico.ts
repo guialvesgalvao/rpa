@@ -16,17 +16,20 @@ import { alias } from 'drizzle-orm/pg-core';
 import {
   type Armazenamento,
   duplicada,
+  gravarArquivo,
   inserirArte,
   NO_BANCO,
   type NovaArte,
   violouUnico,
 } from '../artes/servico.js';
-import { comObjetosGravados } from '../arquivos/armazem.js';
+import { type ArquivoRecebido, comObjetosGravados } from '../arquivos/armazem.js';
 import type { Banco } from '../db/cliente.js';
 import {
   clientes,
   produtos,
+  arquivos,
   tarefasArte,
+  tarefasArteComentarioAnexos,
   tarefasArteComentarios,
   tarefasArteHistorico,
   usuarios,
@@ -303,10 +306,32 @@ async function comentariosDa(db: Banco, tarefaId: string): Promise<ComentarioTar
     .leftJoin(autor, eq(autor.id, tarefasArteComentarios.autorId))
     .where(eq(tarefasArteComentarios.tarefaId, tarefaId))
     .orderBy(asc(tarefasArteComentarios.criadoEm), asc(tarefasArteComentarios.id));
+  const anexos = linhas.length
+    ? await db
+        .select({
+          comentarioId: tarefasArteComentarioAnexos.comentarioId,
+          id: arquivos.id,
+          nome: arquivos.nomeOriginal,
+          tipoMime: arquivos.tipoMime,
+          tamanho: arquivos.tamanho,
+        })
+        .from(tarefasArteComentarioAnexos)
+        .innerJoin(arquivos, eq(arquivos.id, tarefasArteComentarioAnexos.arquivoId))
+        .where(
+          inArray(
+            tarefasArteComentarioAnexos.comentarioId,
+            linhas.map((l) => l.id),
+          ),
+        )
+        .orderBy(asc(tarefasArteComentarioAnexos.ordem))
+    : [];
   return linhas.map((l) => ({
     id: l.id,
     autor: pessoa(l.autorId, l.autorNome),
     texto: l.texto,
+    anexos: anexos
+      .filter((a) => a.comentarioId === l.id)
+      .map(({ id, nome, tipoMime, tamanho }) => ({ id, nome, tipoMime, tamanho })),
     criadoEm: l.criadoEm.toISOString(),
   }));
 }
@@ -321,21 +346,78 @@ export async function detalharTarefa(
   return tarefa ? { ...tarefa, comentarios: await comentariosDa(db, tarefaId) } : null;
 }
 
-// `null` fora do alcance. O texto já vem aparado e validado (`EsquemaNovoComentario`).
+// `null` fora do alcance. O texto já vem aparado e com o tamanho conferido; texto vazio só com anexo. Os anexos
+// (tipo e tamanho já conferidos pela rota) vão para o armazém antes da transação.
 export async function comentar(
   db: Banco,
-  entrada: { empresaId: string; tarefaId: string; acesso: Acesso; texto: string },
+  entrada: {
+    empresaId: string;
+    tarefaId: string;
+    acesso: Acesso;
+    texto: string;
+    anexos?: ArquivoRecebido[];
+  },
+  { armazem, log }: Armazenamento = NO_BANCO,
 ): Promise<ComentarioTarefa | null> {
+  const anexos = entrada.anexos ?? [];
+  if (!entrada.texto && anexos.length === 0) {
+    throw new ErroApi(400, 'comentario_vazio', 'Escreva o comentário ou anexe um arquivo.');
+  }
+  const tarefa = await obterTarefa(db, entrada.empresaId, entrada.tarefaId, entrada.acesso);
+  if (!tarefa) return null;
+  const comentarioId = await comObjetosGravados(
+    armazem,
+    anexos,
+    () =>
+      db.transaction(async (tx) => {
+        const [linha] = await tx
+          .insert(tarefasArteComentarios)
+          .values({ tarefaId: tarefa.id, autorId: entrada.acesso.usuarioId, texto: entrada.texto })
+          .returning({ id: tarefasArteComentarios.id });
+        if (!linha) throw new Error('Comentário não gravado.');
+        for (const [ordem, anexo] of anexos.entries()) {
+          const arquivoId = await gravarArquivo(tx, anexo);
+          await tx
+            .insert(tarefasArteComentarioAnexos)
+            .values({ comentarioId: linha.id, arquivoId, ordem });
+        }
+        return linha.id;
+      }),
+    log,
+  );
+  const comentario = (await comentariosDa(db, tarefa.id)).find((c) => c.id === comentarioId);
+  if (!comentario) throw new Error('Comentário não gravado.');
+  return comentario;
+}
+
+// Arquivo de um anexo de comentário da tarefa; `null` se a tarefa está fora do alcance ou o anexo não é dela.
+export async function anexoDoComentario(
+  db: Banco,
+  entrada: {
+    empresaId: string;
+    tarefaId: string;
+    comentarioId: string;
+    anexoId: string;
+    acesso: Acesso;
+  },
+): Promise<string | null> {
   const tarefa = await obterTarefa(db, entrada.empresaId, entrada.tarefaId, entrada.acesso);
   if (!tarefa) return null;
   const [linha] = await db
-    .insert(tarefasArteComentarios)
-    .values({ tarefaId: tarefa.id, autorId: entrada.acesso.usuarioId, texto: entrada.texto })
-    .returning({ id: tarefasArteComentarios.id });
-  if (!linha) throw new Error('Comentário não gravado.');
-  const comentario = (await comentariosDa(db, tarefa.id)).find((c) => c.id === linha.id);
-  if (!comentario) throw new Error('Comentário não gravado.');
-  return comentario;
+    .select({ arquivoId: tarefasArteComentarioAnexos.arquivoId })
+    .from(tarefasArteComentarioAnexos)
+    .innerJoin(
+      tarefasArteComentarios,
+      eq(tarefasArteComentarios.id, tarefasArteComentarioAnexos.comentarioId),
+    )
+    .where(
+      and(
+        eq(tarefasArteComentarios.tarefaId, tarefa.id),
+        eq(tarefasArteComentarios.id, entrada.comentarioId),
+        eq(tarefasArteComentarioAnexos.arquivoId, entrada.anexoId),
+      ),
+    );
+  return linha?.arquivoId ?? null;
 }
 
 // Mudanças de status, da mais antiga (a criação) para a mais nova. `null` fora do alcance.

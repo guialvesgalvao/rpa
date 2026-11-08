@@ -85,6 +85,13 @@
       "when": 1794109692131,
       "tag": "0011_arquivos_objeto",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1794111229840,
+      "tag": "0012_comentario_anexos",
+      "breakpoints": true
     }
   ]
 }

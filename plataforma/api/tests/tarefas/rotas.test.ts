@@ -15,7 +15,7 @@ import type { FastifyInstance, LightMyRequestResponse } from 'fastify';
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
-import { gerarCnpj, PDF_MINIMO } from '../../src/cli/semear-dev.js';
+import { gerarCnpj, PDF_MINIMO, PNG_1X1 } from '../../src/cli/semear-dev.js';
 import {
   clientes,
   cores,
@@ -28,6 +28,7 @@ import {
 import { criarUsuario } from '../../src/usuarios/servico.js';
 import { criarAppTeste } from '../helpers/app.js';
 import { criarBancoTeste, limparTabelas } from '../helpers/banco.js';
+import { chavesNoBucket, criarArmazemTeste, limparBucket } from '../helpers/s3.js';
 
 // Dados sintéticos.
 const { db, fechar } = criarBancoTeste();
@@ -461,5 +462,173 @@ describe('comentários', () => {
       payload: { texto: '   ' },
     });
     esperarErro(resposta, 400, 'requisicao_invalida');
+  });
+});
+
+describe('anexos nos comentários', () => {
+  type Anexo = { nome: string; conteudo: Buffer };
+
+  function comentarComAnexos(
+    id: string,
+    { texto, anexos = [] }: { texto?: string; anexos?: Anexo[] },
+    token = tokenAna,
+    alvo: FastifyInstance = app,
+  ) {
+    const blocos: Buffer[] = [];
+    if (texto !== undefined) {
+      blocos.push(
+        Buffer.from(
+          `--${FRONTEIRA}\r\nContent-Disposition: form-data; name="texto"\r\n\r\n${texto}\r\n`,
+        ),
+      );
+    }
+    for (const anexo of anexos) {
+      blocos.push(
+        Buffer.from(
+          `--${FRONTEIRA}\r\nContent-Disposition: form-data; name="anexos"; filename="${anexo.nome}"\r\nContent-Type: application/octet-stream\r\n\r\n`,
+        ),
+        anexo.conteudo,
+        Buffer.from('\r\n'),
+      );
+    }
+    blocos.push(Buffer.from(`--${FRONTEIRA}--\r\n`));
+    return alvo.inject({
+      method: 'POST',
+      url: urlTarefa(id, '/comentarios'),
+      payload: Buffer.concat(blocos),
+      headers: { 'content-type': `multipart/form-data; boundary=${FRONTEIRA}`, ...auth(token) },
+    });
+  }
+
+  const baixar = (tarefaId: string, comentarioId: string, anexoId: string, token = tokenAna) =>
+    app.inject({
+      method: 'GET',
+      url: urlTarefa(tarefaId, `/comentarios/${comentarioId}/anexos/${anexoId}`),
+      headers: auth(token),
+    });
+
+  const pdf = (nome = 'briefing.pdf'): Anexo => ({ nome, conteudo: PDF_MINIMO });
+
+  it('só anexo: texto vazio e o anexo com nome, tipo e tamanho', async () => {
+    const tarefa = await criar();
+    const resposta = await comentarComAnexos(tarefa.id, { anexos: [pdf()] });
+    expect(resposta.statusCode).toBe(201);
+    const comentario = EsquemaComentarioTarefa.parse(resposta.json());
+    expect(comentario.texto).toBe('');
+    expect(comentario.anexos).toEqual([
+      {
+        id: expect.any(String),
+        nome: 'briefing.pdf',
+        tipoMime: 'application/pdf',
+        tamanho: PDF_MINIMO.length,
+      },
+    ]);
+  });
+
+  it('texto e anexos: na ordem do envio, também no detalhe da tarefa', async () => {
+    const tarefa = await criar();
+    const resposta = await comentarComAnexos(tarefa.id, {
+      texto: '  Segue o material  ',
+      anexos: [pdf('a.pdf'), { nome: 'b.png', conteudo: PNG_1X1 }],
+    });
+    expect(resposta.statusCode).toBe(201);
+    const detalhe = EsquemaTarefaDetalhe.parse(
+      (
+        await app.inject({ method: 'GET', url: urlTarefa(tarefa.id), headers: auth(tokenAna) })
+      ).json(),
+    );
+    expect(detalhe.comentarios[0]?.texto).toBe('Segue o material');
+    expect(detalhe.comentarios[0]?.anexos.map((a) => [a.nome, a.tipoMime])).toEqual([
+      ['a.pdf', 'application/pdf'],
+      ['b.png', 'image/png'],
+    ]);
+  });
+
+  it('só texto em JSON continua funcionando, sem anexos', async () => {
+    const tarefa = await criar();
+    const resposta = await app.inject({
+      method: 'POST',
+      url: urlTarefa(tarefa.id, '/comentarios'),
+      headers: auth(tokenAna),
+      payload: { texto: 'Sem anexo' },
+    });
+    expect(EsquemaComentarioTarefa.parse(resposta.json()).anexos).toEqual([]);
+  });
+
+  it('6 anexos: 400; sem texto nem anexo: 400; tipo trocado: 415', async () => {
+    const tarefa = await criar();
+    const seis = Array.from({ length: 6 }, (_, i) => pdf(`a${i}.pdf`));
+    esperarErro(await comentarComAnexos(tarefa.id, { anexos: seis }), 400, 'anexos_demais');
+    esperarErro(await comentarComAnexos(tarefa.id, { texto: '  ' }), 400, 'comentario_vazio');
+    const trocado = { nome: 'falso.pdf', conteudo: Buffer.from('texto qualquer, não é PDF') };
+    esperarErro(
+      await comentarComAnexos(tarefa.id, { anexos: [trocado] }),
+      415,
+      'tipo_nao_suportado',
+    );
+    const detalhe = EsquemaTarefaDetalhe.parse(
+      (
+        await app.inject({ method: 'GET', url: urlTarefa(tarefa.id), headers: auth(tokenAna) })
+      ).json(),
+    );
+    expect(detalhe.comentarios).toEqual([]);
+  });
+
+  it('download: quem alcança a tarefa baixa; outro arte finalista e anexo de outro comentário, 404', async () => {
+    const tarefa = await criar();
+    const comentario = EsquemaComentarioTarefa.parse(
+      (await comentarComAnexos(tarefa.id, { anexos: [pdf('Briefing ção.pdf')] })).json(),
+    );
+    const anexo = comentario.anexos[0]!;
+
+    const daAna = await baixar(tarefa.id, comentario.id, anexo.id);
+    expect(daAna.statusCode).toBe(200);
+    expect(daAna.headers['content-type']).toBe('application/pdf');
+    expect(daAna.headers['content-disposition']).toMatch(/^attachment; /);
+    expect(daAna.headers['x-content-type-options']).toBe('nosniff');
+    expect(daAna.rawPayload.equals(PDF_MINIMO)).toBe(true);
+    expect((await baixar(tarefa.id, comentario.id, anexo.id, tokenAdmin)).statusCode).toBe(200);
+
+    esperarErro(
+      await baixar(tarefa.id, comentario.id, anexo.id, tokenBia),
+      404,
+      'anexo_nao_encontrado',
+    );
+    const outro = EsquemaComentarioTarefa.parse(
+      (await comentarComAnexos(tarefa.id, { texto: 'outro' })).json(),
+    );
+    esperarErro(await baixar(tarefa.id, outro.id, anexo.id), 404, 'anexo_nao_encontrado');
+    esperarErro(await baixar(tarefa.id, comentario.id, 'x'), 404, 'anexo_nao_encontrado');
+  });
+
+  it('com o bucket configurado, o anexo vai para o bucket e o download lê de lá', async () => {
+    const armazem = criarArmazemTeste();
+    await limparBucket(armazem);
+    const { app: comBucket } = criarAppTeste(db, { armazem });
+    try {
+      const tarefa = await criar();
+      const resposta = await comentarComAnexos(
+        tarefa.id,
+        { anexos: [{ nome: 'ref.png', conteudo: PNG_1X1 }] },
+        tokenAna,
+        comBucket,
+      );
+      expect(resposta.statusCode).toBe(201);
+      const comentario = EsquemaComentarioTarefa.parse(resposta.json());
+      expect(await chavesNoBucket(armazem)).toHaveLength(1);
+      const baixado = await comBucket.inject({
+        method: 'GET',
+        url: urlTarefa(
+          tarefa.id,
+          `/comentarios/${comentario.id}/anexos/${comentario.anexos[0]!.id}`,
+        ),
+        headers: auth(tokenAna),
+      });
+      expect(baixado.statusCode).toBe(200);
+      expect(baixado.rawPayload.equals(PNG_1X1)).toBe(true);
+    } finally {
+      await comBucket.close();
+      await limparBucket(armazem);
+    }
   });
 });

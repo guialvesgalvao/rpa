@@ -53,11 +53,22 @@ export const EsquemaTarefa = z.object({
 });
 
 export const COMENTARIO_TAREFA_MAX = 2000;
+// Anexos por comentário (PDF ou imagem, com os limites das artes).
+export const ANEXOS_POR_COMENTARIO = 5;
+
+export const EsquemaAnexoComentario = z.object({
+  id: z.uuid(),
+  nome: z.string(),
+  tipoMime: z.string(),
+  tamanho: z.number().int().positive(),
+});
 
 export const EsquemaComentarioTarefa = z.object({
   id: z.uuid(),
   autor: EsquemaOpcao.nullable(),
+  // Vazio quando o comentário é só anexo.
   texto: z.string(),
+  anexos: z.array(EsquemaAnexoComentario).default([]),
   criadoEm: z.iso.datetime(),
 });
 
@@ -83,6 +94,7 @@ export const EsquemaMudancaStatus = z.object({ status: EsquemaStatusTarefa });
 export type ConsultaTarefas = z.infer<typeof EsquemaConsultaTarefas>;
 export type Tarefa = z.infer<typeof EsquemaTarefa>;
 export type ComentarioTarefa = z.infer<typeof EsquemaComentarioTarefa>;
+export type AnexoComentario = z.infer<typeof EsquemaAnexoComentario>;
 export type TarefaDetalhe = z.infer<typeof EsquemaTarefaDetalhe>;
 export type EventoTarefa = z.infer<typeof EsquemaEventoTarefa>;
 export type NovoComentario = z.infer<typeof EsquemaNovoComentario>;

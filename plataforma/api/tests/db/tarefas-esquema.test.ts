@@ -133,12 +133,12 @@ describe('comentários e histórico', () => {
     return linha!.id;
   }
 
-  it('recusa comentário vazio ou longo demais', async () => {
+  it('recusa comentário longo demais; vazio é aceito (só anexo, regra da API)', async () => {
     const tarefaId = await tarefa();
-    for (const texto of ['   ', 'x'.repeat(2001)]) {
-      const insercao = db.insert(tarefasArteComentarios).values({ tarefaId, texto });
-      expect(await codigoDoErro(insercao)).toBe(VIOLA_CHECK);
-    }
+    const longo = db.insert(tarefasArteComentarios).values({ tarefaId, texto: 'x'.repeat(2001) });
+    expect(await codigoDoErro(longo)).toBe(VIOLA_CHECK);
+    const vazio = db.insert(tarefasArteComentarios).values({ tarefaId, texto: '' });
+    expect(await codigoDoErro(vazio)).toBeUndefined();
   });
 
   it('recusa status inválido no histórico e aceita a criação sem status anterior', async () => {

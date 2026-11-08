@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  ANEXOS_POR_COMENTARIO,
   ATALHOS_TAREFAS,
+  EsquemaComentarioTarefa,
   EsquemaConsultaTarefas,
   EsquemaContagemTarefas,
   EsquemaNovoComentario,
@@ -72,6 +74,23 @@ describe('tarefas de arte', () => {
       'Aguardando validação',
       'Todos',
     ]);
+  });
+
+  it('comentário: anexos (até 5) e lista vazia quando a resposta não os traz', () => {
+    expect(ANEXOS_POR_COMENTARIO).toBe(5);
+    const comentario = {
+      id: '00000000-0000-4000-8000-000000000001',
+      autor: null,
+      texto: '',
+      criadoEm: '2026-11-07T12:00:00.000Z',
+    };
+    expect(EsquemaComentarioTarefa.parse(comentario).anexos).toEqual([]);
+    expect(
+      EsquemaComentarioTarefa.safeParse({
+        ...comentario,
+        anexos: [{ id: comentario.id, nome: 'a.pdf', tipoMime: 'application/pdf', tamanho: 0 }],
+      }).success,
+    ).toBe(false);
   });
 
   it('título e conclusão', () => {

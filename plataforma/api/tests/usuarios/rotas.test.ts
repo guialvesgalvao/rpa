@@ -1,6 +1,8 @@
 import {
   EsquemaErro,
+  EsquemaEu,
   EsquemaRespostaEntrar,
+  EsquemaTokens,
   EsquemaUsuarioResumo,
   type Perfil,
 } from '@plataforma/contratos';
@@ -161,5 +163,139 @@ describe('GET /v1/usuarios', () => {
     const lista = z.array(EsquemaUsuarioResumo).parse(resposta.json());
     expect(lista.map((u) => u.email)).toEqual(['adm-aba@exemplo.com', 'so-aba@exemplo.com']);
     expect(resposta.body).not.toMatch(/hash/i);
+  });
+});
+
+describe('troca de senha', () => {
+  const NOVA = 'senha-nova-456789';
+
+  async function entrarCom(email: string, senha: string) {
+    const resposta = await app.inject({
+      method: 'POST',
+      url: '/v1/auth/entrar',
+      payload: { email, senha, origem: 'desktop' },
+    });
+    return resposta;
+  }
+
+  const trocar = (token: string, corpo: Record<string, unknown>) =>
+    app.inject({ method: 'POST', url: '/v1/eu/senha', headers: auth(token), payload: corpo });
+
+  const renovar = (renovacao: string) =>
+    app.inject({ method: 'POST', url: '/v1/auth/renovar', payload: { renovacao } });
+
+  it('usuário criado pela tela entra com deveTrocarSenha; depois da troca, false', async () => {
+    const admin = await entrar('adm@exemplo.com', 'admin', ['aba']);
+    const inicial = 'senha-inicial-123';
+    await criar(admin, { ...novo('nova@exemplo.com', ['aba']), senha: inicial });
+
+    const login = EsquemaRespostaEntrar.parse(
+      (await entrarCom('nova@exemplo.com', inicial)).json(),
+    );
+    expect(login.eu.deveTrocarSenha).toBe(true);
+    const eu = await app.inject({ method: 'GET', url: '/v1/eu', headers: auth(login.acesso) });
+    expect(EsquemaEu.parse(eu.json()).deveTrocarSenha).toBe(true);
+
+    const resposta = await trocar(login.acesso, { senhaAtual: inicial, novaSenha: NOVA });
+    expect(resposta.statusCode).toBe(204);
+    const depois = await app.inject({ method: 'GET', url: '/v1/eu', headers: auth(login.acesso) });
+    expect(EsquemaEu.parse(depois.json()).deveTrocarSenha).toBe(false);
+    expect((await entrarCom('nova@exemplo.com', inicial)).statusCode).toBe(401);
+    expect((await entrarCom('nova@exemplo.com', NOVA)).statusCode).toBe(200);
+  });
+
+  it('usuário da CLI entra sem pedido de troca', async () => {
+    await criarUsuario(db, {
+      email: 'cli@exemplo.com',
+      nome: 'Cli Ficticio',
+      perfil: 'admin',
+      senha: SENHA,
+      empresas: ['aba'],
+    });
+    const login = EsquemaRespostaEntrar.parse((await entrarCom('cli@exemplo.com', SENHA)).json());
+    expect(login.eu.deveTrocarSenha).toBe(false);
+  });
+
+  it('senha atual errada, nova curta ou igual: 400, e nada muda', async () => {
+    const token = await entrar('ana@exemplo.com', 'arte_finalista', ['aba']);
+    esperarErro(
+      await trocar(token, { senhaAtual: 'errada-errada', novaSenha: NOVA }),
+      400,
+      'senha_atual_incorreta',
+    );
+    esperarErro(
+      await trocar(token, { senhaAtual: SENHA, novaSenha: 'curta' }),
+      400,
+      'requisicao_invalida',
+    );
+    esperarErro(
+      await trocar(token, { senhaAtual: SENHA, novaSenha: SENHA }),
+      400,
+      'senha_repetida',
+    );
+    expect((await entrarCom('ana@exemplo.com', SENHA)).statusCode).toBe(200);
+  });
+
+  it('revoga as outras sessões e mantém a de quem trocou', async () => {
+    await criarUsuario(db, {
+      email: 'ana@exemplo.com',
+      nome: 'Ana Ficticia',
+      perfil: 'arte_finalista',
+      senha: SENHA,
+      empresas: ['aba'],
+    });
+    const atual = EsquemaRespostaEntrar.parse((await entrarCom('ana@exemplo.com', SENHA)).json());
+    const outra = EsquemaRespostaEntrar.parse((await entrarCom('ana@exemplo.com', SENHA)).json());
+
+    const resposta = await trocar(atual.acesso, {
+      senhaAtual: SENHA,
+      novaSenha: NOVA,
+      renovacao: atual.renovacao,
+    });
+    expect(resposta.statusCode).toBe(204);
+    esperarErro(await renovar(outra.renovacao), 401, 'sessao_invalida');
+    const renovada = await renovar(atual.renovacao);
+    expect(renovada.statusCode).toBe(200);
+    EsquemaTokens.parse(renovada.json());
+  });
+
+  it('sem a sessão no corpo, revoga todas', async () => {
+    await criarUsuario(db, {
+      email: 'ana@exemplo.com',
+      nome: 'Ana Ficticia',
+      perfil: 'arte_finalista',
+      senha: SENHA,
+      empresas: ['aba'],
+    });
+    const login = EsquemaRespostaEntrar.parse((await entrarCom('ana@exemplo.com', SENHA)).json());
+    expect((await trocar(login.acesso, { senhaAtual: SENHA, novaSenha: NOVA })).statusCode).toBe(
+      204,
+    );
+    esperarErro(await renovar(login.renovacao), 401, 'sessao_invalida');
+  });
+
+  it('limita as tentativas por usuário: 429', async () => {
+    const token = await entrar('ana@exemplo.com', 'arte_finalista', ['aba']);
+    for (let i = 0; i < 5; i++) {
+      esperarErro(
+        await trocar(token, { senhaAtual: 'errada-errada', novaSenha: NOVA }),
+        400,
+        'senha_atual_incorreta',
+      );
+    }
+    esperarErro(
+      await trocar(token, { senhaAtual: SENHA, novaSenha: NOVA }),
+      429,
+      'muitas_tentativas',
+    );
+  });
+
+  it('sem login: 401', async () => {
+    const resposta = await app.inject({
+      method: 'POST',
+      url: '/v1/eu/senha',
+      payload: { senhaAtual: SENHA, novaSenha: NOVA },
+    });
+    esperarErro(resposta, 401, 'nao_autenticado');
   });
 });

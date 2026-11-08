@@ -28,6 +28,7 @@ export function respostaEntrar(empresas: string[] = ['aba', 'roma']): RespostaEn
       email: 'pessoa@exemplo.com',
       perfil: 'arte_finalista',
       empresas: empresas.map((slug) => ({ slug, nome: slug.toUpperCase() })),
+      deveTrocarSenha: false,
     },
   };
 }

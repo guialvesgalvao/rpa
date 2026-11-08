@@ -26,6 +26,8 @@ export const EsquemaEu = z.object({
   email: z.email(),
   perfil: EsquemaPerfil,
   empresas: z.array(z.object({ slug: z.string(), nome: z.string() })),
+  // Senha inicial definida pelo admin: a tela leva à troca. Ausente (API antiga ou sessão salva) = `false`.
+  deveTrocarSenha: z.boolean().default(false),
 });
 
 export const EsquemaRespostaEntrar = EsquemaTokens.extend({ eu: EsquemaEu });

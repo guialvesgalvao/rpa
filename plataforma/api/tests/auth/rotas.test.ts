@@ -97,6 +97,7 @@ describe('POST /v1/auth/entrar', () => {
         { slug: 'aba', nome: 'ABA Embalagens' },
         { slug: 'roma', nome: 'Roma Embalagens' },
       ],
+      deveTrocarSenha: false,
     });
     expect(new Date(corpo.expiraEm)).toEqual(
       new Date(relogio.agora().getTime() + DURACAO_ACESSO_MS),

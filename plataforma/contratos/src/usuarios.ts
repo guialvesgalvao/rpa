@@ -34,7 +34,15 @@ export const EsquemaUsuarioResumo = z.object({
   criadoEm: z.iso.datetime(),
 });
 
+// Troca da própria senha. `renovacao`: a sessão de quem troca, que continua aberta; as outras são revogadas.
+export const EsquemaTrocaSenha = z.object({
+  senhaAtual: z.string().min(1).max(SENHA_MAXIMA),
+  novaSenha: EsquemaSenhaNova,
+  renovacao: z.string().min(1).max(256).optional(),
+});
+
 export type NovoUsuario = z.infer<typeof EsquemaNovoUsuario>;
+export type TrocaSenha = z.infer<typeof EsquemaTrocaSenha>;
 export type UsuarioResumo = z.infer<typeof EsquemaUsuarioResumo>;
 
 // O admin só atribui empresas que são dele: todas as pedidas dentro das do admin, sem repetir.

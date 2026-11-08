@@ -17,6 +17,7 @@ const EU: Eu = {
   email: 'teste@example.com',
   perfil: 'admin',
   empresas: [{ slug: 'aba', nome: 'ABA' }],
+  deveTrocarSenha: false,
 };
 
 const cifra: CifraSessao = {

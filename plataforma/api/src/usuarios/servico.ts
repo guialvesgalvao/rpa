@@ -1,8 +1,9 @@
 import { SENHA_MINIMA } from '@plataforma/contratos';
-import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
-import { gerarHash } from '../auth/senha.js';
+import { conferirSenha, gerarHash } from '../auth/senha.js';
+import { hashDoToken, type MotivoRevogacao } from '../auth/sessoes.js';
 import type { Banco } from '../db/cliente.js';
 import {
   empresas,
@@ -22,7 +23,7 @@ export class ErroUsuario extends Error {
   constructor(
     mensagem: string,
     // Para a API escolher o status; os demais são dado inválido.
-    readonly codigo?: 'email_em_uso',
+    readonly codigo?: 'email_em_uso' | 'senha_atual_incorreta' | 'senha_repetida',
   ) {
     super(mensagem);
   }
@@ -165,6 +166,47 @@ export async function desativar(db: Banco, email: string): Promise<void> {
   });
 }
 
+// Troca da própria senha: confere a atual, grava a nova, desliga o pedido de troca e revoga as outras sessões
+// (a de `manterRenovacao`, se informada, continua aberta).
+export async function trocarSenha(
+  db: Banco,
+  dados: { usuarioId: string; senhaAtual: string; novaSenha: string; manterRenovacao?: string },
+): Promise<void> {
+  const [usuario] = await db
+    .select({ senhaHash: usuarios.senhaHash })
+    .from(usuarios)
+    .where(eq(usuarios.id, dados.usuarioId));
+  if (!usuario || !(await conferirSenha(dados.senhaAtual, usuario.senhaHash))) {
+    throw new ErroUsuario('Senha atual incorreta.', 'senha_atual_incorreta');
+  }
+  if (dados.novaSenha === dados.senhaAtual) {
+    throw new ErroUsuario('A nova senha precisa ser diferente da atual.', 'senha_repetida');
+  }
+  const senhaHash = await gerarHash(validar(EsquemaSenha, dados.novaSenha));
+  const manter = dados.manterRenovacao ? hashDoToken(dados.manterRenovacao) : undefined;
+  await db.transaction(async (tx) => {
+    await tx
+      .update(usuarios)
+      .set({ senhaHash, deveTrocarSenha: false, atualizadoEm: sql`now()` })
+      .where(eq(usuarios.id, dados.usuarioId));
+    await tx
+      .update(sessoes)
+      .set({ revogadaEm: sql`now()`, motivoRevogacao: 'troca_senha' satisfies MotivoRevogacao })
+      .where(
+        and(
+          eq(sessoes.usuarioId, dados.usuarioId),
+          isNull(sessoes.revogadaEm),
+          manter
+            ? and(
+                ne(sessoes.hashAtual, manter),
+                or(isNull(sessoes.hashAnterior), ne(sessoes.hashAnterior, manter)),
+              )
+            : undefined,
+        ),
+      );
+  });
+}
+
 export type Credenciais = { id: string; senhaHash: string; ativo: boolean };
 
 export type PerfilUsuario = {
@@ -173,6 +215,7 @@ export type PerfilUsuario = {
   email: string;
   perfil: Perfil;
   ativo: boolean;
+  deveTrocarSenha: boolean;
   empresas: { slug: string; nome: string }[];
 };
 
@@ -205,6 +248,7 @@ export async function buscarPerfil(db: Banco, id: string): Promise<PerfilUsuario
       email: usuarios.email,
       perfil: usuarios.perfil,
       ativo: usuarios.ativo,
+      deveTrocarSenha: usuarios.deveTrocarSenha,
       empresaSlug: empresas.slug,
       empresaNome: empresas.nome,
     })
@@ -216,11 +260,11 @@ export async function buscarPerfil(db: Banco, id: string): Promise<PerfilUsuario
 
   const [primeira] = linhas;
   if (!primeira) return undefined;
-  const { nome, email, perfil, ativo } = primeira;
+  const { nome, email, perfil, ativo, deveTrocarSenha } = primeira;
   const vinculadas = linhas.flatMap(({ empresaSlug, empresaNome }) =>
     empresaSlug && empresaNome ? [{ slug: empresaSlug, nome: empresaNome }] : [],
   );
-  return { id, nome, email, perfil, ativo, empresas: vinculadas };
+  return { id, nome, email, perfil, ativo, deveTrocarSenha, empresas: vinculadas };
 }
 
 // Usuários (com ao menos uma empresa) cujas empresas estão todas entre as informadas: o que o admin dessas

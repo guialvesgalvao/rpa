@@ -1,10 +1,12 @@
 import {
   EsquemaNovoUsuario,
+  EsquemaTrocaSenha,
   podeAtribuirEmpresas,
   type UsuarioResumo,
 } from '@plataforma/contratos';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 
+import type { Limite } from '../auth/limite.js';
 import type { Banco } from '../db/cliente.js';
 import { ErroApi, lerCorpo } from '../erros.js';
 import { usuarioDe } from '../plugins/autenticacao.js';
@@ -13,6 +15,7 @@ import {
   criarUsuario,
   ErroUsuario,
   listarDoEscopo,
+  trocarSenha,
   type UsuarioListado,
 } from '../usuarios/servico.js';
 
@@ -28,7 +31,10 @@ const paraResumo = ({ id, nome, email, perfil, ativo, empresas, criadoEm }: Usua
 
 // Usuários pela tela (admin): lista e cria só dentro das empresas do próprio admin. Editar, desativar e trocar
 // a senha de outro usuário continuam na CLI.
-export function rotasUsuarios(app: FastifyInstance, { db }: { db: Banco }): void {
+export function rotasUsuarios(
+  app: FastifyInstance,
+  { db, limite }: { db: Banco; limite: Limite },
+): void {
   const preHandler = [app.autenticacao.exigirUsuario, app.autenticacao.exigirPerfil('admin')];
 
   // Empresas do admin lidas do banco: o token pode estar até 15 min desatualizado.
@@ -64,4 +70,34 @@ export function rotasUsuarios(app: FastifyInstance, { db }: { db: Banco }): void
       throw erro;
     }
   });
+
+  // Troca da própria senha (qualquer perfil). Não há bloqueio nas outras rotas: quem pede a troca é a tela.
+  app.post(
+    '/v1/eu/senha',
+    { preHandler: app.autenticacao.exigirUsuario },
+    async (request, reply) => {
+      const { senhaAtual, novaSenha, renovacao } = lerCorpo(EsquemaTrocaSenha, request.body);
+      const { usuarioId } = usuarioDe(request);
+      const chave = `troca-senha:${usuarioId}`;
+      if (limite.bloqueado(chave)) {
+        throw new ErroApi(429, 'muitas_tentativas', 'Muitas tentativas; aguarde alguns minutos.');
+      }
+      limite.registrarTentativa(chave);
+      try {
+        await trocarSenha(db, {
+          usuarioId,
+          senhaAtual,
+          novaSenha,
+          ...(renovacao ? { manterRenovacao: renovacao } : {}),
+        });
+      } catch (erro) {
+        if (erro instanceof ErroUsuario)
+          throw new ErroApi(400, erro.codigo ?? 'requisicao_invalida', erro.message);
+        throw erro;
+      }
+      limite.limpar(chave);
+      request.log.info({ usuarioId }, 'Senha trocada pelo usuário');
+      return reply.code(204).send();
+    },
+  );
 }

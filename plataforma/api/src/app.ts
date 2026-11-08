@@ -58,13 +58,15 @@ export function criarApp({
   app.decorate('autenticacao', criarAutenticacao({ db, tokens, relogio }));
 
   app.get('/v1/saude', async (): Promise<Saude> => ({ status: 'ok' }));
-  rotasAuth(app, { db, tokens, relogio, limite: criarLimite(relogio) });
+  // Um só limite de tentativas: login (por e-mail) e troca de senha (por usuário).
+  const limite = criarLimite(relogio);
+  rotasAuth(app, { db, tokens, relogio, limite });
   rotasClientes(app, { db });
   rotasOpcoes(app, { db });
   rotasArtes(app, { db });
   rotasOp(app, { db });
   rotasTarefas(app, { db });
-  rotasUsuarios(app, { db });
+  rotasUsuarios(app, { db, limite });
   const servicosBling = bling && criarServicosBling(app, { db, jwtSegredo, relogio, bling });
   rotasBling(app, { db, bling: servicosBling });
   if (servicosBling) {

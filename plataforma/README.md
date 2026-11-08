@@ -154,6 +154,29 @@ npm --prefix plataforma -w @plataforma/api run semear-dev
 
 Cria os usuários `admin.dev@exemplo.com` e `finalista.dev@exemplo.com` (senha `senha-dev-1234`, nas duas empresas), 60 clientes e 8 produtos por empresa e algumas artes com arquivos sintéticos.
 
+## Arquivos no bucket
+
+O conteúdo dos arquivos (PDF e imagem das artes) fica num bucket S3 quando as cinco variáveis `ARQUIVOS_S3_*` estão definidas; sem elas, continua no Postgres (`bytea`). A tabela `arquivos` guarda sempre os metadados e, em cada linha, ou o `conteudo` ou a `chave_objeto` (migração `0011`; um CHECK exige exatamente um). A API é a porta de entrada: upload e download passam por ela (o bucket é privado, sem URL pré-assinada). O objeto é gravado antes da transação e apagado se ela falhar; ao trocar ou remover um arquivo, a linha sai primeiro e o objeto depois (falha vira só log com a chave). Rotas de leitura: `GET /v1/empresas/:empresa/artes/:id/imagem` e `GET /v1/empresas/:empresa/artes/:id/pdf` (download, `Content-Disposition: attachment`).
+
+Local: o `docker-compose.yml` sobe um S3 de teste (S3Mock, porta `9090`, buckets `rpa-arquivos` e `rpa-arquivos-teste`, aceita qualquer credencial). Os testes usam o `rpa-arquivos-teste` (`ARQUIVOS_S3_TESTE_URL`, padrão `http://localhost:9090`). Para a API local usar o bucket, veja o exemplo no `.env.example`.
+
+### Migração dos arquivos atuais para o bucket
+
+`arquivos:migrar` copia, em lotes, cada arquivo ainda em `bytea` para o bucket, lê de volta e confere tamanho e sha256, e só então grava a chave e zera o conteúdo. É idempotente (rodar de novo não faz nada) e uma falha deixa a linha como estava. O log mostra só contagens; termina com código 1 se houver falha.
+
+Produção, nesta ordem (executado pelo usuário):
+
+1. Deploy da API com a migração `0011` e as variáveis `ARQUIVOS_S3_*` referenciadas no serviço `api` (artes novas já vão para o bucket).
+2. Com as variáveis do banco e do bucket injetadas pelo `railway run` (nunca coladas em arquivo ou no chat):
+
+   ```bash
+   railway run --service api -- npm --prefix plataforma -w @plataforma/api run arquivos:migrar
+   ```
+
+   O script usa `DATABASE_PUBLIC_URL` se existir (senão `DATABASE_URL`); conecte o serviço do Postgres se a URL pública não vier no `api`.
+
+3. Confira que terminou com `ainda no banco: 0`; se houver falhas, rode de novo.
+
 ## Tarefas de desenvolvimento de arte
 
 Registram o desenvolvimento de uma arte de um produto do catálogo para um cliente (uso no `README.md` da raiz). Tabelas `tarefas_arte`, `tarefas_arte_comentarios` e `tarefas_arte_historico` (migração `0009`); a regra "concluída exige arte" é um CHECK no banco, e a arte da tarefa não pode ser removida (FK `RESTRICT`, a API responde 409 `arte_em_tarefa`). Todas as rotas aceitam admin e arte finalista; o arte finalista só alcança as tarefas de que é responsável (as outras respondem 404).

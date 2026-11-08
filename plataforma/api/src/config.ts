@@ -19,6 +19,52 @@ const VARIAVEIS_S3 = [
   'ARQUIVOS_S3_SEGREDO',
 ] as const;
 
+const camposS3 = {
+  ARQUIVOS_S3_ENDPOINT: opcional(z.url({ error: 'ARQUIVOS_S3_ENDPOINT precisa ser uma URL' })),
+  ARQUIVOS_S3_REGIAO: opcional(z.string().trim()),
+  ARQUIVOS_S3_BUCKET: opcional(z.string().trim()),
+  ARQUIVOS_S3_CHAVE: opcional(z.string().trim()),
+  ARQUIVOS_S3_SEGREDO: opcional(z.string().trim()),
+  // `true`: endereço no estilo endpoint/bucket/chave (conforme a aba Credentials do bucket).
+  ARQUIVOS_S3_ESTILO_CAMINHO: opcional(
+    z.enum(['true', 'false'], { error: 'ARQUIVOS_S3_ESTILO_CAMINHO precisa ser true ou false' }),
+  ),
+};
+type EnvS3 = z.infer<z.ZodObject<typeof camposS3>>;
+
+function conferirS3(env: EnvS3, ctx: z.RefinementCtx): void {
+  const ausentes = VARIAVEIS_S3.filter((nome) => env[nome] === undefined);
+  if (ausentes.length > 0 && ausentes.length < VARIAVEIS_S3.length)
+    ctx.addIssue({
+      code: 'custom',
+      message: `Configuração do bucket incompleta; faltam: ${ausentes.join(', ')}`,
+    });
+}
+
+function montarS3(env: EnvS3): ConfigS3 | undefined {
+  if (
+    env.ARQUIVOS_S3_ENDPOINT === undefined ||
+    env.ARQUIVOS_S3_REGIAO === undefined ||
+    env.ARQUIVOS_S3_BUCKET === undefined ||
+    env.ARQUIVOS_S3_CHAVE === undefined ||
+    env.ARQUIVOS_S3_SEGREDO === undefined
+  )
+    return undefined;
+  return {
+    endpoint: env.ARQUIVOS_S3_ENDPOINT,
+    regiao: env.ARQUIVOS_S3_REGIAO,
+    bucket: env.ARQUIVOS_S3_BUCKET,
+    chave: env.ARQUIVOS_S3_CHAVE,
+    segredo: env.ARQUIVOS_S3_SEGREDO,
+    estiloCaminho: env.ARQUIVOS_S3_ESTILO_CAMINHO === 'true',
+  };
+}
+
+// Só o bucket, para a CLI de migração dos arquivos (não exige as variáveis da API).
+export function lerConfigS3(env: NodeJS.ProcessEnv = process.env): ConfigS3 | undefined {
+  return montarS3(z.object(camposS3).superRefine(conferirS3).parse(env));
+}
+
 const VARIAVEIS_BLING = [
   'BLING_CLIENT_ID',
   'BLING_CLIENT_SECRET',
@@ -58,15 +104,7 @@ const schema = z
         .min(5, 'BLING_INTERVALO_MINUTOS precisa ser de 5 a 1440')
         .max(1440, 'BLING_INTERVALO_MINUTOS precisa ser de 5 a 1440'),
     ),
-    ARQUIVOS_S3_ENDPOINT: opcional(z.url({ error: 'ARQUIVOS_S3_ENDPOINT precisa ser uma URL' })),
-    ARQUIVOS_S3_REGIAO: opcional(z.string().trim()),
-    ARQUIVOS_S3_BUCKET: opcional(z.string().trim()),
-    ARQUIVOS_S3_CHAVE: opcional(z.string().trim()),
-    ARQUIVOS_S3_SEGREDO: opcional(z.string().trim()),
-    // `true`: endereço no estilo endpoint/bucket/chave (conforme a aba Credentials do bucket).
-    ARQUIVOS_S3_ESTILO_CAMINHO: opcional(
-      z.enum(['true', 'false'], { error: 'ARQUIVOS_S3_ESTILO_CAMINHO precisa ser true ou false' }),
-    ),
+    ...camposS3,
     BLING_COMPLETA_DIAS: opcional(
       z.coerce
         .number()
@@ -76,12 +114,7 @@ const schema = z
     ),
   })
   .superRefine((env, ctx) => {
-    const semS3 = VARIAVEIS_S3.filter((nome) => env[nome] === undefined);
-    if (semS3.length > 0 && semS3.length < VARIAVEIS_S3.length)
-      ctx.addIssue({
-        code: 'custom',
-        message: `Configuração do bucket incompleta; faltam: ${semS3.join(', ')}`,
-      });
+    conferirS3(env, ctx);
     const ausentes = VARIAVEIS_BLING.filter((nome) => env[nome] === undefined);
     if (ausentes.length > 0 && ausentes.length < VARIAVEIS_BLING.length)
       ctx.addIssue({
@@ -129,21 +162,8 @@ export function lerConfig(env: NodeJS.ProcessEnv = process.env): Config {
     bancoUrl: parsed.DATABASE_URL,
     jwtSegredo: parsed.JWT_SEGREDO,
   };
-  if (
-    parsed.ARQUIVOS_S3_ENDPOINT !== undefined &&
-    parsed.ARQUIVOS_S3_REGIAO !== undefined &&
-    parsed.ARQUIVOS_S3_BUCKET !== undefined &&
-    parsed.ARQUIVOS_S3_CHAVE !== undefined &&
-    parsed.ARQUIVOS_S3_SEGREDO !== undefined
-  )
-    config.arquivosS3 = {
-      endpoint: parsed.ARQUIVOS_S3_ENDPOINT,
-      regiao: parsed.ARQUIVOS_S3_REGIAO,
-      bucket: parsed.ARQUIVOS_S3_BUCKET,
-      chave: parsed.ARQUIVOS_S3_CHAVE,
-      segredo: parsed.ARQUIVOS_S3_SEGREDO,
-      estiloCaminho: parsed.ARQUIVOS_S3_ESTILO_CAMINHO === 'true',
-    };
+  const arquivosS3 = montarS3(parsed);
+  if (arquivosS3) config.arquivosS3 = arquivosS3;
   if (
     parsed.BLING_CLIENT_ID !== undefined &&
     parsed.BLING_CLIENT_SECRET !== undefined &&

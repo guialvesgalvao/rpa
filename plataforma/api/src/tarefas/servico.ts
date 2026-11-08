@@ -1,5 +1,6 @@
 import {
   type ComentarioTarefa,
+  type ContagemTarefas,
   nomeOuPadrao,
   type EscopoTarefas,
   type EventoTarefa,
@@ -155,6 +156,28 @@ export async function listarTarefas(
     .orderBy(desc(tarefasArte.atualizadoEm), desc(tarefasArte.id))
     .limit(500);
   return linhas.map(paraTarefa);
+}
+
+// Tarefas não terminadas por status, no alcance de quem pede; status sem tarefa vem 0.
+export async function contarPorStatus(
+  db: Banco,
+  empresaId: string,
+  acesso: Acesso,
+): Promise<ContagemTarefas> {
+  const linhas = await db
+    .select({ status: tarefasArte.status, total: sql<number>`count(*)::int` })
+    .from(tarefasArte)
+    .where(and(alcance(empresaId, acesso), inArray(tarefasArte.status, [...STATUS_EM_ANDAMENTO])))
+    .groupBy(tarefasArte.status);
+  const contagem: ContagemTarefas = {
+    nao_iniciada: 0,
+    em_desenvolvimento: 0,
+    aguardando_cliente: 0,
+  };
+  for (const { status, total } of linhas) {
+    if (status in contagem) contagem[status as keyof ContagemTarefas] = total;
+  }
+  return contagem;
 }
 
 const semArte = () =>

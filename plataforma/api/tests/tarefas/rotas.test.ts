@@ -1,6 +1,7 @@
 import {
   EsquemaArteDoProduto,
   EsquemaComentarioTarefa,
+  EsquemaContagemTarefas,
   EsquemaErro,
   EsquemaEventoTarefa,
   EsquemaRespostaEntrar,
@@ -15,7 +16,15 @@ import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
 import { gerarCnpj, PDF_MINIMO } from '../../src/cli/semear-dev.js';
-import { clientes, cores, empresas, maquinas, produtos } from '../../src/db/esquema.js';
+import {
+  clientes,
+  cores,
+  empresas,
+  maquinas,
+  produtos,
+  tarefasArte,
+  usuarios,
+} from '../../src/db/esquema.js';
 import { criarUsuario } from '../../src/usuarios/servico.js';
 import { criarAppTeste } from '../helpers/app.js';
 import { criarBancoTeste, limparTabelas } from '../helpers/banco.js';
@@ -228,6 +237,78 @@ describe('GET /tarefas', () => {
 
   it('consulta inválida: 400', async () => {
     esperarErro(await listar(tokenAdmin, '?escopo=outras'), 400, 'requisicao_invalida');
+  });
+});
+
+describe('GET /tarefas/contagem', () => {
+  const contar = async (token: string, empresa = 'aba') => {
+    const resposta = await app.inject({
+      method: 'GET',
+      url: `/v1/empresas/${empresa}/tarefas/contagem`,
+      headers: auth(token),
+    });
+    expect(resposta.statusCode).toBe(200);
+    return EsquemaContagemTarefas.parse(resposta.json());
+  };
+
+  it('sem tarefas: tudo 0', async () => {
+    expect(await contar(tokenAdmin)).toEqual({
+      nao_iniciada: 0,
+      em_desenvolvimento: 0,
+      aguardando_cliente: 0,
+    });
+  });
+
+  it('o admin conta todas da empresa; o arte finalista, só as próprias; terminadas não contam', async () => {
+    await criar(tokenAna);
+    const a2 = await criar(tokenAna);
+    const b1 = await criar(tokenBia);
+    const b2 = await criar(tokenBia);
+    expect((await mudar(a2.id, 'em_desenvolvimento', tokenAna)).statusCode).toBe(200);
+    expect((await mudar(b1.id, 'aguardando_cliente', tokenBia)).statusCode).toBe(200);
+    expect((await mudar(b2.id, 'cancelada', tokenBia)).statusCode).toBe(200);
+
+    expect(await contar(tokenAdmin)).toEqual({
+      nao_iniciada: 1,
+      em_desenvolvimento: 1,
+      aguardando_cliente: 1,
+    });
+    expect(await contar(tokenAna)).toEqual({
+      nao_iniciada: 1,
+      em_desenvolvimento: 1,
+      aguardando_cliente: 0,
+    });
+    expect(await contar(tokenBia)).toEqual({
+      nao_iniciada: 0,
+      em_desenvolvimento: 0,
+      aguardando_cliente: 1,
+    });
+  });
+
+  it('tarefas de outra empresa não entram', async () => {
+    const roma = await empresaId('roma');
+    const [clienteRoma] = await db
+      .insert(clientes)
+      .values({ empresaId: roma, razaoSocial: 'Copos Ficticios Ltda', cnpj: gerarCnpj(8) })
+      .returning();
+    const [produtoRoma] = await db
+      .insert(produtos)
+      .values({ empresaId: roma, nome: 'Copo Ficticio' })
+      .returning();
+    const [usuario] = await db.select().from(usuarios).where(eq(usuarios.email, 'adm@exemplo.com'));
+    await db.insert(tarefasArte).values({
+      empresaId: roma,
+      clienteId: clienteRoma!.id,
+      produtoId: produtoRoma!.id,
+      responsavelId: usuario!.id,
+    });
+    await criar(tokenAna);
+    expect((await contar(tokenAdmin)).nao_iniciada).toBe(1);
+  });
+
+  it('sem login: 401', async () => {
+    const resposta = await app.inject({ method: 'GET', url: '/v1/empresas/aba/tarefas/contagem' });
+    esperarErro(resposta, 401, 'nao_autenticado');
   });
 });
 

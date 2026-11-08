@@ -1,6 +1,7 @@
 import multipart from '@fastify/multipart';
 import {
   type ComentarioTarefa,
+  type ContagemTarefas,
   EsquemaConsultaTarefas,
   EsquemaMudancaStatus,
   EsquemaNovoComentario,
@@ -18,6 +19,7 @@ import {
   type Acesso,
   comentar,
   concluirTarefa,
+  contarPorStatus,
   criarTarefa,
   detalharTarefa,
   historicoDaTarefa,
@@ -89,6 +91,14 @@ export function rotasTarefas(app: FastifyInstance, { db }: { db: Banco }): void 
         const consulta = lerCorpo(EsquemaConsultaTarefas, request.query);
         return listarTarefas(db, await empresaDe(request), acessoDe(request), consulta);
       },
+    );
+
+    // Contadores dos atalhos da home de Artes.
+    escopo.get(
+      '/v1/empresas/:empresa/tarefas/contagem',
+      { preHandler },
+      async (request): Promise<ContagemTarefas> =>
+        contarPorStatus(db, await empresaDe(request), acessoDe(request)),
     );
 
     escopo.get(

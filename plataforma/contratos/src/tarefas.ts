@@ -96,6 +96,26 @@ export const tituloTarefa = (tarefa: Pick<Tarefa, 'cliente' | 'produto'>): strin
 export const precisaDaArteParaConcluir = (tarefa: Pick<Tarefa, 'arteId'>): boolean =>
   tarefa.arteId === null;
 
+// Contagem dos atalhos da home de Artes: só os status não terminados. O arte finalista conta as próprias; o
+// admin, todas da empresa.
+export const EsquemaContagemTarefas = z.object({
+  nao_iniciada: z.number().int().min(0),
+  em_desenvolvimento: z.number().int().min(0),
+  aguardando_cliente: z.number().int().min(0),
+});
+export type ContagemTarefas = z.infer<typeof EsquemaContagemTarefas>;
+export type StatusContado = keyof ContagemTarefas;
+
+/** Atalho da home de Artes: abre a lista já filtrada pelo status (`null` = todas, sem contador). */
+export type AtalhoTarefas = { valor: string; rotulo: string; status: StatusContado | null };
+
+export const ATALHOS_TAREFAS: readonly AtalhoTarefas[] = [
+  { valor: 'pendentes', rotulo: 'Pendentes', status: 'nao_iniciada' },
+  { valor: 'em_andamento', rotulo: 'Em andamento', status: 'em_desenvolvimento' },
+  { valor: 'aguardando', rotulo: 'Aguardando validação', status: 'aguardando_cliente' },
+  { valor: 'todas', rotulo: 'Todos', status: null },
+];
+
 // Submenus da home de Artes por perfil.
 export const submenusTarefas = (perfil: 'admin' | 'arte_finalista'): EscopoTarefas[] =>
   perfil === 'admin' ? ['andamento'] : ['minhas'];

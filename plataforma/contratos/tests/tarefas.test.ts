@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  ATALHOS_TAREFAS,
   EsquemaConsultaTarefas,
+  EsquemaContagemTarefas,
   EsquemaNovoComentario,
   precisaDaArteParaConcluir,
   ROTULOS_STATUS_TAREFA,
@@ -34,6 +36,26 @@ describe('tarefas de arte', () => {
     expect(EsquemaNovoComentario.parse({ texto: '  ok  ' })).toEqual({ texto: 'ok' });
     expect(EsquemaNovoComentario.safeParse({ texto: '   ' }).success).toBe(false);
     expect(EsquemaNovoComentario.safeParse({ texto: 'x'.repeat(2001) }).success).toBe(false);
+  });
+
+  it('contagem: inteiros não negativos dos três status não terminados', () => {
+    const contagem = { nao_iniciada: 2, em_desenvolvimento: 0, aguardando_cliente: 1 };
+    expect(EsquemaContagemTarefas.parse(contagem)).toEqual(contagem);
+    expect(EsquemaContagemTarefas.safeParse({ ...contagem, nao_iniciada: -1 }).success).toBe(false);
+    expect(EsquemaContagemTarefas.safeParse({ ...contagem, nao_iniciada: 1.5 }).success).toBe(
+      false,
+    );
+    expect(Object.keys(contagem).sort()).toEqual([...STATUS_EM_ANDAMENTO].sort());
+  });
+
+  it('atalhos: Pendentes, Em andamento, Aguardando validação e Todos (sem status)', () => {
+    expect(ATALHOS_TAREFAS.map((a) => [a.rotulo, a.status])).toEqual([
+      ['Pendentes', 'nao_iniciada'],
+      ['Em andamento', 'em_desenvolvimento'],
+      ['Aguardando validação', 'aguardando_cliente'],
+      ['Todos', null],
+    ]);
+    expect(new Set(ATALHOS_TAREFAS.map((a) => a.valor)).size).toBe(ATALHOS_TAREFAS.length);
   });
 
   it('título, conclusão e submenus por perfil', () => {

@@ -58,6 +58,32 @@ describe('tarefas no cliente da API', () => {
     ]);
   });
 
+  it('usuários: lista e cria pelas rotas de /v1/usuarios', async () => {
+    const resumo = {
+      id: USUARIO,
+      nome: 'Ana Ficticia',
+      email: 'ana@exemplo.com',
+      perfil: 'arte_finalista',
+      ativo: true,
+      empresas: ['aba'],
+      criadoEm: '2026-11-05T12:00:00.000Z',
+    };
+    const { cliente, chamadas } = api((url) => (url.endsWith('/v1/usuarios') ? json([resumo]) : json({})));
+    expect(await cliente.listarUsuarios()).toEqual([resumo]);
+    const criar = api(() => json(resumo, 201));
+    const novo = {
+      nome: 'Ana Ficticia',
+      email: 'ana@exemplo.com',
+      perfil: 'arte_finalista' as const,
+      empresas: ['aba'],
+      senha: 'senha-inicial-123',
+    };
+    expect(await criar.cliente.criarUsuario(novo)).toEqual(resumo);
+    expect(chamadas[0]).toMatchObject({ url: 'http://api.local/v1/usuarios', metodo: 'GET' });
+    expect(criar.chamadas[0]).toMatchObject({ url: 'http://api.local/v1/usuarios', metodo: 'POST' });
+    expect(JSON.parse(String(criar.chamadas[0]?.corpo))).toEqual(novo);
+  });
+
   it('contagem pela rota dos atalhos', async () => {
     const contagem = { nao_iniciada: 2, em_desenvolvimento: 1, aguardando_cliente: 0 };
     const { cliente, chamadas } = api(() => json(contagem));

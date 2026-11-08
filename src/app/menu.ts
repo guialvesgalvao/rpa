@@ -4,13 +4,14 @@ import type { Perfil } from './plataforma/contratos.js';
 export { podeSincronizarBling } from './plataforma/contratos.js';
 
 /** Automação do menu lateral do app. Cada uma tem a sua seção `section[data-aba=id]`. */
-export type Automacao = { id: 'fatura' | 'op' | 'artes'; rotulo: string };
+export type Automacao = { id: 'fatura' | 'op' | 'artes' | 'usuarios'; rotulo: string };
 
-/** Fatura é o fluxo de documentos do Bling; Artes e OP ainda não têm processo. */
+/** Fatura é o fluxo de documentos do Bling; Usuários lista e cria usuários nas empresas do admin. */
 export const AUTOMACOES: Automacao[] = [
   { id: 'fatura', rotulo: 'Fatura' },
   { id: 'op', rotulo: 'OP' },
   { id: 'artes', rotulo: 'Artes' },
+  { id: 'usuarios', rotulo: 'Usuários' },
 ];
 
 /** Única empresa com Ordens de Produção (layout próprio da Roma). */
@@ -22,8 +23,8 @@ export function podeUsarOp(perfil: Perfil, empresaSlug: string | undefined): boo
 }
 
 /**
- * Abas liberadas para o perfil na empresa em uso: o admin vê Artes e Fatura, e a OP só na Roma;
- * a arte finalista, só Artes.
+ * Abas liberadas para o perfil na empresa em uso: o admin vê Artes, Fatura e Usuários, e a OP só na
+ * Roma; a arte finalista, só Artes.
  */
 export function abasDoPerfil(perfil: Perfil, empresaSlug?: string): Automacao[] {
   if (perfil !== 'admin') return AUTOMACOES.filter(({ id }) => id === 'artes');

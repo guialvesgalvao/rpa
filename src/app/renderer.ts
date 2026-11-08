@@ -16,7 +16,7 @@ import type {
   SessaoTela,
 } from './api.js';
 import { podeTrocarEmpresa, tituloJanela } from './empresa.js';
-import type { Perfil } from './plataforma/contratos.js';
+import { type Perfil, SENHA_MINIMA } from './plataforma/contratos.js';
 import { criarArtes } from './artes/index.js';
 import { mensagemErro } from './artes/dom.js';
 import {
@@ -27,6 +27,7 @@ import {
   podeSincronizarBling,
 } from './menu.js';
 import { criarOp } from './op/index.js';
+import { criarUsuarios } from './usuarios/index.js';
 import { textoAutomaticaBling, textoProgressoBling, textoResultadoBling } from './sincronizacao.js';
 import { preencherResultado } from './resultados.js';
 
@@ -89,6 +90,16 @@ const opTela = criarOp({
   escolherPasta: (atual) => window.rpa.escolherPasta(atual),
   abrirPasta: (dir) => window.rpa.abrirPasta(dir),
 });
+const usuariosTela = criarUsuarios($('usuarios-raiz'), window.rpa.usuarios);
+const telaTrocaSenha = $('troca-senha');
+const formTrocaSenha = $<HTMLFormElement>('troca-senha-form');
+const trocaSenhaAtual = $<HTMLInputElement>('troca-senha-atual');
+const trocaSenhaNova = $<HTMLInputElement>('troca-senha-nova');
+const trocaSenhaConfirmacao = $<HTMLInputElement>('troca-senha-confirmacao');
+const trocaSenhaErro = $('troca-senha-erro');
+const trocaSenhaEnviar = $<HTMLButtonElement>('troca-senha-enviar');
+const trocaSenhaSair = $<HTMLButtonElement>('troca-senha-sair');
+$('troca-senha-dica').textContent = `Ao menos ${SENHA_MINIMA} caracteres.`;
 const usuarioEl = $('usuario');
 const usuarioNome = $('usuario-nome');
 const sair = $<HTMLButtonElement>('sair');
@@ -516,22 +527,27 @@ let empresaMontada: string | undefined;
 function aplicarSessao(sessao: SessaoTela) {
   carregando.hidden = true;
   const logado = sessao.situacao !== 'deslogado';
+  // Senha inicial do admin: só a troca de senha aparece, antes do menu.
+  const trocarSenha = logado && sessao.deveTrocarSenha;
   telaLogin.hidden = logado;
-  topo.hidden = !logado;
-  areaApp.hidden = !logado;
-  if (!logado) {
+  telaTrocaSenha.hidden = !trocarSenha;
+  topo.hidden = !logado || trocarSenha;
+  areaApp.hidden = !logado || trocarSenha;
+  if (!logado || trocarSenha) {
     montadoPara = undefined;
     empresaMontada = undefined;
     abaAtual = undefined;
     artes.encerrar();
     opTela.encerrar();
+    usuariosTela.encerrar();
     aplicarEmpresa(undefined, 0);
     dialogEmpresas.close();
     limparFatura();
     atualizarContagem();
     dialogConfig.close();
     loginSenha.value = '';
-    loginEmail.focus();
+    if (trocarSenha) trocaSenhaAtual.focus();
+    else loginEmail.focus();
     return;
   }
 
@@ -556,6 +572,8 @@ function aplicarSessao(sessao: SessaoTela) {
   if (empresaMontada === chaveEmpresa) return;
   empresaMontada = chaveEmpresa;
   artes.reiniciar(sessao.perfil);
+  if (admin) usuariosTela.reiniciar(sessao.empresas);
+  else usuariosTela.encerrar();
   opTela.reiniciar();
   limparFatura();
   atualizarContagem();
@@ -573,6 +591,25 @@ formLogin.addEventListener('submit', async (event) => {
     loginErro.textContent = mensagemErro(error);
   } finally {
     loginEntrar.disabled = false;
+  }
+});
+
+formTrocaSenha.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  trocaSenhaErro.textContent = '';
+  if (trocaSenhaNova.value !== trocaSenhaConfirmacao.value) {
+    trocaSenhaErro.textContent = 'A confirmação não confere com a nova senha.';
+    return;
+  }
+  trocaSenhaEnviar.disabled = true;
+  try {
+    const sessao = await window.rpa.trocarSenha(trocaSenhaAtual.value, trocaSenhaNova.value);
+    for (const campo of [trocaSenhaAtual, trocaSenhaNova, trocaSenhaConfirmacao]) campo.value = '';
+    aplicarSessao(sessao);
+  } catch (error) {
+    trocaSenhaErro.textContent = mensagemErro(error);
+  } finally {
+    trocaSenhaEnviar.disabled = false;
   }
 });
 
@@ -603,14 +640,19 @@ empresaBtn.addEventListener('click', () => {
 });
 empresasCancelar.addEventListener('click', () => dialogEmpresas.close());
 
-sair.addEventListener('click', async () => {
+async function sairDaSessao() {
   try {
     await window.rpa.sair();
+    for (const campo of [trocaSenhaAtual, trocaSenhaNova, trocaSenhaConfirmacao]) campo.value = '';
+    trocaSenhaErro.textContent = '';
     aplicarSessao({ situacao: 'deslogado' });
   } catch (error) {
     erroGeral.textContent = mensagemErro(error);
+    trocaSenhaErro.textContent = mensagemErro(error);
   }
-});
+}
+sair.addEventListener('click', () => void sairDaSessao());
+trocaSenhaSair.addEventListener('click', () => void sairDaSessao());
 
 window.rpa.onSessaoMudou(aplicarSessao);
 void window.rpa.defaults().then((defaults) => (versao.textContent = ` · v${defaults.versao}`));

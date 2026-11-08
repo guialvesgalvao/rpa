@@ -24,6 +24,7 @@ import type {
   TarefaDetalhe,
   Tema,
   TipoArquivo,
+  UsuarioResumo,
 } from './plataforma/contratos.js';
 
 export type { DocResult, DocTipo, PedidoSelecao };
@@ -46,7 +47,24 @@ export type SessaoTela =
       perfil: Perfil;
       empresas: EmpresaTela[];
       empresa?: EmpresaAtualTela;
+      /** Senha inicial definida pelo admin: a tela pede a troca antes de mostrar o app. */
+      deveTrocarSenha: boolean;
     };
+
+/** Novo usuário pela aba Usuários (só admin); as empresas precisam ser do admin. */
+export type NovoUsuarioTela = {
+  nome: string;
+  email: string;
+  perfil: Perfil;
+  empresas: string[];
+  senha: string;
+};
+
+/** Aba Usuários: lista e cria nas empresas do admin. Recusa da API vem como mensagem pronta. */
+export type UsuariosApi = {
+  listar(): Promise<UsuarioResumo[]>;
+  criar(novo: NovoUsuarioTela): Promise<UsuarioResumo>;
+};
 
 /** Arquivo escolhido no diálogo: caminho e conteúdo ficam no main; `id` o identifica no cadastro. */
 export type ArquivoEscolhido = {
@@ -188,6 +206,9 @@ export type RpaApi = {
   trocarEmpresa(slug: string): Promise<SessaoTela>;
   /** Avisa quando a sessão muda sem ação da tela (renovação recusada ou servidor fora do ar). */
   onSessaoMudou(callback: (sessao: SessaoTela) => void): void;
+  /** Troca a própria senha; esta sessão continua, as outras caem. */
+  trocarSenha(senhaAtual: string, novaSenha: string): Promise<SessaoTela>;
+  usuarios: UsuariosApi;
   artes: ArtesApi;
   tarefas: TarefasApi;
   op: OpApi;
@@ -242,6 +263,9 @@ export const CHANNELS = {
   sessaoSair: 'rpa:sessao:sair',
   sessaoMudou: 'rpa:sessao:mudou',
   empresaTrocar: 'rpa:empresa:trocar',
+  senhaTrocar: 'rpa:senha:trocar',
+  usuariosListar: 'rpa:usuarios:listar',
+  usuariosCriar: 'rpa:usuarios:criar',
   artesListarClientes: 'rpa:artes:listar-clientes',
   artesObterCliente: 'rpa:artes:obter-cliente',
   artesProdutosDoCliente: 'rpa:artes:produtos-do-cliente',

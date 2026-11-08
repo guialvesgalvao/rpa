@@ -45,6 +45,8 @@ function clienteFalso(relogio: { agora: number }) {
     eu: EU,
     euErro: undefined as Error | undefined,
     sairErro: undefined as Error | undefined,
+    trocas: [] as { acesso: string; corpo: unknown }[],
+    trocarErro: undefined as Error | undefined,
   };
   let n = 0;
   const emitir = () => {
@@ -72,6 +74,10 @@ function clienteFalso(relogio: { agora: number }) {
     async eu() {
       if (estado.euErro) throw estado.euErro;
       return estado.eu;
+    },
+    async trocarSenha(acesso, corpo) {
+      estado.trocas.push({ acesso, corpo });
+      if (estado.trocarErro) throw estado.trocarErro;
     },
   };
   return { cliente, estado };
@@ -260,5 +266,58 @@ describe('criarSessao', () => {
     expect(await sessao.obterAcesso()).toBeUndefined();
     expect(sessao.estado()).toEqual({ situacao: 'deslogado' });
     expect(await existe(arquivo)).toBe(false);
+  });
+
+  it('trocarSenha mantém a sessão vigente, atualiza o perfil e o salva', async () => {
+    const { sessao, estado } = montar();
+    estado.eu = { ...EU, deveTrocarSenha: true };
+    await sessao.entrar('teste@example.com', 'senha-inicial');
+    estado.eu = { ...EU, deveTrocarSenha: false };
+
+    const depois = await sessao.trocarSenha('senha-inicial', 'senha-nova-123');
+
+    expect(estado.trocas).toEqual([
+      {
+        acesso: 'acesso-1',
+        corpo: { senhaAtual: 'senha-inicial', novaSenha: 'senha-nova-123', renovacao: 'renovacao-1' },
+      },
+    ]);
+    expect(depois).toEqual({ situacao: 'online', perfil: { ...EU, deveTrocarSenha: false } });
+    const salvo = JSON.parse(await readFile(arquivo, 'utf8'));
+    expect(salvo.perfil.deveTrocarSenha).toBe(false);
+    expect(salvo.renovacaoEnc).toBe('cifrado:renovacao-1');
+  });
+
+  it('trocarSenha com o acesso vencido manda a renovação nova', async () => {
+    const { sessao, estado } = montar();
+    await sessao.entrar('teste@example.com', 'senha-inicial');
+    relogio.agora += 20 * 60_000;
+
+    await sessao.trocarSenha('senha-inicial', 'senha-nova-123');
+
+    expect(estado.trocas[0]).toMatchObject({
+      acesso: 'acesso-2',
+      corpo: { renovacao: 'renovacao-2' },
+    });
+  });
+
+  it('trocarSenha recusada propaga o erro e não muda a sessão', async () => {
+    const { sessao, estado } = montar();
+    estado.eu = { ...EU, deveTrocarSenha: true };
+    await sessao.entrar('teste@example.com', 'senha-inicial');
+    estado.trocarErro = new ErroRecusado(400, 'senha_atual_incorreta', 'Senha atual incorreta.');
+
+    await expect(sessao.trocarSenha('errada', 'senha-nova-123')).rejects.toThrow(
+      'Senha atual incorreta.',
+    );
+    expect(sessao.estado()).toEqual({ situacao: 'online', perfil: estado.eu });
+  });
+
+  it('trocarSenha deslogado: sem conexão, sem chamar a API', async () => {
+    const { sessao, estado } = montar();
+    await expect(sessao.trocarSenha('a', 'senha-nova-123')).rejects.toBeInstanceOf(
+      ErroIndisponivel,
+    );
+    expect(estado.trocas).toEqual([]);
   });
 });

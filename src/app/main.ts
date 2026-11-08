@@ -73,6 +73,7 @@ import {
   type Tarefa,
   type TarefaDetalhe,
   temaDaEmpresa,
+  type UsuarioResumo,
 } from './plataforma/contratos.js';
 import { criarSessao, type EstadoSessao } from './plataforma/sessao.js';
 import { urlDaApi } from './plataforma/url.js';
@@ -96,6 +97,8 @@ import {
   validarConsultaTarefas,
   validarMudancaStatus,
   validarNovaTarefa,
+  validarNovoUsuario,
+  validarTrocaSenha,
   validarConsultaClientes,
   validarId,
   validarLogin,
@@ -189,7 +192,7 @@ async function paraTela(estado: EstadoSessao): Promise<SessaoTela> {
     atualizarIcone(undefined);
     return estado;
   }
-  const { id, nome, email, perfil, empresas } = estado.perfil;
+  const { id, nome, email, perfil, empresas, deveTrocarSenha } = estado.perfil;
   const slug = empresaAtual(
     await lerSettings(settingsFile),
     id,
@@ -203,6 +206,7 @@ async function paraTela(estado: EstadoSessao): Promise<SessaoTela> {
     email,
     perfil,
     empresas,
+    deveTrocarSenha,
     empresa: atual && {
       slug: atual.slug,
       nome: rotuloEmpresa(atual.nome, atual.slug),
@@ -448,6 +452,36 @@ ipcMain.handle(CHANNELS.sessaoEntrar, async (_event, input: unknown): Promise<Se
     logger.error({ erro: (erro as Error).message }, 'Falha ao entrar');
     throw new Error('Não foi possível entrar. Tente novamente.', { cause: erro });
   }
+});
+
+ipcMain.handle(CHANNELS.senhaTrocar, async (_event, input: unknown): Promise<SessaoTela> => {
+  const { senhaAtual, novaSenha } = validarTrocaSenha(input);
+  try {
+    const estado = await sessao.trocarSenha(senhaAtual, novaSenha);
+    logger.info('Senha trocada pelo usuário');
+    return await paraTela(estado);
+  } catch (erro) {
+    // A recusa da API (senha atual errada, nova repetida, muitas tentativas) já vem em português.
+    if (erro instanceof ErroRecusado) throw new Error(erro.message, { cause: erro });
+    if (erro instanceof ErroIndisponivel)
+      throw new Error('Sem conexão com o servidor.', { cause: erro });
+    logger.error({ erro: (erro as Error).message }, 'Falha ao trocar a senha');
+    throw new Error('Não foi possível trocar a senha. Tente novamente.', { cause: erro });
+  }
+});
+
+// Usuários: só o admin; a API confere o perfil e as empresas de novo (lidas do banco).
+ipcMain.handle(CHANNELS.usuariosListar, async (): Promise<UsuarioResumo[]> => {
+  exigirAdmin();
+  return artesApi.listarUsuarios();
+});
+
+ipcMain.handle(CHANNELS.usuariosCriar, async (_event, input: unknown): Promise<UsuarioResumo> => {
+  exigirAdmin();
+  const novo = validarNovoUsuario(input);
+  const criado = await artesApi.criarUsuario(novo);
+  logger.info({ perfil: criado.perfil }, 'Usuário criado pelo app');
+  return criado;
 });
 
 ipcMain.handle(CHANNELS.sessaoSair, async () => {

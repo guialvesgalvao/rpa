@@ -27,6 +27,11 @@ export type Sessao = {
   sair(): Promise<void>;
   /** Token de acesso válido (renovado antes de expirar), ou `undefined` se deslogado ou offline. */
   obterAcesso(): Promise<string | undefined>;
+  /**
+   * Troca a própria senha mantendo esta sessão (a API revoga as outras) e atualiza o perfil salvo.
+   * Recusa da API sobe como `ErroRecusado`; sem rede, `ErroIndisponivel`.
+   */
+  trocarSenha(senhaAtual: string, novaSenha: string): Promise<EstadoSessao>;
   estado(): EstadoSessao;
 };
 
@@ -114,6 +119,14 @@ export function criarSessao({ cliente, cifra, arquivo, relogio }: DepsSessao): S
     }
   }
 
+  async function obterAcesso(): Promise<string | undefined> {
+    if (estado.situacao === 'deslogado') return undefined;
+    if (acesso && acesso.expiraEm - MARGEM_RENOVACAO_MS > relogio().getTime()) {
+      return acesso.token;
+    }
+    return renovar();
+  }
+
   return {
     estado: () => estado,
 
@@ -157,12 +170,25 @@ export function criarSessao({ cliente, cifra, arquivo, relogio }: DepsSessao): S
       await esquecer();
     },
 
-    async obterAcesso() {
-      if (estado.situacao === 'deslogado') return undefined;
-      if (acesso && acesso.expiraEm - MARGEM_RENOVACAO_MS > relogio().getTime()) {
-        return acesso.token;
+    obterAcesso,
+
+    async trocarSenha(senhaAtual, novaSenha) {
+      const token = await obterAcesso();
+      // Depois de `obterAcesso`, `renovacao` é o token vigente (pode ter acabado de rotacionar).
+      const vigente = renovacao;
+      if (!token || !vigente || estado.situacao === 'deslogado') {
+        throw new ErroIndisponivel('Sem conexão com o servidor.');
       }
-      return renovar();
+      await cliente.trocarSenha(token, { senhaAtual, novaSenha, renovacao: vigente });
+      let perfil: Eu = { ...estado.perfil, deveTrocarSenha: false };
+      try {
+        perfil = await cliente.eu(token);
+      } catch (erro) {
+        if (!(erro instanceof ErroIndisponivel)) throw erro;
+      }
+      estado = { situacao: 'online', perfil };
+      await salvar(vigente, perfil);
+      return estado;
     },
   };
 }

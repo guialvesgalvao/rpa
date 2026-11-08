@@ -921,6 +921,47 @@
       </form>
     </div>
 
+    <div id="troca-senha" class="login" hidden>
+      <form id="troca-senha-form">
+        <h2>Defina a sua senha</h2>
+        <p class="hint">
+          Você entrou com a senha inicial definida pelo administrador. Escolha uma senha nova para
+          continuar.
+        </p>
+        <div class="campo">
+          <label for="troca-senha-atual">Senha atual</label>
+          <input
+            id="troca-senha-atual"
+            type="password"
+            autocomplete="current-password"
+            maxlength="200"
+          />
+        </div>
+        <div class="campo">
+          <label for="troca-senha-nova">Nova senha</label>
+          <input
+            id="troca-senha-nova"
+            type="password"
+            autocomplete="new-password"
+            maxlength="200"
+          />
+          <div id="troca-senha-dica" class="hint"></div>
+        </div>
+        <div class="campo">
+          <label for="troca-senha-confirmacao">Confirme a nova senha</label>
+          <input
+            id="troca-senha-confirmacao"
+            type="password"
+            autocomplete="new-password"
+            maxlength="200"
+          />
+        </div>
+        <div id="troca-senha-erro" class="hint warn" role="alert"></div>
+        <button id="troca-senha-enviar" class="primary" type="submit">Trocar senha</button>
+        <button id="troca-senha-sair" type="button">Sair</button>
+      </form>
+    </div>
+
     <header id="topo" hidden>
       <img id="logo" src="assets/logo-aba.png" alt="" hidden />
       <div class="titulo">
@@ -951,6 +992,12 @@
           <div class="pagina">
             <div id="artes-offline" class="hint warn" hidden>Sem conexão com o servidor.</div>
             <div id="artes-raiz"></div>
+          </div>
+        </section>
+
+        <section data-aba="usuarios" hidden>
+          <div class="pagina">
+            <div id="usuarios-raiz"></div>
           </div>
         </section>
 

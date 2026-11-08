@@ -14,7 +14,7 @@ const rotulos = (itens: { rotulo: string }[]) => itens.map((item) => item.rotulo
 
 describe('menu de automações', () => {
   it('ordena Artes, Fatura e OP', () => {
-    expect(rotulos(ordenarMenu(AUTOMACOES))).toEqual(['Artes', 'Fatura', 'OP']);
+    expect(rotulos(ordenarMenu(AUTOMACOES))).toEqual(['Artes', 'Fatura', 'OP', 'Usuários']);
   });
 
   it('ignora maiúsculas e acentos na ordem', () => {
@@ -45,7 +45,11 @@ describe('menu de automações', () => {
 
   it('admin de outra empresa, ou sem empresa, não vê a OP', () => {
     for (const empresa of ['aba', undefined, 'ROMA', ' roma']) {
-      expect(abasDoPerfil('admin', empresa).map((aba) => aba.id)).toEqual(['fatura', 'artes']);
+      expect(abasDoPerfil('admin', empresa).map((aba) => aba.id)).toEqual([
+        'fatura',
+        'artes',
+        'usuarios',
+      ]);
     }
   });
 
@@ -65,7 +69,7 @@ describe('menu de automações', () => {
 
   it('não altera AUTOMACOES ao montar as abas do perfil', () => {
     abasDoPerfil('admin', 'roma').pop();
-    expect(AUTOMACOES).toHaveLength(3);
+    expect(AUTOMACOES).toHaveLength(4);
   });
 
   it('ao remontar, fica na aba atual se ela continua liberada', () => {

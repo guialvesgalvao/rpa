@@ -82,6 +82,36 @@ describe('criarCliente', () => {
     });
   });
 
+  it('trocarSenha envia o acesso e o corpo; 204 resolve', async () => {
+    const { fake, chamadas } = fetchFalso(() => new Response(null, { status: 204 }));
+    const cliente = criarCliente({ baseUrl: 'http://api.local', fetch: fake });
+    const corpo = { senhaAtual: 'atual', novaSenha: 'senha-nova-123', renovacao: 'renovacao-1' };
+
+    await cliente.trocarSenha('acesso-1', corpo);
+
+    expect(chamadas[0]?.url).toBe('http://api.local/v1/eu/senha');
+    expect(chamadas[0]?.init.method).toBe('POST');
+    expect(new Headers(chamadas[0]?.init.headers).get('authorization')).toBe('Bearer acesso-1');
+    expect(JSON.parse(String(chamadas[0]?.init.body))).toEqual(corpo);
+  });
+
+  it('trocarSenha recusada (400/429) vira ErroRecusado com a mensagem da API', async () => {
+    for (const [status, codigo] of [
+      [400, 'senha_atual_incorreta'],
+      [429, 'muitas_tentativas'],
+    ] as const) {
+      const { fake } = fetchFalso(() =>
+        json({ erro: { codigo, mensagem: `Mensagem ${codigo}` } }, status),
+      );
+      const cliente = criarCliente({ baseUrl: 'http://api.local', fetch: fake });
+      const erro = await cliente
+        .trocarSenha('acesso-1', { senhaAtual: 'a', novaSenha: 'senha-nova-123' })
+        .catch((e: unknown) => e);
+      expect(erro).toBeInstanceOf(ErroRecusado);
+      expect(erro).toMatchObject({ status, codigo, message: `Mensagem ${codigo}` });
+    }
+  });
+
   it('401 sem corpo do contrato ainda é ErroRecusado', async () => {
     const { fake } = fetchFalso(() => new Response('nope', { status: 401 }));
     const cliente = criarCliente({ baseUrl: 'http://api.local', fetch: fake });

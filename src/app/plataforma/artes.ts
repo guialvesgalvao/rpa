@@ -13,6 +13,7 @@ import {
   type EscopoTarefas,
   EsquemaComentarioTarefa,
   EsquemaContagemTarefas,
+  EsquemaUsuarioResumo,
   EsquemaEventoTarefa,
   EsquemaTarefa,
   EsquemaTarefaDetalhe,
@@ -33,6 +34,8 @@ import {
   type Tarefa,
   type TarefaDetalhe,
   type TipoDetectado,
+  type NovoUsuario,
+  type UsuarioResumo,
   validarNovaArte,
 } from './contratos.js';
 
@@ -84,6 +87,9 @@ export type ClienteArtes = {
   criarTarefa(empresa: string, clienteId: string, produtoId: string): Promise<Tarefa>;
   listarTarefas(empresa: string, consulta: ConsultaTarefasApp): Promise<Tarefa[]>;
   contagemTarefas(empresa: string): Promise<ContagemTarefas>;
+  /** Usuários nas empresas do admin (a API confere perfil e empresas). */
+  listarUsuarios(): Promise<UsuarioResumo[]>;
+  criarUsuario(novo: NovoUsuario): Promise<UsuarioResumo>;
   obterTarefa(empresa: string, id: string): Promise<TarefaDetalhe>;
   mudarStatusTarefa(empresa: string, id: string, status: StatusTarefa): Promise<Tarefa>;
   /** Cadastra a arte (multipart, como `cadastrar`) e conclui a tarefa. */
@@ -248,6 +254,12 @@ export function criarClienteArtes({
       if (status) params.set('status', status);
       const resposta = await chamar('GET', rota(empresa, `/tarefas?${params}`));
       return lerJson(resposta, z.array(EsquemaTarefa));
+    },
+    async listarUsuarios() {
+      return lerJson(await chamar('GET', '/v1/usuarios'), z.array(EsquemaUsuarioResumo));
+    },
+    async criarUsuario(novo) {
+      return lerJson(await chamar('POST', '/v1/usuarios', { json: novo }), EsquemaUsuarioResumo);
     },
     async contagemTarefas(empresa) {
       return lerJson(await chamar('GET', rota(empresa, '/tarefas/contagem')), EsquemaContagemTarefas);

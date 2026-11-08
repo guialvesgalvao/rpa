@@ -11,7 +11,11 @@ import type { ConsultaTarefasApp, ItemParaGerarOp } from './api.js';
 import {
   COMENTARIO_TAREFA_MAX,
   ESCOPOS_TAREFAS,
+  EsquemaNovoUsuario,
   EsquemaStatusTarefa,
+  type NovoUsuario,
+  SENHA_MAXIMA,
+  SENHA_MINIMA,
   type StatusTarefa,
 } from './plataforma/contratos.js';
 
@@ -242,5 +246,27 @@ export function validarComentario(input: unknown): { id: string; texto: string }
   if (!parsed.success) {
     throw new Error(`Escreva um comentário de até ${COMENTARIO_TAREFA_MAX} caracteres.`);
   }
+  return parsed.data;
+}
+
+/** Novo usuário da aba Usuários: a mensagem do primeiro problema, pronta para a tela. */
+export function validarNovoUsuario(input: unknown): NovoUsuario {
+  const parsed = EsquemaNovoUsuario.safeParse(input);
+  if (!parsed.success)
+    throw new Error(parsed.error.issues[0]?.message ?? 'Dados do usuário inválidos.');
+  return parsed.data;
+}
+
+const trocaSenhaSchema = z.object({
+  senhaAtual: z.string().min(1, 'Informe a senha atual.').max(SENHA_MAXIMA),
+  novaSenha: z
+    .string()
+    .min(SENHA_MINIMA, `A nova senha precisa de ao menos ${SENHA_MINIMA} caracteres.`)
+    .max(SENHA_MAXIMA),
+});
+
+export function validarTrocaSenha(input: unknown): { senhaAtual: string; novaSenha: string } {
+  const parsed = trocaSenhaSchema.safeParse(input);
+  if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? 'Senha inválida.');
   return parsed.data;
 }

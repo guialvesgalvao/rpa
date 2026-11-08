@@ -6,6 +6,7 @@ import {
   type Eu,
   type RespostaEntrar,
   type Tokens,
+  type TrocaSenha,
 } from './contratos.js';
 
 /** Rede caída, timeout, 5xx ou resposta fora do contrato: o servidor não respondeu de forma utilizável. */
@@ -13,7 +14,10 @@ export class ErroIndisponivel extends Error {
   override name = 'ErroIndisponivel';
 }
 
-/** 401/403: a API recusou as credenciais, o token de renovação ou o token de acesso. */
+/**
+ * 401/403: a API recusou as credenciais, o token de renovação ou o token de acesso. Na troca de senha,
+ * também 400/429 (a mensagem da API é mostrada).
+ */
 export class ErroRecusado extends Error {
   override name = 'ErroRecusado';
 
@@ -31,6 +35,8 @@ export type ClientePlataforma = {
   renovar(renovacao: string): Promise<Tokens>;
   sair(renovacao: string): Promise<void>;
   eu(acesso: string): Promise<Eu>;
+  /** Recusa da troca (senha atual errada, nova repetida, muitas tentativas) vem como `ErroRecusado`. */
+  trocarSenha(acesso: string, corpo: TrocaSenha): Promise<void>;
 };
 
 export type DepsCliente = {
@@ -54,7 +60,7 @@ export function criarCliente({
   async function chamar(
     metodo: 'GET' | 'POST',
     caminho: string,
-    opcoes: { corpo?: unknown; acesso?: string } = {},
+    opcoes: { corpo?: unknown; acesso?: string; recusasComMensagem?: boolean } = {},
   ): Promise<Response> {
     const headers: Record<string, string> = {};
     if (opcoes.corpo !== undefined) headers['content-type'] = 'application/json';
@@ -73,7 +79,9 @@ export function criarCliente({
     }
 
     if (resposta.ok) return resposta;
-    if (resposta.status === 401 || resposta.status === 403) {
+    const comMensagem =
+      opcoes.recusasComMensagem && (resposta.status === 400 || resposta.status === 429);
+    if (resposta.status === 401 || resposta.status === 403 || comMensagem) {
       const detalhe = EsquemaErro.safeParse(await resposta.json().catch(() => undefined));
       throw new ErroRecusado(
         resposta.status,
@@ -108,6 +116,9 @@ export function criarCliente({
     async eu(acesso) {
       const resposta = await chamar('GET', '/v1/eu', { acesso });
       return lerJson(resposta, EsquemaEu);
+    },
+    async trocarSenha(acesso, corpo) {
+      await chamar('POST', '/v1/eu/senha', { acesso, corpo, recusasComMensagem: true });
     },
   };
 }

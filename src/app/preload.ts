@@ -25,6 +25,12 @@ const api: RpaApi = {
   entrar: (email, senha) => ipcRenderer.invoke(CHANNELS.sessaoEntrar, { email, senha }),
   sair: () => ipcRenderer.invoke(CHANNELS.sessaoSair),
   trocarEmpresa: (slug) => ipcRenderer.invoke(CHANNELS.empresaTrocar, slug),
+  trocarSenha: (senhaAtual, novaSenha) =>
+    ipcRenderer.invoke(CHANNELS.senhaTrocar, { senhaAtual, novaSenha }),
+  usuarios: {
+    listar: () => ipcRenderer.invoke(CHANNELS.usuariosListar),
+    criar: (novo) => ipcRenderer.invoke(CHANNELS.usuariosCriar, novo),
+  },
   onSessaoMudou: (callback) =>
     void ipcRenderer.on(CHANNELS.sessaoMudou, (_event, sessao: SessaoTela) => callback(sessao)),
   artes: {

@@ -11,9 +11,11 @@ import {
   validarLogin,
   validarMudancaStatus,
   validarNovaTarefa,
+  validarNovoUsuario,
   validarNumerosOp,
   validarSelecao,
   validarSlug,
+  validarTrocaSenha,
 } from '../../src/app/validacao.js';
 import { PASSOS_PROCESSO } from '../../src/processes/op/template.js';
 
@@ -263,6 +265,40 @@ describe('tarefas de arte', () => {
     expect(validarConclusao(entrada)).toEqual(entrada);
     expect(() => validarConclusao({ ...entrada, tarefaId: 'x' })).toThrow(
       'Dados da arte inválidos.',
+    );
+  });
+});
+
+describe('usuários e senha', () => {
+  const novo = {
+    nome: 'Ana Ficticia',
+    email: 'Ana@Exemplo.com',
+    perfil: 'arte_finalista',
+    empresas: ['aba'],
+    senha: 'senha-inicial-123',
+  };
+
+  it('novo usuário: normaliza o e-mail; recusa com a mensagem do primeiro problema', () => {
+    expect(validarNovoUsuario(novo)).toMatchObject({ email: 'ana@exemplo.com' });
+    expect(() => validarNovoUsuario({ ...novo, empresas: [] })).toThrow(
+      'Escolha ao menos uma empresa.',
+    );
+    expect(() => validarNovoUsuario({ ...novo, senha: 'curta' })).toThrow(
+      'A senha precisa de ao menos 10 caracteres.',
+    );
+    expect(() => validarNovoUsuario('x')).toThrow();
+  });
+
+  it('troca de senha: exige a atual e a nova com o mínimo', () => {
+    expect(validarTrocaSenha({ senhaAtual: 'a', novaSenha: 'senha-nova-123' })).toEqual({
+      senhaAtual: 'a',
+      novaSenha: 'senha-nova-123',
+    });
+    expect(() => validarTrocaSenha({ senhaAtual: '', novaSenha: 'senha-nova-123' })).toThrow(
+      'Informe a senha atual.',
+    );
+    expect(() => validarTrocaSenha({ senhaAtual: 'a', novaSenha: 'curta' })).toThrow(
+      'A nova senha precisa de ao menos 10 caracteres.',
     );
   });
 });

@@ -1,6 +1,6 @@
 # ADR 0001 — Banco único PostgreSQL, com os arquivos no banco
 
-- **Status:** aceito
+- **Status:** aceito; item 2 substituído em parte pela [ADR 0006](0006-arquivos-em-bucket-railway.md)
 - **Data:** 2026-10-28
 
 ## Contexto

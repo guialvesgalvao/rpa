@@ -1,6 +1,6 @@
 # ADR 0006 — Arquivos no Storage Bucket do Railway, com fallback em bytea
 
-- **Status:** proposto (depende da exceção do item 2)
+- **Status:** aceito
 - **Data:** 2026-11-08
 - **Substitui em parte:** ADR 0001, item 2 (arquivos em `bytea`)
 
@@ -11,7 +11,7 @@ A ADR 0001 guardou os arquivos das artes em `bytea` no Postgres e recusou o buck
 ## Decisão
 
 1. Todo arquivo novo (artes e anexos) vai para um **Railway Storage Bucket** (compatível com S3, privado), quando as cinco variáveis `ARQUIVOS_S3_*` estão definidas no serviço `api` por variable reference. Cliente: `@aws-sdk/client-s3`.
-2. **Exceção à regra de credenciais fixas:** _a preencher na Task 10 — quem aprovou, quando e com que condições._ Sem essa aprovação, produção não recebe as variáveis e continua em `bytea`.
+2. **Exceção à regra de credenciais fixas:** aprovada pelo responsável pelo projeto em 2026-11-09, com as condições: as credenciais ficam só no painel do Railway, no serviço `api`, por variable reference ao bucket (nunca em arquivo, log ou chat); vazamento exige rotação manual; a exceção cai quando o Railway oferecer credenciais temporárias para buckets (gatilho de revisão abaixo).
 3. A API é a porta de entrada: upload e download passam por ela; o bucket é privado e não há URL pré-assinada (a CSP do app só aceita `'self'`).
 4. A tabela `arquivos` mantém os metadados e guarda **ou** `conteudo` (bytea) **ou** `chave_objeto` (CHECK "exatamente um"; migração `0011`).
 5. Ordem banco × bucket: o objeto é gravado antes da transação e apagado se ela falhar; ao trocar ou remover, a linha sai primeiro e o objeto depois (falha só em log, com a chave; o objeto fica órfão e é limpo à mão).
@@ -31,6 +31,7 @@ A ADR 0001 guardou os arquivos das artes em `bytea` no Postgres e recusou o buck
 ## Consequências
 
 - Credenciais fixas do bucket existem no painel do Railway (variable reference), nunca em arquivo ou chat; vazamento exige rotação manual.
+- `ARQUIVOS_S3_ESTILO_CAMINHO` varia por ambiente: `false` no Railway (bucket virtual-hosted, o padrão dos buckets novos), `true` no S3Mock local e no CI.
 - Backup do banco deixa de cobrir os arquivos novos: o bucket precisa da própria política de retenção.
 - Objetos órfãos são possíveis (remoção que falha depois de apagar a linha); só aparecem no log.
 - Download passa pela API (stream), sem carregar o arquivo inteiro na memória quando vem do bucket.

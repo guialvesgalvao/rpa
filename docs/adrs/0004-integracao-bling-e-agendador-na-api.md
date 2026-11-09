@@ -1,6 +1,6 @@
 # ADR 0004 — Integração com o Bling e sincronização agendada na API
 
-- **Status:** aceito
+- **Status:** aceito; item 1 substituído em parte pela [ADR 0008](0008-conta-do-bling-por-empresa.md)
 - **Data:** 2026-11-05
 
 ## Contexto

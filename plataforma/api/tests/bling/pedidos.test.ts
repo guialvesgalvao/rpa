@@ -3,6 +3,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { criarClienteBling } from '../../src/bling/cliente.js';
 import {
+  filtrosPedidos,
   lerPedidosAbertos,
   type PedidoAberto,
   SITUACAO_EM_ABERTO,
@@ -30,7 +31,69 @@ afterAll(() => fechar());
 const json = (corpo: unknown, status = 200) =>
   new Response(JSON.stringify(corpo), { status, headers: { 'content-type': 'application/json' } });
 
+// 2026-11-09 12:00 em Brasília.
+const AGORA = new Date('2026-11-09T15:00:00Z');
+
+describe('filtrosPedidos', () => {
+  it('completa: em aberto e com data nos últimos 30 dias', () => {
+    expect(filtrosPedidos({ tipo: 'completa' }, AGORA)).toEqual([
+      { 'idsSituacoes[]': SITUACAO_EM_ABERTO, dataInicial: '2026-10-10' },
+    ]);
+  });
+
+  it('incremental: alterados na janela e com data a partir do dia de `desde`, sempre dentro dos 30 dias', () => {
+    const modo = {
+      tipo: 'incremental',
+      desde: new Date('2026-11-09T14:40:00Z'),
+      ate: AGORA,
+    } as const;
+    expect(filtrosPedidos(modo, AGORA)).toEqual([
+      {
+        'idsSituacoes[]': SITUACAO_EM_ABERTO,
+        dataInicial: '2026-10-10',
+        dataAlteracaoInicial: '2026-11-09 11:40:00',
+        dataAlteracaoFinal: '2026-11-09 12:00:00',
+      },
+      { 'idsSituacoes[]': SITUACAO_EM_ABERTO, dataInicial: '2026-11-09' },
+    ]);
+    const antigo = { ...modo, desde: new Date('2026-09-01T00:00:00Z') };
+    expect(filtrosPedidos(antigo, AGORA)[1]).toMatchObject({ dataInicial: '2026-10-10' });
+  });
+});
+
 describe('lerPedidosAbertos', () => {
+  it('incremental: une as duas listagens pelo id, um detalhe por pedido', async () => {
+    const urls: string[] = [];
+    const fake = (async (entrada: string | URL | Request) => {
+      const url = new URL(String(entrada));
+      urls.push(`${url.pathname.replace('/Api/v3', '')}${url.search}`);
+      if (url.pathname.endsWith('/pedidos/vendas'))
+        return json({
+          data: url.searchParams.has('dataAlteracaoInicial')
+            ? [{ id: 11 }, { id: 12 }]
+            : [{ id: 12 }],
+        });
+      return json({ data: { numero: 9001, contato: { id: 501 }, itens: [] } });
+    }) as typeof fetch;
+    const cliente = criarClienteBling({ fetch: fake, esperar: async () => {} });
+    const modo = {
+      tipo: 'incremental',
+      desde: new Date('2026-11-09T14:40:00Z'),
+      ate: AGORA,
+    } as const;
+
+    const pedidos = await lerPedidosAbertos(cliente, async () => 'acesso-ficticio', {
+      modo,
+      agora: AGORA,
+    });
+
+    expect(pedidos).toHaveLength(2);
+    expect(urls.filter((u) => /^\/pedidos\/vendas\/\d+/.test(u))).toEqual([
+      '/pedidos/vendas/11',
+      '/pedidos/vendas/12',
+    ]);
+  });
+
   it('lista os em aberto e lê o detalhe de cada um; ignora item sem produto; respeita o 429', async () => {
     const urls: string[] = [];
     let recusou = false;
@@ -65,13 +128,16 @@ describe('lerPedidosAbertos', () => {
     }) as typeof fetch;
     const cliente = criarClienteBling({ fetch: fake, esperar: async () => {} });
 
-    const pedidos = await lerPedidosAbertos(cliente, async () => 'acesso-ficticio');
+    const pedidos = await lerPedidosAbertos(cliente, async () => 'acesso-ficticio', {
+      agora: AGORA,
+    });
 
     expect(pedidos).toEqual([
       { numero: '9001', contatoIdBling: 501, cnpj: '11222333000181', codigos: ['CX-35'] },
       { numero: '9002', contatoIdBling: 502, cnpj: null, codigos: [] },
     ]);
     expect(urls[0]).toContain(`idsSituacoes%5B%5D=${SITUACAO_EM_ABERTO}`);
+    expect(urls[0]).toContain('dataInicial=2026-10-10');
     expect(urls.filter((u) => u.startsWith('/pedidos/vendas/11'))).toHaveLength(2);
   });
 });

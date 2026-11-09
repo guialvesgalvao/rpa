@@ -323,6 +323,25 @@ describe('execução da sincronização', () => {
     expect(execucao.estado('roma').situacao).toBe('concluida');
   });
 
+  it('a etapa depois da gravação recebe o modo efetivo: incremental mantido ou virado completa', async () => {
+    const aposSalvar = vi.fn(async () => []);
+    const incremental = {
+      tipo: 'incremental',
+      desde: new Date('2026-11-09T10:00:00Z'),
+      ate: new Date('2026-11-09T10:15:00Z'),
+    } as const;
+    for (const lido of ['incremental', 'completa'] as const) {
+      const execucao = criarExecucaoSincronizacao({
+        sincronizar: async () => ({ ...DADOS, modo: lido }),
+        armazem: armazemFalso(),
+        aposSalvar,
+      });
+      execucao.iniciar(ROMA, acesso, incremental, 'agendador');
+      await execucao.termino('roma');
+    }
+    expect(aposSalvar.mock.calls.map((c) => (c as unknown[])[3])).toEqual([incremental, COMPLETA]);
+  });
+
   it('a etapa depois da gravação roda no mesmo job, com o acesso, e os avisos dela vão para o resumo', async () => {
     const aposSalvar = vi.fn(async () => ['1 tarefa(s) de arte criada(s) a partir dos pedidos.']);
     const execucao = criarExecucaoSincronizacao({
@@ -332,7 +351,7 @@ describe('execução da sincronização', () => {
     });
     execucao.iniciar(ROMA, acesso, COMPLETA, 'botao');
     await execucao.termino('roma');
-    expect(aposSalvar).toHaveBeenCalledWith(ROMA, acesso, expect.any(AbortSignal));
+    expect(aposSalvar).toHaveBeenCalledWith(ROMA, acesso, expect.any(AbortSignal), COMPLETA);
     const estado = execucao.estado('roma');
     if (estado.situacao !== 'concluida') throw new Error('esperava concluída');
     expect(estado.resumo.avisos).toEqual([

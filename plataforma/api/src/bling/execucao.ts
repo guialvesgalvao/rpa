@@ -63,10 +63,12 @@ export function criarExecucaoSincronizacao({
   sincronizar: ExecutarSincronizacao;
   // Etapa seguinte à gravação, no mesmo job (mesmo lease e mesmo acesso): hoje, as tarefas dos pedidos de venda.
   // Devolve avisos para o resumo; deve tratar as próprias falhas (só o aborto deve subir).
+  // `modo`: o efetivo da leitura (um incremental que virou completa chega como completa).
   aposSalvar?: (
     empresa: EmpresaSincronizacao,
     acesso: AcessoBling,
     sinal: AbortSignal,
+    modo: ModoSincronizacao,
   ) => Promise<string[]>;
   armazem: ArmazemSincronizacao;
   relogio?: () => Date;
@@ -102,7 +104,11 @@ export function criarExecucaoSincronizacao({
       });
       sinal.throwIfAborted();
       const gravado = await armazem.salvar(empresaId, dados, { modo: dados.modo });
-      const avisosApos = aposSalvar ? await aposSalvar(empresaAlvo, acesso, sinal) : [];
+      const modoEfetivo: ModoSincronizacao =
+        dados.modo === 'completa' ? { tipo: 'completa' } : modo;
+      const avisosApos = aposSalvar
+        ? await aposSalvar(empresaAlvo, acesso, sinal, modoEfetivo)
+        : [];
       sinal.throwIfAborted();
       // Contagens do que foi gravado (inseridos + atualizados), não do que foi lido.
       const resumo = {

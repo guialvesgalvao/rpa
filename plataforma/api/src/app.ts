@@ -136,9 +136,9 @@ function criarServicosBling(
     aoConcluir: (empresa, resultado) => estado.registrar(empresa.id, resultado),
     // Depois de gravar clientes e produtos: tarefas de arte dos pedidos de venda em aberto, com o mesmo
     // cliente HTTP (mesmo ritmo de chamadas). Falha aqui não derruba a sincronização: vira aviso.
-    aposSalvar: async (empresa, acesso, sinal) => {
+    aposSalvar: async (empresa, acesso, sinal, modo) => {
       try {
-        const pedidos = await lerPedidosAbertos(cliente, acesso, { sinal });
+        const pedidos = await lerPedidosAbertos(cliente, acesso, { modo, agora: relogio(), sinal });
         const resultado = await criarTarefasDosPedidos(db, empresa.id, pedidos);
         app.log.info(
           {

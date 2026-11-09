@@ -20,3 +20,8 @@ export function formatarDataHoraBling(instante: Date): string {
   );
   return `${partes.year}-${partes.month}-${partes.day} ${partes.hour}:${partes.minute}:${partes.second}`;
 }
+
+// `AAAA-MM-DD` em `America/Sao_Paulo` (filtros só de data, como o `dataInicial` dos pedidos).
+export function formatarDataBling(instante: Date): string {
+  return formatarDataHoraBling(instante).slice(0, 10);
+}

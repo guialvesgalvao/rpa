@@ -14,7 +14,7 @@ A demo aprovada (2026-11-07) introduziu as tarefas de desenvolvimento de arte se
 3. **Alcance por perfil:** o arte finalista só vê e altera as tarefas de que é responsável (as outras respondem 404); o admin, todas da empresa. Os atalhos (Pendentes, Em andamento, Aguardando validação, Todos) e os contadores seguem o mesmo alcance.
 4. **Comentários com anexos:** até 5 por comentário, PDF ou imagem com os limites e a detecção de tipo das artes; texto opcional quando há anexo. Os arquivos seguem a ADR 0006; o download usa o alcance da tarefa.
 5. **Origem:** `manual` (tela; responsável = quem cria) ou `bling_pedido` (com o número do pedido).
-6. **Tarefas automáticas:** depois de cada sincronização concluída com o Bling, no mesmo job e no mesmo ritmo de chamadas, os pedidos de venda em aberto geram uma tarefa por cliente × produto sem arte e sem tarefa aberta. Cliente pelo id do contato no Bling (senão CNPJ) e produto pelo código; os que não estão na base só entram num aviso com contagens. Falha nessa etapa vira aviso, sem derrubar a sincronização.
+6. **Tarefas automáticas:** depois de cada sincronização concluída com o Bling, no mesmo job e no mesmo ritmo de chamadas, os pedidos de venda em aberto (situação id 6) com data nos últimos 30 dias geram uma tarefa por cliente × produto sem arte e sem tarefa aberta. A sincronização incremental lê só os pedidos alterados na janela dela e os com data a partir do início dela; a completa (a cada 3 dias) lê os 30 dias. Cliente pelo id do contato no Bling (senão CNPJ) e produto pelo código; os que não estão na base só entram num aviso com contagens. Falha nessa etapa vira aviso, sem derrubar a sincronização.
 7. **Responsável automático:** uma arte finalista por empresa, escolhida pelo admin nas Configurações do app (`tarefas_config`); sem escolha (ou se ela deixar de ser elegível), a única arte finalista ativa da empresa; com mais de uma, a tarefa nasce sem responsável (visível ao admin) e o ciclo registra aviso.
 
 ## Alternativas consideradas
@@ -28,10 +28,11 @@ A demo aprovada (2026-11-07) introduziu as tarefas de desenvolvimento de arte se
 ## Consequências
 
 - Tarefas automáticas sem responsável ficam só para o admin até alguém assumir.
-- A leitura dos pedidos depende do escopo de Pedidos de Venda no app do Bling e do formato confirmado na Task 15 do plano (situação "Em aberto" assumida como id 6).
+- A leitura dos pedidos depende do escopo de Pedidos de Venda no app do Bling; o formato e o id 6 de "Em aberto" foram confirmados na conta real (2026-11-09).
+- Pedidos em aberto com mais de 30 dias não geram tarefa (decisão do usuário, 2026-11-09: a conta tinha 1692 em aberto desde 2024).
 - A conexão `roma` usa hoje o login da ABA: o worker lê os pedidos dessa conta (mesma limitação da sincronização).
 
 ## Gatilho de revisão
 
 - Formato ou situação dos pedidos diferente do assumido (Task 15).
-- Volume de pedidos em aberto que torne lento um detalhe por pedido a cada ciclo.
+- Volume de pedidos nos 30 dias que torne lenta a varredura completa, ou pedido de considerar pedidos mais antigos.

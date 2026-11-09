@@ -99,6 +99,13 @@
       "when": 1794112084548,
       "tag": "0013_tarefas_origem_responsavel",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1794248583189,
+      "tag": "0014_bling_conta",
+      "breakpoints": true
     }
   ]
 }

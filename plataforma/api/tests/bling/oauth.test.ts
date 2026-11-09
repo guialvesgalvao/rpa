@@ -3,7 +3,9 @@ import { randomBytes } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { SignJWT } from 'jose';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { z } from 'zod';
 
+import { empresaPorId } from '../../src/artes/repositorio.js';
 import { criarTokens } from '../../src/auth/tokens.js';
 import { criarCifra } from '../../src/bling/cifra.js';
 import {
@@ -13,19 +15,42 @@ import {
 } from '../../src/bling/cliente.js';
 import { criarConexoesBling } from '../../src/bling/conexoes.js';
 import {
+  CAMINHO_DADOS_EMPRESA,
   criarOAuthBling,
+  ErroBlingContaErrada,
   ErroBlingNaoConectado,
+  ErroBlingSemEscopoEmpresa,
   ErroBlingStateInvalido,
   URL_AUTORIZACAO_BLING,
 } from '../../src/bling/oauth.js';
-import { empresas } from '../../src/db/esquema.js';
+import { gerarCnpj } from '../../src/cli/semear-dev.js';
+import { blingConexoes, empresas } from '../../src/db/esquema.js';
 import { criarUsuario } from '../../src/usuarios/servico.js';
 import { criarRelogioFalso, SEGREDO_TESTE } from '../helpers/app.js';
 import { criarBancoTeste, limparTabelas } from '../helpers/banco.js';
 
-// Credenciais e tokens fictícios.
+// Credenciais, tokens e CNPJs fictícios.
 const CONFIG = { clientId: 'client-id-ficticio', clientSecret: 'client-secret-ficticio' };
 const SEIS_HORAS_S = 6 * 60 * 60;
+const CNPJ_ROMA = gerarCnpj(801);
+const CNPJ_OUTRA = gerarCnpj(802);
+const CONTA = { cnpj: CNPJ_ROMA, nome: 'Conta Fictícia Ltda' };
+// O Bling devolve o CNPJ formatado.
+const mascarar = (cnpj: string) =>
+  cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
+const dadosEmpresa = (cnpj: string, nome = CONTA.nome) => ({
+  id: 1,
+  nome,
+  cnpj: mascarar(cnpj),
+  email: 'contato@exemplo.com',
+  dataContrato: '2020-01-01',
+});
+
+type Obter = (
+  caminho: string,
+  esquema: z.ZodType,
+  acesso: () => Promise<string>,
+) => Promise<unknown>;
 
 const { db, fechar } = criarBancoTeste();
 afterAll(() => fechar());
@@ -33,9 +58,26 @@ afterAll(() => fechar());
 let relogio: ReturnType<typeof criarRelogioFalso>;
 let conexoes: ReturnType<typeof criarConexoesBling>;
 let token: ReturnType<typeof vi.fn<(corpo: Record<string, string>) => Promise<TokenBling>>>;
+let obter: ReturnType<typeof vi.fn<Obter>>;
 let oauth: ReturnType<typeof criarOAuthBling>;
 let roma: string;
+let aba: string;
 let usuarioId: string;
+
+// O fake devolve os dados da conta passados pelo esquema real do `concluir`.
+const respondeConta = (dados: unknown) =>
+  obter.mockImplementation(async (_caminho, esquema) => esquema.parse(dados));
+
+function montarOAuth(cnpjsEsperados: { roma?: string } = {}) {
+  return criarOAuthBling({
+    config: { ...CONFIG, cnpjsEsperados },
+    cliente: { token, obter: obter as never },
+    conexoes,
+    empresas: (id) => empresaPorId(db, id),
+    jwtSegredo: SEGREDO_TESTE,
+    relogio: relogio.agora,
+  });
+}
 
 beforeEach(async () => {
   await limparTabelas(db);
@@ -46,15 +88,13 @@ beforeEach(async () => {
     relogio: relogio.agora,
   });
   token = vi.fn<(corpo: Record<string, string>) => Promise<TokenBling>>();
-  oauth = criarOAuthBling({
-    config: CONFIG,
-    cliente: { token },
-    conexoes,
-    jwtSegredo: SEGREDO_TESTE,
-    relogio: relogio.agora,
-  });
+  obter = vi.fn<Obter>();
+  respondeConta(dadosEmpresa(CNPJ_ROMA));
+  oauth = montarOAuth({ roma: CNPJ_ROMA });
   const [linha] = await db.select().from(empresas).where(eq(empresas.slug, 'roma'));
   roma = linha!.id;
+  const [linhaAba] = await db.select().from(empresas).where(eq(empresas.slug, 'aba'));
+  aba = linhaAba!.id;
   ({ id: usuarioId } = await criarUsuario(db, {
     email: 'admin@exemplo.com',
     nome: 'Admin Teste',
@@ -84,22 +124,103 @@ describe('urlAutorizacao', () => {
 });
 
 describe('concluir', () => {
-  it('troca o código e grava a conexão da empresa do state', async () => {
+  it('troca o código, confere a conta e grava a conexão da empresa do state', async () => {
     token.mockResolvedValueOnce(emissao('1'));
     const state = await stateDe(await oauth.urlAutorizacao(roma, usuarioId));
 
-    expect(await oauth.concluir('codigo-ficticio', state)).toEqual({ empresaId: roma, usuarioId });
+    expect(await oauth.concluir('codigo-ficticio', state)).toEqual({
+      empresaId: roma,
+      usuarioId,
+      conta: CONTA,
+    });
 
     expect(token).toHaveBeenCalledWith(
       { grant_type: 'authorization_code', code: 'codigo-ficticio' },
       CONFIG,
     );
+    // Os dados da empresa são lidos com o access token recém-emitido.
+    expect(obter).toHaveBeenCalledTimes(1);
+    const [caminho, , acesso] = obter.mock.calls[0]!;
+    expect(caminho).toBe(CAMINHO_DADOS_EMPRESA);
+    expect(await acesso()).toBe('acesso-1');
     expect(await conexoes.obter(roma)).toMatchObject({
       accessToken: 'acesso-1',
       refreshToken: 'renovacao-1',
       accessExpiraEm: new Date(relogio.agora().getTime() + SEIS_HORAS_S * 1000),
       autorizadoPor: usuarioId,
+      conta: CONTA,
     });
+  });
+
+  it('sem CNPJ esperado configurado, aceita a conta ainda não ligada a outra empresa', async () => {
+    oauth = montarOAuth();
+    token.mockResolvedValueOnce(emissao('1'));
+    respondeConta(dadosEmpresa(CNPJ_OUTRA, 'Outra Conta Fictícia'));
+    const state = await stateDe(await oauth.urlAutorizacao(roma, usuarioId));
+
+    await oauth.concluir('c', state);
+    expect(await conexoes.conta(roma)).toEqual({ cnpj: CNPJ_OUTRA, nome: 'Outra Conta Fictícia' });
+  });
+
+  it('CNPJ diferente do esperado: recusa sem gravar e sem expor o CNPJ', async () => {
+    token.mockResolvedValueOnce(emissao('1'));
+    respondeConta(dadosEmpresa(CNPJ_OUTRA));
+    const state = await stateDe(await oauth.urlAutorizacao(roma, usuarioId));
+
+    const erro = await oauth.concluir('c', state).catch((e: unknown) => e);
+    expect(erro).toBeInstanceOf(ErroBlingContaErrada);
+    expect((erro as ErroBlingContaErrada).empresaNome).toBe('Roma Embalagens');
+    expect(String(erro)).not.toContain(CNPJ_OUTRA);
+    expect(await db.$count(blingConexoes)).toBe(0);
+  });
+
+  it('CNPJ já ligado a outra empresa: recusa sem gravar', async () => {
+    oauth = montarOAuth();
+    await conexoes.salvar(aba, {
+      accessToken: 'acesso-aba',
+      accessExpiraEm: relogio.agora(),
+      refreshToken: 'renovacao-aba',
+      conta: CONTA,
+    });
+    token.mockResolvedValueOnce(emissao('1'));
+    const state = await stateDe(await oauth.urlAutorizacao(roma, usuarioId));
+
+    await expect(oauth.concluir('c', state)).rejects.toBeInstanceOf(ErroBlingContaErrada);
+    expect(await conexoes.obter(roma)).toBeNull();
+  });
+
+  it('reautorizar a mesma empresa com a mesma conta é aceito', async () => {
+    token.mockResolvedValueOnce(emissao('1')).mockResolvedValueOnce(emissao('2'));
+    await oauth.concluir('c1', await stateDe(await oauth.urlAutorizacao(roma, usuarioId)));
+    await oauth.concluir('c2', await stateDe(await oauth.urlAutorizacao(roma, usuarioId)));
+    expect(await conexoes.obter(roma)).toMatchObject({ accessToken: 'acesso-2', conta: CONTA });
+  });
+
+  it('403 nos dados da empresa (app sem o escopo): recusa sem gravar', async () => {
+    token.mockResolvedValueOnce(emissao('1'));
+    obter.mockRejectedValueOnce(new ErroBlingIndisponivel('insufficient_scope', 403));
+    const state = await stateDe(await oauth.urlAutorizacao(roma, usuarioId));
+
+    await expect(oauth.concluir('c', state)).rejects.toBeInstanceOf(ErroBlingSemEscopoEmpresa);
+    expect(await db.$count(blingConexoes)).toBe(0);
+  });
+
+  it('outra falha nos dados da empresa segue como Bling indisponível, sem gravar', async () => {
+    token.mockResolvedValueOnce(emissao('1'));
+    obter.mockRejectedValueOnce(new ErroBlingIndisponivel('rede'));
+    const state = await stateDe(await oauth.urlAutorizacao(roma, usuarioId));
+
+    await expect(oauth.concluir('c', state)).rejects.toBeInstanceOf(ErroBlingIndisponivel);
+    expect(await db.$count(blingConexoes)).toBe(0);
+  });
+
+  it('dados da empresa sem CNPJ: recusa sem gravar', async () => {
+    token.mockResolvedValueOnce(emissao('1'));
+    respondeConta({ id: 1, nome: 'Sem CNPJ', cnpj: '' });
+    const state = await stateDe(await oauth.urlAutorizacao(roma, usuarioId));
+
+    await expect(oauth.concluir('c', state)).rejects.toThrow();
+    expect(await db.$count(blingConexoes)).toBe(0);
   });
 
   it('recusa state adulterado', async () => {
@@ -170,8 +291,14 @@ describe('acessoValido', () => {
     expect(token).not.toHaveBeenCalled();
   });
 
-  it('perto do vencimento, renova e salva o refresh token novo', async () => {
-    await conectar(daquiA(5 * 60 * 1000 - 1));
+  it('perto do vencimento, renova e salva o refresh token novo, mantendo a conta', async () => {
+    await conexoes.salvar(roma, {
+      accessToken: 'acesso-atual',
+      accessExpiraEm: daquiA(5 * 60 * 1000 - 1),
+      refreshToken: 'renovacao-atual',
+      usuarioId,
+      conta: CONTA,
+    });
     token.mockResolvedValueOnce(emissao('novo'));
 
     expect(await oauth.acessoValido(roma)).toBe('acesso-novo');
@@ -184,7 +311,9 @@ describe('acessoValido', () => {
       accessToken: 'acesso-novo',
       refreshToken: 'renovacao-novo',
       autorizadoPor: usuarioId,
+      conta: CONTA,
     });
+    expect(obter).not.toHaveBeenCalled();
   });
 
   it('chamadas simultâneas fazem um único refresh', async () => {

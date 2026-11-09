@@ -10,15 +10,23 @@ import { z } from 'zod';
 import { idDaEmpresa } from '../artes/repositorio.js';
 import { usuarioDe } from '../plugins/autenticacao.js';
 import { ErroBling, ErroBlingConcessaoInvalida, ErroBlingNaoAutorizado } from '../bling/cliente.js';
+import type { ConexoesBling } from '../bling/conexoes.js';
 import type { EstadoSincronizacao } from '../bling/estado.js';
 import type { ExecucaoSincronizacao } from '../bling/execucao.js';
-import { ErroBlingNaoConectado, ErroBlingStateInvalido, type OAuthBling } from '../bling/oauth.js';
+import {
+  ErroBlingContaErrada,
+  ErroBlingNaoConectado,
+  ErroBlingSemEscopoEmpresa,
+  ErroBlingStateInvalido,
+  type OAuthBling,
+} from '../bling/oauth.js';
 import type { ConfigSincronizacaoAutomatica } from '../config.js';
 import type { Banco } from '../db/cliente.js';
 import { ErroApi } from '../erros.js';
 
 export type ServicosBling = {
   oauth: OAuthBling;
+  conexoes: Pick<ConexoesBling, 'conta'>;
   execucao: ExecucaoSincronizacao;
   estado: EstadoSincronizacao;
   automatica: ConfigSincronizacaoAutomatica;
@@ -47,7 +55,16 @@ const EsquemaRetorno = z.object({
   state: z.string().min(1).max(4096),
 });
 
-// Página curta para o navegador, sem detalhes internos.
+const ESCAPES: Record<string, string> = {
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&#39;',
+};
+const escapar = (texto: string) => texto.replace(/[&<>"']/g, (c) => ESCAPES[c] ?? c);
+
+// Página curta para o navegador, sem detalhes internos. `titulo` e `texto` são escapados aqui.
 function pagina(reply: FastifyReply, status: number, titulo: string, texto: string) {
   return reply
     .code(status)
@@ -56,8 +73,8 @@ function pagina(reply: FastifyReply, status: number, titulo: string, texto: stri
     .header('referrer-policy', 'no-referrer')
     .header('cache-control', 'no-store')
     .send(
-      `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${titulo}</title></head>` +
-        `<body><h1>${titulo}</h1><p>${texto}</p></body></html>`,
+      `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${escapar(titulo)}</title>` +
+        `</head><body><h1>${escapar(titulo)}</h1><p>${escapar(texto)}</p></body></html>`,
     );
 }
 
@@ -152,9 +169,10 @@ export function rotasBling(
     '/v1/empresas/:empresa/bling/sincronizacao/automatica',
     { preHandler },
     async (request): Promise<SincronizacaoAutomaticaBling> => {
-      const { estado, automatica } = servicos();
+      const { estado, automatica, conexoes } = servicos();
       const empresa = await empresaDe(request);
       const salvo = await estado.ler(empresa.id);
+      const conta = await conexoes.conta(empresa.id);
       const ultimaCompletaEm = salvo.ultimaCompletaEm;
       return {
         ligada: automatica.ligada,
@@ -167,6 +185,7 @@ export function rotasBling(
           automatica.ligada && ultimaCompletaEm
             ? new Date(ultimaCompletaEm.getTime() + automatica.completaDias * DIA_MS).toISOString()
             : null,
+        conta,
       };
     },
   );
@@ -189,9 +208,31 @@ export function rotasBling(
         'O Bling não enviou a autorização. Tente de novo pelo app.',
       );
     try {
-      await bling.oauth.concluir(lido.data.code, lido.data.state);
-      return pagina(reply, 200, 'Bling conectado', 'Volte ao app e clique em Sincronizar dados.');
+      const { conta } = await bling.oauth.concluir(lido.data.code, lido.data.state);
+      return pagina(
+        reply,
+        200,
+        conta.nome ? `Bling conectado: ${conta.nome}` : 'Bling conectado',
+        'Volte ao app e clique em Sincronizar dados.',
+      );
     } catch (erro) {
+      if (erro instanceof ErroBlingContaErrada)
+        return pagina(
+          reply,
+          409,
+          'Conta do Bling errada',
+          `Esta conta do Bling não é a da ${erro.empresaNome}. Saia do Bling, entre com a conta certa ` +
+            '(de preferência numa janela anônima) e clique em Sincronizar dados de novo.',
+        );
+      if (erro instanceof ErroBlingSemEscopoEmpresa)
+        return pagina(
+          reply,
+          403,
+          'Falta permissão no aplicativo do Bling',
+          'O aplicativo do Bling não tem o escopo de dados da empresa, que confirma qual conta foi ' +
+            'autorizada. Peça ao administrador do Bling para incluir esse escopo no aplicativo e clique ' +
+            'em Sincronizar dados de novo.',
+        );
       if (erro instanceof ErroBlingStateInvalido || erro instanceof ErroBlingConcessaoInvalida)
         return pagina(
           reply,

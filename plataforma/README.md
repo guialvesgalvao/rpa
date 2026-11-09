@@ -206,13 +206,13 @@ Registram o desenvolvimento de uma arte de um produto do catálogo para um clien
 
 Leitura de **produtos ativos** e **contatos ativos do tipo Cliente** (com o detalhe de cada um) pela API v3 do Bling, só com GET, gravada nas tabelas `clientes` e `produtos` (as mesmas das artes). Só o admin das empresas em `EMPRESAS_SINCRONIZACAO_BLING` (`contratos/src/bling.ts`, hoje só `roma`) pode usar; o app chama pelo botão "Sincronizar dados" em Configurações.
 
-| Rota                                                       | Resposta                                                                                         |
-| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `POST /v1/empresas/:empresa/bling/conexao`                 | `{ urlAutorizacao }` para abrir no navegador                                                     |
-| `POST /v1/empresas/:empresa/bling/sincronizacao`           | `202` com o estado do job (inicia um, ou devolve o que já está rodando)                          |
-| `GET /v1/empresas/:empresa/bling/sincronizacao`            | estado: `ociosa`, `em_andamento` (etapa e progresso), `concluida` (resumo), `falhou`             |
-| `GET /v1/empresas/:empresa/bling/sincronizacao/automatica` | status da automática: ligada, intervalo, último resultado e próxima completa (não chama o Bling) |
-| `GET /v1/bling/oauth/retorno` (pública, sem log)           | página "Bling conectado" ou a falha; é o link de redirecionamento do app do Bling                |
+| Rota                                                       | Resposta                                                                                                                                                |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /v1/empresas/:empresa/bling/conexao`                 | `{ urlAutorizacao }` para abrir no navegador                                                                                                            |
+| `POST /v1/empresas/:empresa/bling/sincronizacao`           | `202` com o estado do job (inicia um, ou devolve o que já está rodando)                                                                                 |
+| `GET /v1/empresas/:empresa/bling/sincronizacao`            | estado: `ociosa`, `em_andamento` (etapa e progresso), `concluida` (resumo), `falhou`                                                                    |
+| `GET /v1/empresas/:empresa/bling/sincronizacao/automatica` | status da automática: ligada, intervalo, último resultado, próxima completa e a conta conectada (não chama o Bling)                                     |
+| `GET /v1/bling/oauth/retorno` (pública, sem log)           | página "Bling conectado: <nome da conta>" ou a falha (conta errada, app sem o escopo de dados da empresa); é o link de redirecionamento do app do Bling |
 
 Erros: `503 bling_nao_configurado` (sem as variáveis), `409 bling_nao_conectado` (autorizar de novo), `502 bling_indisponivel`, `403 sincronizacao_indisponivel` (empresa fora da lista).
 
@@ -221,6 +221,8 @@ Para conectar (local):
 1. Preencha `BLING_CLIENT_ID`, `BLING_CLIENT_SECRET`, `BLING_REDIRECT_URI` e `BLING_CHAVE_TOKENS` no `plataforma/.env` (modelo e comando da chave no `.env.example`). As quatro vão juntas: com só algumas, a API não sobe.
 2. Aplique as migrações (`db:migrar:dev`; a `0007` cria `bling_conexoes` e a `0008`, o `id_bling` e a marca de inativo) e suba a API (`npm --prefix plataforma -w @plataforma/api run dev`).
 3. No app, "Sincronizar dados" sem conexão abre a autorização do Bling no navegador. Depois de autorizar, o Bling volta para `BLING_REDIRECT_URI` e a conexão fica gravada, com os tokens cifrados (AES-256-GCM). Clique em "Sincronizar dados" de novo.
+
+**Conta conectada:** no retorno, antes de gravar, a API lê a conta autorizada (`GET /empresas/me/dados-basicos`, com o token recém-emitido) e recusa, sem gravar nada, quando o CNPJ dela é diferente do `BLING_<SLUG>_CNPJ` da empresa (hoje só `BLING_ROMA_CNPJ`; opcional) ou já está ligado à conexão de outra empresa. A página pede para sair do Bling e entrar com a conta certa (de preferência numa janela anônima). Por isso o app do Bling precisa do **escopo de dados da empresa**: sem ele, o Bling responde `403` e a página explica o que falta. O CNPJ e o nome da conta ficam em `bling_conexoes` (`conta_cnpj`, só dígitos, e `conta_nome`; migração `0014`; o refresh não muda a conta) e saem em `conta` no status da automática; o app mostra "Conectado a: <nome> (<CNPJ>)" nas Configurações, ou "Conta do Bling não identificada" sem conexão ou com uma conexão anterior à `0014`. CNPJ e tokens nunca vão para o log.
 
 Como a gravação funciona (tudo numa transação; uma falha no meio desfaz tudo):
 
@@ -254,22 +256,23 @@ Formato confirmado com a conta real em 2026-11-09 (filtro `idsSituacoes[]` pelo 
 
 ## Ambiente
 
-| Variável                                                           | Padrão                                        | Uso                                                                                         |
-| ------------------------------------------------------------------ | --------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `PORT`                                                             | `3001`                                        | porta HTTP                                                                                  |
-| `HOST`                                                             | `::`                                          | interface (todas, IPv4 e IPv6)                                                              |
-| `DATABASE_URL`                                                     | —                                             | banco da API e do `db:migrar` (obrigatória)                                                 |
-| `JWT_SEGREDO`                                                      | —                                             | chave do JWT, ao menos 32 bytes (obrigatória)                                               |
-| `DATABASE_URL_TESTE`                                               | `postgres://rpa:rpa@localhost:5433/rpa_teste` | banco dos testes (precisa terminar em `_teste`)                                             |
-| `BLING_CLIENT_ID`, `BLING_CLIENT_SECRET`                           | —                                             | app cadastrado no Bling (opcionais; as quatro `BLING_*` juntas ou nenhuma)                  |
-| `BLING_REDIRECT_URI`                                               | —                                             | link de redirecionamento cadastrado no app do Bling                                         |
-| `BLING_CHAVE_TOKENS`                                               | —                                             | 32 bytes em base64; cifra os tokens do Bling no banco                                       |
-| `BLING_SINCRONIZACAO_AUTOMATICA`                                   | `false`                                       | `true` liga o agendador da sincronização (exige as quatro `BLING_*`)                        |
-| `BLING_INTERVALO_MINUTOS`                                          | `15`                                          | minutos entre o fim de um ciclo e o próximo (5 a 1440)                                      |
-| `BLING_COMPLETA_DIAS`                                              | `3`                                           | dias entre duas sincronizações completas (1 a 30)                                           |
-| `ARQUIVOS_S3_ENDPOINT`, `_REGIAO`, `_BUCKET`, `_CHAVE`, `_SEGREDO` | —                                             | bucket S3 dos arquivos (as cinco ou nenhuma; sem elas, `bytea` no Postgres)                 |
-| `ARQUIVOS_S3_ESTILO_CAMINHO`                                       | `false`                                       | `true`: endereço `endpoint/bucket/chave` (S3Mock local; Railway conforme a aba Credentials) |
-| `ARQUIVOS_S3_TESTE_URL`                                            | `http://localhost:9090`                       | S3 dos testes (S3Mock)                                                                      |
+| Variável                                                           | Padrão                                        | Uso                                                                                                        |
+| ------------------------------------------------------------------ | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `PORT`                                                             | `3001`                                        | porta HTTP                                                                                                 |
+| `HOST`                                                             | `::`                                          | interface (todas, IPv4 e IPv6)                                                                             |
+| `DATABASE_URL`                                                     | —                                             | banco da API e do `db:migrar` (obrigatória)                                                                |
+| `JWT_SEGREDO`                                                      | —                                             | chave do JWT, ao menos 32 bytes (obrigatória)                                                              |
+| `DATABASE_URL_TESTE`                                               | `postgres://rpa:rpa@localhost:5433/rpa_teste` | banco dos testes (precisa terminar em `_teste`)                                                            |
+| `BLING_CLIENT_ID`, `BLING_CLIENT_SECRET`                           | —                                             | app cadastrado no Bling (opcionais; as quatro `BLING_*` juntas ou nenhuma)                                 |
+| `BLING_REDIRECT_URI`                                               | —                                             | link de redirecionamento cadastrado no app do Bling                                                        |
+| `BLING_CHAVE_TOKENS`                                               | —                                             | 32 bytes em base64; cifra os tokens do Bling no banco                                                      |
+| `BLING_ROMA_CNPJ`                                                  | —                                             | CNPJ (com ou sem máscara, 14 dígitos) da conta do Bling que a Roma pode conectar; fora do grupo das quatro |
+| `BLING_SINCRONIZACAO_AUTOMATICA`                                   | `false`                                       | `true` liga o agendador da sincronização (exige as quatro `BLING_*`)                                       |
+| `BLING_INTERVALO_MINUTOS`                                          | `15`                                          | minutos entre o fim de um ciclo e o próximo (5 a 1440)                                                     |
+| `BLING_COMPLETA_DIAS`                                              | `3`                                           | dias entre duas sincronizações completas (1 a 30)                                                          |
+| `ARQUIVOS_S3_ENDPOINT`, `_REGIAO`, `_BUCKET`, `_CHAVE`, `_SEGREDO` | —                                             | bucket S3 dos arquivos (as cinco ou nenhuma; sem elas, `bytea` no Postgres)                                |
+| `ARQUIVOS_S3_ESTILO_CAMINHO`                                       | `false`                                       | `true`: endereço `endpoint/bucket/chave` (S3Mock local; Railway conforme a aba Credentials)                |
+| `ARQUIVOS_S3_TESTE_URL`                                            | `http://localhost:9090`                       | S3 dos testes (S3Mock)                                                                                     |
 
 Site (`web/`), obrigatórias em produção:
 

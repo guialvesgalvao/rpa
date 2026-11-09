@@ -62,8 +62,12 @@ export const EsquemaResultadoSincronizacaoBling = z.object({
   erro: z.object({ codigo: z.string(), mensagem: z.string() }).optional(),
 });
 
+// Conta do Bling conectada à empresa. `cnpj` só com dígitos.
+export const EsquemaContaBling = z.object({ nome: z.string(), cnpj: z.string() });
+
 // Resposta de `GET /v1/empresas/:empresa/bling/sincronizacao/automatica`. `proximaCompletaEm` é `null` com a
-// automática desligada ou antes da primeira completa.
+// automática desligada ou antes da primeira completa. `conta` é `null` sem conexão ou com uma conexão anterior à
+// verificação da conta.
 export const EsquemaSincronizacaoAutomaticaBling = z.object({
   ligada: z.boolean(),
   intervaloMinutos: z.number().int().min(1),
@@ -71,10 +75,12 @@ export const EsquemaSincronizacaoAutomaticaBling = z.object({
   ultima: EsquemaResultadoSincronizacaoBling.nullable(),
   ultimaCompletaEm: z.iso.datetime().nullable(),
   proximaCompletaEm: z.iso.datetime().nullable(),
+  conta: EsquemaContaBling.nullable(),
 });
 
 export type EmpresaSincronizacaoBling = (typeof EMPRESAS_SINCRONIZACAO_BLING)[number];
 export type ConexaoBling = z.infer<typeof EsquemaConexaoBling>;
+export type ContaBling = z.infer<typeof EsquemaContaBling>;
 export type EtapaSincronizacaoBling = z.infer<typeof EsquemaEtapaSincronizacaoBling>;
 export type ResumoSincronizacaoBling = z.infer<typeof EsquemaResumoSincronizacaoBling>;
 export type EstadoSincronizacaoBling = z.infer<typeof EsquemaEstadoSincronizacaoBling>;

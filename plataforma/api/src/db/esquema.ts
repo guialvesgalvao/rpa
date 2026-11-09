@@ -189,6 +189,10 @@ export const blingConexoes = pgTable('bling_conexoes', {
   autorizadoPor: uuid('autorizado_por').references(() => usuarios.id, { onDelete: 'set null' }),
   autorizadoEm: instante('autorizado_em').notNull(),
   atualizadoEm: instante('atualizado_em').notNull(),
+  // Conta do Bling autorizada (`GET /empresas/me/dados-basicos`), gravada só na autorização. CNPJ só com dígitos.
+  // Nulas nas conexões anteriores à verificação da conta.
+  contaCnpj: text('conta_cnpj'),
+  contaNome: text('conta_nome'),
 });
 
 // Estado da sincronização automática com o Bling, por empresa. Fica no banco para continuar de onde parou depois

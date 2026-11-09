@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { SincronizacaoAutomaticaBling } from '../../src/app/plataforma/contratos.js';
 import {
   textoAutomaticaBling,
+  textoContaBling,
   textoProgressoBling,
   textoResultadoBling,
 } from '../../src/app/sincronizacao.js';
@@ -60,6 +61,25 @@ describe('textoResultadoBling', () => {
   });
 });
 
+describe('textoContaBling', () => {
+  // Dados fictícios.
+  it('mostra o nome e o CNPJ formatado da conta conectada', () => {
+    expect(textoContaBling({ nome: 'Conta Fictícia Ltda', cnpj: '12345678000195' })).toBe(
+      'Conectado a: Conta Fictícia Ltda (12.345.678/0001-95).',
+    );
+  });
+
+  it('sem conexão ou com conta anterior à verificação', () => {
+    expect(textoContaBling(null)).toBe('Conta do Bling não identificada.');
+  });
+
+  it('conta sem nome', () => {
+    expect(textoContaBling({ nome: '', cnpj: '12345678000195' })).toBe(
+      'Conectado a: conta sem nome (12.345.678/0001-95).',
+    );
+  });
+});
+
 describe('textoAutomaticaBling', () => {
   // Datas locais, para não depender do fuso da máquina.
   const agora = new Date(2026, 10, 5, 15, 0);
@@ -82,6 +102,7 @@ describe('textoAutomaticaBling', () => {
     },
     ultimaCompletaEm: iso(4, 10, 0),
     proximaCompletaEm: iso(7, 10, 0),
+    conta: null,
     ...dados,
   });
 

@@ -1,3 +1,4 @@
+import type { EmpresaSincronizacaoBling } from '@plataforma/contratos';
 import { z } from 'zod';
 
 import type { ConfigS3 } from './arquivos/s3.js';
@@ -91,6 +92,14 @@ const schema = z
     BLING_CHAVE_TOKENS: opcional(
       z.string().trim().refine(chaveValida, 'BLING_CHAVE_TOKENS precisa ter 32 bytes em base64'),
     ),
+    // CNPJ da conta do Bling esperada para a empresa (com ou sem máscara). Fora do grupo das quatro: sem ele, a
+    // conexão só confere se o CNPJ não está ligado a outra empresa.
+    BLING_ROMA_CNPJ: opcional(
+      z
+        .string()
+        .transform((valor) => valor.replace(/\D/g, ''))
+        .refine((cnpj) => cnpj.length === 14, 'BLING_ROMA_CNPJ precisa ter 14 dígitos'),
+    ),
     // Sincronização automática (agendador dentro da API): desligada por padrão.
     BLING_SINCRONIZACAO_AUTOMATICA: opcional(
       z.enum(['true', 'false'], {
@@ -140,6 +149,9 @@ export type ConfigBling = {
   redirectUri: string;
   // Base64 de 32 bytes (AES-256-GCM dos tokens no banco).
   chaveTokens: string;
+  // CNPJ (só dígitos) da conta do Bling que cada empresa pode conectar; ausente, qualquer conta ainda não ligada
+  // a outra empresa.
+  cnpjsEsperados: Partial<Record<EmpresaSincronizacaoBling, string>>;
   automatica: ConfigSincronizacaoAutomatica;
 };
 
@@ -175,6 +187,7 @@ export function lerConfig(env: NodeJS.ProcessEnv = process.env): Config {
       clientSecret: parsed.BLING_CLIENT_SECRET,
       redirectUri: parsed.BLING_REDIRECT_URI,
       chaveTokens: parsed.BLING_CHAVE_TOKENS,
+      cnpjsEsperados: parsed.BLING_ROMA_CNPJ === undefined ? {} : { roma: parsed.BLING_ROMA_CNPJ },
       automatica: {
         ligada: parsed.BLING_SINCRONIZACAO_AUTOMATICA === 'true',
         intervaloMinutos: parsed.BLING_INTERVALO_MINUTOS ?? 15,

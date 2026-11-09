@@ -20,7 +20,7 @@ import type { ConfigBling } from './config.js';
 import type { Banco } from './db/cliente.js';
 import { configurarErros } from './erros.js';
 import { criarAutenticacao } from './plugins/autenticacao.js';
-import { idDaEmpresa } from './artes/repositorio.js';
+import { empresaPorId, idDaEmpresa } from './artes/repositorio.js';
 import { rotasArtes } from './rotas/artes.js';
 import { rotasAuth } from './rotas/auth.js';
 import { rotasBling, type ServicosBling } from './rotas/bling.js';
@@ -121,7 +121,14 @@ function criarServicosBling(
     ...(bling.esperar && { esperar: bling.esperar }),
   });
   const conexoes = criarConexoesBling({ db, cifra: criarCifra(bling.chaveTokens), relogio });
-  const oauth = criarOAuthBling({ config: bling, cliente, conexoes, jwtSegredo, relogio });
+  const oauth = criarOAuthBling({
+    config: bling,
+    cliente,
+    conexoes,
+    empresas: (id) => empresaPorId(db, id),
+    jwtSegredo,
+    relogio,
+  });
   const estado = criarEstadoSincronizacao({ db, relogio });
   const execucao = criarExecucaoSincronizacao({
     sincronizar: (opcoes) => sincronizarBling(cliente, opcoes),
@@ -165,5 +172,5 @@ function criarServicosBling(
       }
     },
   });
-  return { oauth, execucao, estado, automatica: bling.automatica };
+  return { oauth, conexoes, execucao, estado, automatica: bling.automatica };
 }

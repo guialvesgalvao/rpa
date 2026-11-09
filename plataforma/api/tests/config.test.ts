@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { gerarCnpj } from '../src/cli/semear-dev.js';
 import { lerConfig } from '../src/config.js';
 
 // Valores fictícios.
@@ -78,8 +79,33 @@ describe('lerConfig: Bling', () => {
       clientSecret: BLING.BLING_CLIENT_SECRET,
       redirectUri: BLING.BLING_REDIRECT_URI,
       chaveTokens: BLING.BLING_CHAVE_TOKENS,
+      cnpjsEsperados: {},
       automatica: { ligada: false, intervaloMinutos: 15, completaDias: 3 },
     });
+  });
+
+  it('lê BLING_ROMA_CNPJ com ou sem máscara e guarda só os dígitos', () => {
+    const cnpj = gerarCnpj(920);
+    const mascarado = cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
+    for (const valor of [cnpj, mascarado])
+      expect(
+        lerConfig({ ...OBRIGATORIAS, ...BLING, BLING_ROMA_CNPJ: valor }).bling?.cnpjsEsperados,
+      ).toEqual({ roma: cnpj });
+    expect(
+      lerConfig({ ...OBRIGATORIAS, ...BLING, BLING_ROMA_CNPJ: '' }).bling?.cnpjsEsperados,
+    ).toEqual({});
+  });
+
+  it('recusa BLING_ROMA_CNPJ sem 14 dígitos, sem mostrar o valor', () => {
+    for (const valor of ['1234567890123', '123456789012345', 'abc']) {
+      const ler = () => lerConfig({ ...OBRIGATORIAS, ...BLING, BLING_ROMA_CNPJ: valor });
+      expect(ler).toThrow(/BLING_ROMA_CNPJ precisa ter 14 dígitos/);
+      expect(ler).not.toThrow(valor);
+    }
+  });
+
+  it('BLING_ROMA_CNPJ não entra no grupo das quatro', () => {
+    expect(lerConfig({ ...OBRIGATORIAS, BLING_ROMA_CNPJ: gerarCnpj(920) }).bling).toBeUndefined();
   });
 
   it('recusa configuração parcial, dizendo o que falta sem mostrar valores', () => {

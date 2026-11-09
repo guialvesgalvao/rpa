@@ -28,7 +28,12 @@ import {
 } from './menu.js';
 import { criarOp } from './op/index.js';
 import { criarUsuarios } from './usuarios/index.js';
-import { textoAutomaticaBling, textoProgressoBling, textoResultadoBling } from './sincronizacao.js';
+import {
+  textoAutomaticaBling,
+  textoContaBling,
+  textoProgressoBling,
+  textoResultadoBling,
+} from './sincronizacao.js';
 import { preencherResultado } from './resultados.js';
 
 declare global {
@@ -111,6 +116,7 @@ const cfgResponsavelStatus = $('cfg-responsavel-status');
 const cfgSincronizar = $<HTMLButtonElement>('cfg-sincronizar');
 const cfgSincronizacaoStatus = $('cfg-sincronizacao-status');
 const cfgSincronizacaoAutomatica = $('cfg-sincronizacao-automatica');
+const cfgSincronizacaoConta = $('cfg-sincronizacao-conta');
 const logo = $<HTMLImageElement>('logo');
 const empresaSubtitulo = $('empresa-subtitulo');
 const rodapeEmpresa = $('rodape-empresa');
@@ -395,16 +401,18 @@ function preencherConfig(config: ConfigTela) {
   cfgErro.textContent = '';
 }
 
-// Segunda linha do bloco: a sincronização automática no servidor (só para quem vê o bloco).
+// Linhas de baixo do bloco: a conta do Bling conectada e a sincronização automática no servidor (só para quem
+// vê o bloco). A conta vem na mesma resposta; sem resposta, a linha dela fica vazia.
 async function atualizarAutomatica() {
   if (cfgSincronizacao.hidden) return;
+  cfgSincronizacaoConta.textContent = '';
   cfgSincronizacaoAutomatica.textContent = 'Consultando a sincronização automática…';
   try {
     const resposta = await window.rpa.bling.automatica();
-    cfgSincronizacaoAutomatica.textContent =
-      resposta.situacao === 'ok'
-        ? textoAutomaticaBling(resposta.status, new Date())
-        : resposta.mensagem;
+    if (resposta.situacao === 'ok') {
+      cfgSincronizacaoConta.textContent = textoContaBling(resposta.status.conta);
+      cfgSincronizacaoAutomatica.textContent = textoAutomaticaBling(resposta.status, new Date());
+    } else cfgSincronizacaoAutomatica.textContent = resposta.mensagem;
   } catch (erro) {
     cfgSincronizacaoAutomatica.textContent = mensagemErro(erro);
   }

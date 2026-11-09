@@ -6,9 +6,10 @@ import {
   type ClienteBling,
   ErroBling,
   ErroBlingConcessaoInvalida,
+  ErroBlingIndisponivel,
   type TokenBling,
 } from './cliente.js';
-import type { ConexoesBling } from './conexoes.js';
+import type { ConexoesBling, ContaBling } from './conexoes.js';
 
 export const URL_AUTORIZACAO_BLING = 'https://www.bling.com.br/Api/v3/oauth/authorize';
 export const DURACAO_STATE_MS = 10 * 60 * 1000;
@@ -34,13 +35,45 @@ export class ErroBlingStateInvalido extends ErroBling {
   }
 }
 
+// A conta autorizada não é a da empresa: CNPJ diferente do esperado ou já ligado a outra empresa. A mensagem
+// traz só o nome da nossa empresa, nunca dados da conta do Bling.
+export class ErroBlingContaErrada extends ErroBling {
+  override name = 'ErroBlingContaErrada';
+  constructor(readonly empresaNome: string) {
+    super(`A conta do Bling autorizada não é a da ${empresaNome}.`);
+  }
+}
+
+// O app do Bling não tem o escopo de dados da empresa: sem ele não dá para conferir a conta.
+export class ErroBlingSemEscopoEmpresa extends ErroBling {
+  override name = 'ErroBlingSemEscopoEmpresa';
+  constructor() {
+    super('O aplicativo do Bling não tem permissão para ler os dados da empresa.');
+  }
+}
+
 const EsquemaClaimsState = z.object({ sub: z.uuid(), empresa: z.uuid() });
+
+// `GET /empresas/me/dados-basicos`: só o que a verificação usa. O CNPJ vem formatado; fica só com os dígitos.
+export const CAMINHO_DADOS_EMPRESA = '/empresas/me/dados-basicos';
+const EsquemaDadosEmpresa = z.object({
+  cnpj: z
+    .string()
+    .transform((cnpj) => cnpj.replace(/\D/g, ''))
+    .refine((cnpj) => cnpj.length > 0),
+  nome: z.string().trim(),
+});
+
+export type EmpresaOAuth = { slug: string; nome: string };
 
 export type OAuthBling = {
   // Link que o usuário abre no navegador para autorizar a empresa no Bling.
   urlAutorizacao(empresaId: string, usuarioId: string): Promise<string>;
-  // Retorno do Bling: valida o `state`, troca o código e grava a conexão da empresa do `state`.
-  concluir(code: string, state: string): Promise<{ empresaId: string; usuarioId: string }>;
+  // Retorno do Bling: valida o `state`, troca o código, confere a conta e grava a conexão da empresa do `state`.
+  concluir(
+    code: string,
+    state: string,
+  ): Promise<{ empresaId: string; usuarioId: string; conta: ContaBling }>;
   // Access token válido da empresa, com refresh quando vence em menos de 5 min.
   acessoValido(empresaId: string): Promise<string>;
 };
@@ -51,15 +84,19 @@ export function criarOAuthBling({
   config,
   cliente,
   conexoes,
+  empresas,
   jwtSegredo,
   relogio = () => new Date(),
 }: {
-  config: Pick<ConfigBling, 'clientId' | 'clientSecret'>;
-  cliente: Pick<ClienteBling, 'token'>;
+  config: Pick<ConfigBling, 'clientId' | 'clientSecret' | 'cnpjsEsperados'>;
+  cliente: Pick<ClienteBling, 'token' | 'obter'>;
   conexoes: ConexoesBling;
+  // Slug e nome da empresa pelo id (o `state` leva só o id).
+  empresas: (empresaId: string) => Promise<EmpresaOAuth | null>;
   jwtSegredo: string;
   relogio?: () => Date;
 }): OAuthBling {
+  const cnpjsEsperados: Partial<Record<string, string>> = config.cnpjsEsperados;
   const chave = new TextEncoder().encode(jwtSegredo);
   const credenciais = { clientId: config.clientId, clientSecret: config.clientSecret };
   // Uma resolução por empresa de cada vez: dois refreshes simultâneos gastariam o mesmo refresh token, e o
@@ -89,6 +126,21 @@ export function criarOAuthBling({
       refreshToken: token.refresh_token,
     });
     return token.access_token;
+  }
+
+  async function contaDoToken(accessToken: string): Promise<ContaBling> {
+    try {
+      return await cliente.obter(
+        CAMINHO_DADOS_EMPRESA,
+        EsquemaDadosEmpresa,
+        async () => accessToken,
+      );
+    } catch (erro) {
+      // 403 (`insufficient_scope`): o app do Bling não tem o escopo de dados da empresa.
+      if (erro instanceof ErroBlingIndisponivel && erro.status === 403)
+        throw new ErroBlingSemEscopoEmpresa();
+      throw erro;
+    }
   }
 
   async function resolverAcesso(empresaId: string): Promise<string> {
@@ -135,14 +187,28 @@ export function criarOAuthBling({
         throw erro;
       }
 
+      // Empresa apagada depois de emitido o `state`: a autorização não vale mais.
+      const empresa = await empresas(claims.empresa);
+      if (!empresa) throw new ErroBlingStateInvalido();
+
       const token = await cliente.token({ grant_type: 'authorization_code', code }, credenciais);
+      const conta = await contaDoToken(token.access_token);
+      // Nada é gravado se a conta não for a da empresa: os tokens recebidos são descartados.
+      const esperado = cnpjsEsperados[empresa.slug];
+      if (
+        (esperado !== undefined && esperado !== conta.cnpj) ||
+        (await conexoes.outraEmpresaComConta(conta.cnpj, claims.empresa)) !== null
+      )
+        throw new ErroBlingContaErrada(empresa.nome);
+
       await conexoes.salvar(claims.empresa, {
         accessToken: token.access_token,
         accessExpiraEm: expiracao(token),
         refreshToken: token.refresh_token,
         usuarioId: claims.sub,
+        conta,
       });
-      return { empresaId: claims.empresa, usuarioId: claims.sub };
+      return { empresaId: claims.empresa, usuarioId: claims.sub, conta };
     },
 
     acessoValido(empresaId) {

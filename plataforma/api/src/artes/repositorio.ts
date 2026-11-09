@@ -69,6 +69,17 @@ export async function idDaEmpresa(db: Banco, slug: string): Promise<string | nul
   return empresa?.id ?? null;
 }
 
+export async function empresaPorId(
+  db: Banco,
+  id: string,
+): Promise<{ slug: string; nome: string } | null> {
+  const [empresa] = await db
+    .select({ slug: empresas.slug, nome: empresas.nome })
+    .from(empresas)
+    .where(eq(empresas.id, id));
+  return empresa ?? null;
+}
+
 const colunasCliente = {
   id: clientes.id,
   nomeExibicao: clientes.nomeExibicao,

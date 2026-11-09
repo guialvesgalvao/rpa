@@ -5,6 +5,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { criarCifra } from '../../src/bling/cifra.js';
 import { criarConexoesBling } from '../../src/bling/conexoes.js';
+import { gerarCnpj } from '../../src/cli/semear-dev.js';
 import { blingConexoes, empresas } from '../../src/db/esquema.js';
 import { criarUsuario } from '../../src/usuarios/servico.js';
 import { criarRelogioFalso } from '../helpers/app.js';
@@ -16,6 +17,7 @@ afterAll(() => fechar());
 // Tokens fictícios.
 const ACESSO = 'acesso-ficticio-1';
 const RENOVACAO = 'renovacao-ficticia-1';
+const CONTA = { cnpj: gerarCnpj(901), nome: 'Conta Fictícia Ltda' };
 
 let relogio: ReturnType<typeof criarRelogioFalso>;
 let conexoes: ReturnType<typeof criarConexoesBling>;
@@ -55,12 +57,13 @@ describe('conexões do Bling', () => {
     expect(await conexoes.obter(roma)).toBeNull();
   });
 
-  it('salva e lê de volta, com o autor da autorização', async () => {
+  it('salva e lê de volta, com o autor da autorização e a conta', async () => {
     await conexoes.salvar(roma, {
       accessToken: ACESSO,
       accessExpiraEm: expira,
       refreshToken: RENOVACAO,
       usuarioId,
+      conta: CONTA,
     });
     expect(await conexoes.obter(roma)).toEqual({
       accessToken: ACESSO,
@@ -69,8 +72,33 @@ describe('conexões do Bling', () => {
       autorizadoPor: usuarioId,
       autorizadoEm: relogio.agora(),
       atualizadoEm: relogio.agora(),
+      conta: CONTA,
     });
+    expect(await conexoes.conta(roma)).toEqual(CONTA);
     expect(await conexoes.obter(aba)).toBeNull();
+    expect(await conexoes.conta(aba)).toBeNull();
+  });
+
+  it('conexão sem conta (anterior à verificação) devolve conta nula', async () => {
+    await conexoes.salvar(roma, {
+      accessToken: ACESSO,
+      accessExpiraEm: expira,
+      refreshToken: RENOVACAO,
+    });
+    expect((await conexoes.obter(roma))?.conta).toBeNull();
+    expect(await conexoes.conta(roma)).toBeNull();
+  });
+
+  it('acha a outra empresa ligada a um CNPJ, ignorando a própria', async () => {
+    await conexoes.salvar(aba, {
+      accessToken: ACESSO,
+      accessExpiraEm: expira,
+      refreshToken: RENOVACAO,
+      conta: CONTA,
+    });
+    expect(await conexoes.outraEmpresaComConta(CONTA.cnpj, roma)).toBe(aba);
+    expect(await conexoes.outraEmpresaComConta(CONTA.cnpj, aba)).toBeNull();
+    expect(await conexoes.outraEmpresaComConta(gerarCnpj(902), roma)).toBeNull();
   });
 
   it('não grava os tokens em claro no banco', async () => {
@@ -87,12 +115,13 @@ describe('conexões do Bling', () => {
     expect(linha?.refreshTokenCifrado).toMatch(/^v1\./);
   });
 
-  it('o refresh sobrescreve os tokens e mantém autor e data da autorização', async () => {
+  it('o refresh sobrescreve os tokens e mantém autor, data da autorização e conta', async () => {
     await conexoes.salvar(roma, {
       accessToken: ACESSO,
       accessExpiraEm: expira,
       refreshToken: RENOVACAO,
       usuarioId,
+      conta: CONTA,
     });
     const autorizadoEm = relogio.agora();
     relogio.avancar(60_000);
@@ -110,6 +139,7 @@ describe('conexões do Bling', () => {
       autorizadoPor: usuarioId,
       autorizadoEm,
       atualizadoEm: relogio.agora(),
+      conta: CONTA,
     });
     expect(await db.$count(blingConexoes)).toBe(1);
   });

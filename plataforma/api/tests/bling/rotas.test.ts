@@ -32,13 +32,19 @@ const CODE = 'codigo-ficticio-do-bling';
 const ACESSO_BLING = 'acesso-bling-ficticio';
 const RENOVACAO_BLING = 'renovacao-bling-ficticia';
 const CNPJ_FICTICIO = gerarCnpj(900);
+// Conta do Bling da Roma (fictícia) e a de outra empresa.
+const CONTA_ROMA = { cnpj: gerarCnpj(910), nome: 'Conta Roma Fictícia' };
+const CNPJ_OUTRA_CONTA = gerarCnpj(911);
 const CONFIG = {
   clientId: 'client-id-ficticio',
   clientSecret: 'client-secret-ficticio',
   redirectUri: 'http://localhost:3001/v1/bling/oauth/retorno',
   chaveTokens: randomBytes(32).toString('base64'),
+  cnpjsEsperados: { roma: CONTA_ROMA.cnpj },
   automatica: { ligada: false, intervaloMinutos: 15, completaDias: 3 },
 };
+const mascarar = (cnpj: string) =>
+  cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
 
 const { db, fechar } = criarBancoTeste();
 afterAll(() => fechar());
@@ -46,10 +52,12 @@ afterAll(() => fechar());
 const json = (corpo: unknown, status = 200) =>
   new Response(JSON.stringify(corpo), { status, headers: { 'content-type': 'application/json' } });
 
-// Bling falso: 2 produtos, tipo Cliente e 1 contato ativo com detalhe.
+// Bling falso: conta da Roma, 2 produtos, tipo Cliente e 1 contato ativo com detalhe.
 function blingFalso() {
   let liberarDetalhe: () => void = () => {};
   const detalheLiberado = { valor: true };
+  // Resposta de `/empresas/me/dados-basicos`: a conta autorizada, ou 403 (app sem o escopo).
+  const conta: { atual: { cnpj: string; nome: string } | 403 } = { atual: CONTA_ROMA };
   const fake = vi.fn(async (entrada: string | URL | Request, init?: RequestInit) => {
     const caminho = new URL(String(entrada)).pathname.replace('/Api/v3', '');
     if (caminho === '/oauth/token')
@@ -58,6 +66,18 @@ function blingFalso() {
         refresh_token: RENOVACAO_BLING,
         expires_in: 21_600,
       });
+    if (caminho === '/empresas/me/dados-basicos')
+      return conta.atual === 403
+        ? json({ error: 'insufficient_scope' }, 403)
+        : json({
+            data: {
+              id: 1,
+              nome: conta.atual.nome,
+              cnpj: mascarar(conta.atual.cnpj),
+              email: 'contato@exemplo.com',
+              dataContrato: '2020-01-01',
+            },
+          });
     if (caminho === '/produtos')
       return json({
         data: [1, 2].map((id) => ({ id, nome: `Produto ${id}`, codigo: `SKU${id}`, formato: 'S' })),
@@ -86,6 +106,7 @@ function blingFalso() {
   return {
     fetch: fake as unknown as typeof fetch,
     chamadas: fake.mock.calls,
+    conta,
     segurarDetalhe: () => (detalheLiberado.valor = false),
     liberarDetalhe: () => {
       detalheLiberado.valor = true;
@@ -246,14 +267,48 @@ describe('conexão e retorno OAuth', () => {
     expect(bling.chamadas).toHaveLength(0);
   });
 
-  it('retorno com state válido grava a conexão', async () => {
+  it('retorno com state válido confere a conta e grava a conexão', async () => {
     const retorno = await conectar(admin);
 
     expect(retorno.statusCode).toBe(200);
     expect(retorno.headers['content-type']).toMatch(/text\/html/);
-    expect(retorno.body).toContain('Bling conectado');
+    expect(retorno.body).toContain('Bling conectado: Conta Roma Fictícia');
+    expect(retorno.body).not.toContain(CONTA_ROMA.cnpj);
     const [roma] = await db.select().from(empresas).where(eq(empresas.slug, 'roma'));
-    expect(await db.$count(blingConexoes, eq(blingConexoes.empresaId, roma!.id))).toBe(1);
+    const [linha] = await db
+      .select()
+      .from(blingConexoes)
+      .where(eq(blingConexoes.empresaId, roma!.id));
+    expect(linha).toMatchObject({ contaCnpj: CONTA_ROMA.cnpj, contaNome: CONTA_ROMA.nome });
+  });
+
+  it('nome da conta com HTML é escapado na página', async () => {
+    bling.conta.atual = { ...CONTA_ROMA, nome: '<b>Roma & Cia</b>' };
+    const retorno = await conectar(admin);
+    expect(retorno.statusCode).toBe(200);
+    expect(retorno.body).toContain('&lt;b&gt;Roma &amp; Cia&lt;/b&gt;');
+    expect(retorno.body).not.toContain('<b>');
+  });
+
+  it('conta de outro CNPJ: página pede a conta certa e nada é gravado', async () => {
+    bling.conta.atual = { cnpj: CNPJ_OUTRA_CONTA, nome: 'Outra Conta Fictícia' };
+    const retorno = await conectar(admin);
+
+    expect(retorno.statusCode).toBe(409);
+    expect(retorno.body).toContain('Esta conta do Bling não é a da Roma Embalagens.');
+    expect(retorno.body).toContain('janela anônima');
+    expect(retorno.body).not.toContain(CNPJ_OUTRA_CONTA);
+    expect(retorno.body).not.toContain('Outra Conta Fictícia');
+    expect(await db.$count(blingConexoes)).toBe(0);
+  });
+
+  it('app do Bling sem o escopo de dados da empresa: página explica e nada é gravado', async () => {
+    bling.conta.atual = 403;
+    const retorno = await conectar(admin);
+
+    expect(retorno.statusCode).toBe(403);
+    expect(retorno.body).toContain('escopo de dados da empresa');
+    expect(await db.$count(blingConexoes)).toBe(0);
   });
 
   it('retorno com state inválido ou sem parâmetros não grava nada', async () => {
@@ -309,7 +364,7 @@ describe('sincronização', () => {
     const primeiro = EsquemaEstadoSincronizacaoBling.parse(
       (await chamar('POST', 'sincronizacao', admin)).json(),
     );
-    await vi.waitFor(() => expect(bling.chamadas.length).toBeGreaterThanOrEqual(5));
+    await vi.waitFor(() => expect(bling.chamadas.length).toBeGreaterThanOrEqual(6));
     const segundo = await chamar('POST', 'sincronizacao', admin);
     expect(segundo.statusCode).toBe(202);
     expect(primeiro).toMatchObject({ situacao: 'em_andamento' });
@@ -332,7 +387,7 @@ describe('sincronização', () => {
     await conectar(admin);
     bling.segurarDetalhe();
     await chamar('POST', 'sincronizacao', admin);
-    await vi.waitFor(() => expect(bling.chamadas.length).toBeGreaterThanOrEqual(5));
+    await vi.waitFor(() => expect(bling.chamadas.length).toBeGreaterThanOrEqual(6));
 
     // Sem liberar o detalhe: o fechamento cancela a chamada em andamento em vez de esperá-la.
     await app.close();
@@ -364,6 +419,7 @@ describe('sincronização automática: status', () => {
       ultima: null,
       ultimaCompletaEm: null,
       proximaCompletaEm: null,
+      conta: null,
     });
     expect(bling.chamadas).toHaveLength(0);
   });
@@ -396,6 +452,7 @@ describe('sincronização automática: status', () => {
       ultimaCompletaEm: resumo.iniciadaEm,
       // Desligada: sem próxima completa automática.
       proximaCompletaEm: null,
+      conta: CONTA_ROMA,
     });
     const [linha] = await db.select().from(blingSincronizacoes);
     expect(linha?.incrementalDesde?.toISOString()).toBe(resumo.iniciadaEm);
@@ -419,6 +476,7 @@ describe('sincronização automática: status', () => {
       ultima: null,
       ultimaCompletaEm: '2026-11-04T10:00:00.000Z',
       proximaCompletaEm: '2026-11-06T10:00:00.000Z',
+      conta: null,
     });
   });
 });
@@ -503,6 +561,8 @@ describe('logs', () => {
       CONFIG.clientSecret,
       'Empresa Fictícia',
       CNPJ_FICTICIO,
+      CONTA_ROMA.cnpj,
+      CONTA_ROMA.nome,
     ])
       expect(tudo).not.toContain(segredo);
     expect(tudo).not.toContain('oauth/retorno');

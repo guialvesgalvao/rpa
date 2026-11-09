@@ -1,5 +1,6 @@
 import type { ProgressoBlingTela, ResultadoSincronizacaoBling } from './api.js';
-import type { SincronizacaoAutomaticaBling } from './plataforma/contratos.js';
+import { formatarCnpj } from './artes/dom.js';
+import type { ContaBling, SincronizacaoAutomaticaBling } from './plataforma/contratos.js';
 
 /** Texto de status do bloco "Sincronizar dados" durante o job. */
 export function textoProgressoBling({ etapa, lidos, total }: ProgressoBlingTela): string {
@@ -52,6 +53,12 @@ function quando(iso: string, agora: Date): string {
 }
 
 const semPontoFinal = (texto: string) => texto.trim().replace(/\.+$/, '');
+
+/** Linha do bloco "Sincronizar dados" com a conta do Bling conectada à empresa. */
+export function textoContaBling(conta: ContaBling | null): string {
+  if (!conta) return 'Conta do Bling não identificada.';
+  return `Conectado a: ${conta.nome || 'conta sem nome'} (${formatarCnpj(conta.cnpj)}).`;
+}
 
 /** Segunda linha do bloco "Sincronizar dados": a sincronização automática no servidor. */
 export function textoAutomaticaBling(status: SincronizacaoAutomaticaBling, agora: Date): string {

@@ -127,6 +127,8 @@ describe('criarClienteBling: automatica', () => {
     },
     ultimaCompletaEm: '2026-11-04T10:00:00.000Z',
     proximaCompletaEm: '2026-11-07T10:00:00.000Z',
+    // Dados fictícios.
+    conta: { nome: 'Conta Fictícia Ltda', cnpj: '12345678000195' },
   };
 
   it('faz GET na rota do status com o token e valida o contrato', async () => {

@@ -153,7 +153,7 @@ export function montarFormulario(
     );
 
     const maquinas = opcoesMarcaveis('checkbox', 'maquina', opcoes.maquinas);
-    const campoMaquinas = campo('Máquinas suportadas', maquinas.grupo, 'Marque uma ou as duas');
+    const campoMaquinas = campo('Máquinas suportadas', maquinas.grupo, 'Marque uma ou mais');
     const cores = opcoesMarcaveis('radio', 'cor', opcoes.cores);
     const campoCor = campo('Cor', cores.grupo);
 

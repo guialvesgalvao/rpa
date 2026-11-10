@@ -115,7 +115,7 @@ describe('migrações de Artes', () => {
       (m) => m.nome,
     );
     expect(nomesCores.sort()).toEqual(['4x0', '4x4']);
-    expect(nomesMaquinas.sort()).toEqual(['Favorit', 'Rekord']);
+    expect(nomesMaquinas.sort()).toEqual(['Favorit', 'Rekord', 'Ultra']);
   });
 
   it('f_unaccent remove acentos e é imutável', async () => {

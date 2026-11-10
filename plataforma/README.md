@@ -151,7 +151,7 @@ VALUES ('<empresa_id>', 'Caixa de Pizza');
 -- o nome é único por empresa, sem diferenciar maiúsculas nem acentos
 ```
 
-Cores (`4x0`, `4x4`) e máquinas (`Favorit`, `Rekord`) são globais e vêm de migração. A arte nunca fica sem arquivo (PDF ou imagem), e o produto precisa ser da mesma empresa do cliente.
+Cores (`4x0`, `4x4`) e máquinas (`Favorit`, `Rekord`, `Ultra`) são globais e vêm de migração. A arte nunca fica sem arquivo (PDF ou imagem), e o produto precisa ser da mesma empresa do cliente.
 
 Dados fictícios para desenvolvimento (recusa qualquer banco que não seja `localhost` ou `127.0.0.1`; lê só `DATABASE_URL`; é idempotente):
 

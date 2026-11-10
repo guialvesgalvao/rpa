@@ -376,7 +376,7 @@ describe('opções', () => {
         .array(EsquemaOpcao)
         .parse(maquinasResposta.json())
         .map((m) => m.nome),
-    ).toEqual(['Favorit', 'Rekord']);
+    ).toEqual(['Favorit', 'Rekord', 'Ultra']);
   });
 });
 

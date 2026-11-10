@@ -199,7 +199,7 @@ export function FormNovaArte({
             {maquina.nome}
           </label>
         ))}
-        <div className="hint">Marque uma ou as duas.</div>
+        <div className="hint">Marque uma ou mais.</div>
         <Erro texto={erros.maquinaIds} />
       </fieldset>
 

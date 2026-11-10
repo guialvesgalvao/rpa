@@ -10,3 +10,8 @@ release/
 .env.*.local
 .next/
 *.tsbuildinfo
+
+# Suíte E2E local (npm run e2e)
+test-results/
+playwright-report/
+e2e/.auth/

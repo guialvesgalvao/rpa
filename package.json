@@ -26,6 +26,7 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "e2e": "playwright test -c e2e/playwright.config.ts",
     "browsers:install": "playwright install chromium"
   },
   "dependencies": {
@@ -39,6 +40,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.64.0",
     "@types/node": "^26.6.4",
     "electron": "^44.7.0",
     "electron-builder": "^26.18.0",

@@ -80,6 +80,7 @@ import {
 } from './plataforma/contratos.js';
 import { criarSessao, type EstadoSessao } from './plataforma/sessao.js';
 import { urlDaApi } from './plataforma/url.js';
+import { escolherPastaDeDados } from './ambiente-dev.js';
 import {
   atualizarSettings,
   type Cifra,
@@ -121,7 +122,11 @@ import {
 const here = path.dirname(fileURLToPath(import.meta.url));
 // Caminhos relativos do .env (data/, logs/...): raiz do projeto em dev; no app instalado, a pasta
 // de dados do usuário (%APPDATA%\RPA Bling), já que a pasta de instalação pode não ter escrita.
-const baseDir = app.isPackaged ? app.getPath('userData') : path.resolve(here, '../..');
+// Em dev, `RPA_DATA_DIR` isola tudo numa pasta própria (suíte E2E), inclusive o userData do Electron:
+// a trava de instância única e a chave do safeStorage deixam de ser as do app de dev.
+const pastaDeDados = escolherPastaDeDados(path.resolve(here, '../..'), process.env, app.isPackaged);
+if (pastaDeDados.isolada) app.setPath('userData', path.join(pastaDeDados.baseDir, 'electron'));
+const baseDir = app.isPackaged ? app.getPath('userData') : pastaDeDados.baseDir;
 
 const envConfig = loadConfig(process.env, baseDir);
 // No app instalado não há .env: a pasta padrão dos documentos fica em Documentos\RPA Bling.
@@ -146,7 +151,7 @@ const cifra: Cifra = {
 
 // Sessão na API da plataforma: o token de renovação fica cifrado em data/sessao.json.
 const sessao = criarSessao({
-  cliente: criarCliente({ baseUrl: urlDaApi(), fetch }),
+  cliente: criarCliente({ baseUrl: urlDaApi(app.isPackaged), fetch }),
   cifra,
   arquivo: path.join(baseDir, 'data', 'sessao.json'),
   relogio: () => new Date(),
@@ -170,9 +175,17 @@ async function obterAcessoApi(): Promise<string> {
   }
   throw new ErroIndisponivel('Sem conexão com o servidor.');
 }
-const artesApi = criarClienteArtes({ baseUrl: urlDaApi(), fetch, obterAcesso: obterAcessoApi });
+const artesApi = criarClienteArtes({
+  baseUrl: urlDaApi(app.isPackaged),
+  fetch,
+  obterAcesso: obterAcessoApi,
+});
 // Sincronização com o Bling: pela API da plataforma (o app nunca fala com o Bling por esta via).
-const blingApi = criarClienteBling({ baseUrl: urlDaApi(), fetch, obterAcesso: obterAcessoApi });
+const blingApi = criarClienteBling({
+  baseUrl: urlDaApi(app.isPackaged),
+  fetch,
+  obterAcesso: obterAcessoApi,
+});
 /** Arquivos escolhidos nos diálogos: a janela só conhece o id, nunca o caminho. */
 const arquivosEscolhidos = new Map<string, ArquivoLocal>();
 

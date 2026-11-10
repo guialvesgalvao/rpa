@@ -9,7 +9,7 @@ import {
   novaCorNoApp,
   raizArtes,
 } from '../apoio/app-artes.js';
-import { arquivoTemporario, PDF_MINIMO, PNG_1X1 } from '../apoio/arquivos.js';
+import { arquivoTemporario, PDF_MINIMO, pdfDeTamanho, PNG_1X1 } from '../apoio/arquivos.js';
 import { nomeDoCliente } from '../apoio/dados.js';
 
 // Artes no app: busca, cadastro com o diálogo de arquivo simulado, Ultra, "Nova cor" e 2.11.
@@ -60,7 +60,8 @@ test('admin: busca, cadastra com Ultra e "Nova cor"; "4X4" só seleciona a exist
   }
 });
 
-test('2.11 arquivo com a extensão trocada é recusado no app', async () => {
+test('2.11 extensão trocada é recusada; PDF de 25 MB é enviado pelo app', async () => {
+  test.setTimeout(120_000);
   const { app, janela } = await abrirAppLogado(USUARIOS.admin);
   try {
     const raiz = raizArtes(janela);
@@ -77,6 +78,13 @@ test('2.11 arquivo com a extensão trocada é recusado no app', async () => {
       raiz.getByRole('alert').filter({ hasText: 'O arquivo precisa ser um PDF.' }),
     ).toBeVisible();
     await expect(raiz.locator('.artes-sucesso')).toHaveCount(0);
+
+    // PDF de 25 MB (o limite): o main envia o arquivo inteiro e a API aceita.
+    await escolherArquivoNoDialogo(app, arquivoTemporario('limite-app.pdf', pdfDeTamanho(25)));
+    await raiz.getByRole('button', { name: 'Escolher PDF…' }).click();
+    await expect(raiz.getByText(/^limite-app\.pdf \(/)).toBeVisible();
+    await raiz.getByRole('button', { name: 'Salvar' }).click();
+    await conferirArteCadastrada(janela, 'Copo de Papel', '1 arte');
   } finally {
     await app.close();
   }

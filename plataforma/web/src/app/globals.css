@@ -504,6 +504,26 @@ footer {
   gap: 8px;
   padding: 4px 0;
 }
+.nova-cor-abrir {
+  margin-top: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+}
+.nova-cor {
+  margin-top: 6px;
+}
+.nova-cor-linha {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.nova-cor-linha input {
+  flex: 1 1 160px;
+}
+.nova-cor-linha button {
+  padding: 8px 14px;
+}
 .erro-campo {
   color: var(--cor-primaria);
   font-size: 13px;

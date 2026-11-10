@@ -23,11 +23,17 @@ import { notFound, redirect, unstable_rethrow } from 'next/navigation';
 import { z } from 'zod';
 
 import { criarApi } from './api';
+import { CACHE_CORES, type CacheLeitura } from './cache';
 import { lerConfig } from './config';
 import { COOKIE_ACESSO } from './sessao';
 
 // Leitura da API pelas páginas (servidor), com o token do cookie. Sessão recusada → `/entrar`; 404 → página 404.
-export async function lerDaApi<T>(caminho: string, esquema: z.ZodType<T>): Promise<T> {
+// Sem `cache`, sempre lê da API; com ele, usa o cache do `fetch` do Next (ver `cache.ts`).
+export async function lerDaApi<T>(
+  caminho: string,
+  esquema: z.ZodType<T>,
+  cache?: CacheLeitura,
+): Promise<T> {
   const acesso = (await cookies()).get(COOKIE_ACESSO)?.value;
   if (!acesso) redirect('/entrar');
 
@@ -36,7 +42,7 @@ export async function lerDaApi<T>(caminho: string, esquema: z.ZodType<T>): Promi
   try {
     resposta = await api.repassar(api.endereco(caminho), {
       headers: { authorization: `Bearer ${acesso}` },
-      cache: 'no-store',
+      ...(cache ? { next: cache } : { cache: 'no-store' }),
     });
   } catch (erro) {
     throw new Error(`API indisponível em ${caminho}.`, { cause: erro });
@@ -64,7 +70,7 @@ export async function opcoesNovaArte(empresa: string): Promise<OpcoesNovaArte> {
   const lista = z.array(EsquemaOpcao);
   const [produtos, cores, maquinas] = await Promise.all([
     lerDaApi(`${base(empresa)}/produtos`, lista),
-    lerDaApi('/v1/cores', lista),
+    lerDaApi('/v1/cores', lista, CACHE_CORES),
     lerDaApi('/v1/maquinas', lista),
   ]);
   return { produtos, cores, maquinas };

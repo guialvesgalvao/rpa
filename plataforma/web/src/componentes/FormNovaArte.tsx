@@ -14,6 +14,8 @@ import {
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 
+import { NovaCor } from './NovaCor';
+
 type Props = {
   empresa: string;
   clienteId: string;
@@ -63,6 +65,8 @@ export function FormNovaArte({
   );
   const [nome, setNome] = useState('');
   const [corId, setCorId] = useState('');
+  // Cores criadas aqui entram na lista sem recarregar a página.
+  const [listaCores, setListaCores] = useState(cores);
   const [maquinaIds, setMaquinaIds] = useState<string[]>([]);
   const [pdf, setPdf] = useState<Selecionado | null>(null);
   const [imagem, setImagem] = useState<Selecionado | null>(null);
@@ -172,7 +176,7 @@ export function FormNovaArte({
 
       <fieldset className="campo">
         <legend>Cor</legend>
-        {cores.map((cor) => (
+        {listaCores.map((cor) => (
           <label key={cor.id} className="opcao">
             <input
               type="radio"
@@ -184,6 +188,14 @@ export function FormNovaArte({
             {cor.nome}
           </label>
         ))}
+        <NovaCor
+          cores={listaCores}
+          escolher={(cor, nova) => {
+            if (nova) setListaCores((lista) => [...lista, cor]);
+            setCorId(cor.id);
+            setErros((atual) => ({ ...atual, corId: undefined }));
+          }}
+        />
         <Erro texto={erros.corId} />
       </fieldset>
 

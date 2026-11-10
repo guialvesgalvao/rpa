@@ -1,3 +1,4 @@
+import { revalidateTag } from 'next/cache';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DELETE, GET, PATCH, POST } from '../src/app/api/v1/[...caminho]/route';
@@ -11,7 +12,10 @@ import {
   tokensFicticios,
 } from './apoio/api-falsa';
 
+vi.mock('next/cache', () => ({ revalidateTag: vi.fn() }));
+
 beforeEach(() => {
+  vi.mocked(revalidateTag).mockClear();
   vi.stubEnv('API_URL_INTERNA', API_URL);
   vi.stubEnv('SITE_URL', SITE_URL);
 });
@@ -117,6 +121,28 @@ describe('/api/v1/[...caminho]', () => {
     expect(chamadas[0]?.init.body).toBeInstanceOf(ReadableStream);
     expect(chamadas[0]?.init.duplex).toBe('half');
     expect(new Headers(chamadas[0]?.init.headers).get('content-type')).toBe('application/json');
+    // Cor criada: a lista de cores em cache no servidor sai na hora.
+    expect(revalidateTag).toHaveBeenCalledWith('cores', { expire: 0 });
+  });
+
+  it('não mexe no cache das cores quando a API recusa a cor nova', async () => {
+    apiFalsa({
+      'POST /v1/cores': () =>
+        Response.json({ erro: { codigo: 'cor_existente', mensagem: 'x' } }, { status: 409 }),
+    });
+
+    const resposta = await POST(
+      requisicao('/api/v1/cores', {
+        metodo: 'POST',
+        origem: SITE_URL,
+        cookies: { rpa_acesso: acessoValido() },
+        cabecalhos: { 'content-type': 'application/json' },
+        corpo: JSON.stringify({ nome: '4X4' }),
+      }),
+    );
+
+    expect(resposta.status).toBe(409);
+    expect(revalidateTag).not.toHaveBeenCalled();
   });
 
   it.each([

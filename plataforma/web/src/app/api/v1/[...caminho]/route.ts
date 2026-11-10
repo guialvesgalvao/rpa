@@ -1,7 +1,9 @@
+import { revalidateTag } from 'next/cache';
 import { NextResponse, type NextRequest } from 'next/server';
 
 import { obterAcesso } from '../../../../servidor/acesso';
 import { criarApi } from '../../../../servidor/api';
+import { criouCor, TAG_CORES } from '../../../../servidor/cache';
 import { lerConfig } from '../../../../servidor/config';
 import { gravarCookies, respostaErro } from '../../../../servidor/respostas';
 import { caminhoPermitido, cookiesApagados, origemPermitida } from '../../../../servidor/sessao';
@@ -57,6 +59,11 @@ async function repassar(request: NextRequest): Promise<NextResponse> {
     if (request.signal.aborted) throw erro;
     console.error(`API indisponível em ${destino.pathname}:`, erro);
     return respostaErro(502, 'api_indisponivel', 'API indisponível. Tente novamente.');
+  }
+
+  // Cor nova: a lista em cache no servidor sai na hora, para o próximo formulário já trazê-la.
+  if (criouCor(request.method, destino.pathname, resposta.status)) {
+    revalidateTag(TAG_CORES, { expire: 0 });
   }
 
   const saida = new NextResponse(resposta.body, { status: resposta.status });

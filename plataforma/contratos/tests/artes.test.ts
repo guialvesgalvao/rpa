@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  chaveDaCor,
   detectarTipo,
   EsquemaArteDoProduto,
   EsquemaProdutoDoCliente,
@@ -8,6 +9,7 @@ import {
   nomeOuPadrao,
   rotuloArtes,
   validarNovaArte,
+  validarNovaCor,
 } from '../src/artes.ts';
 
 const PNG = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0]);
@@ -124,5 +126,28 @@ describe('EsquemaProdutoDoCliente', () => {
 
   it('trata o código ausente (API anterior) como nulo', () => {
     expect(EsquemaProdutoDoCliente.parse(base)).toEqual({ ...base, codigo: null });
+  });
+});
+
+describe('validarNovaCor', () => {
+  it('aceita um nome com espaços em volta', () => {
+    expect(validarNovaCor('  Pantone 485  ')).toBeNull();
+  });
+
+  it('recusa nome vazio ou só com espaços', () => {
+    expect(validarNovaCor('')).toBe('Informe o nome da cor.');
+    expect(validarNovaCor('   ')).toBe('Informe o nome da cor.');
+  });
+
+  it('recusa nome com mais de 30 caracteres', () => {
+    expect(validarNovaCor('a'.repeat(30))).toBeNull();
+    expect(validarNovaCor('a'.repeat(31))).toBe('O nome pode ter no máximo 30 caracteres.');
+  });
+});
+
+describe('chaveDaCor', () => {
+  it('ignora maiúsculas, acentos e espaços repetidos', () => {
+    expect(chaveDaCor('4X4')).toBe(chaveDaCor('4x4'));
+    expect(chaveDaCor(' Ciano  Médio ')).toBe('ciano medio');
   });
 });

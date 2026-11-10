@@ -18,11 +18,13 @@ export function criarBancoTeste() {
   return criarBanco(urlBancoTeste());
 }
 
-// Limpa os dados entre arquivos de teste. `empresas`, `cores` e `maquinas` ficam: vêm de migrações.
+// Limpa os dados entre arquivos de teste. `empresas`, `cores` e `maquinas` ficam: vêm de migrações. Só as
+// cores criadas pelos testes (fora as de referência) saem, depois das artes que as usam.
 export async function limparTabelas(db: Banco): Promise<void> {
   await db.execute(
     sql`TRUNCATE tarefas_config, tarefas_arte_comentario_anexos, tarefas_arte_historico, tarefas_arte_comentarios, tarefas_arte, arte_maquinas, artes, arquivos, clientes, produtos, op_contadores, bling_conexoes, bling_sincronizacoes, usuarios, usuario_empresas, sessoes CASCADE`,
   );
+  await db.execute(sql`DELETE FROM cores WHERE nome NOT IN ('4x0', '4x4')`);
 }
 
 // Código SQLSTATE do erro do Postgres (o Drizzle o embrulha em `cause`).

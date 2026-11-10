@@ -262,5 +262,16 @@ export function listarProdutos(db: Banco, empresaId: string): Promise<Opcao[]> {
 export const listarCores = (db: Banco): Promise<Opcao[]> =>
   db.select({ id: cores.id, nome: cores.nome }).from(cores).orderBy(asc(cores.nome));
 
+// Nome já validado (`validarNovaCor`); espaços em volta e repetidos saem. Violação de unicidade (23505)
+// fica para quem chama.
+export async function criarCor(db: Banco, nome: string): Promise<Opcao> {
+  const [linha] = await db
+    .insert(cores)
+    .values({ nome: nome.trim().replace(/\s+/g, ' ') })
+    .returning({ id: cores.id, nome: cores.nome });
+  if (!linha) throw new Error('A cor não foi criada.');
+  return linha;
+}
+
 export const listarMaquinas = (db: Banco): Promise<Opcao[]> =>
   db.select({ id: maquinas.id, nome: maquinas.nome }).from(maquinas).orderBy(asc(maquinas.nome));

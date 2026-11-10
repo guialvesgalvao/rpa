@@ -113,6 +113,13 @@
       "when": 1794279773645,
       "tag": "0015_maquina_ultra",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1794280145045,
+      "tag": "0016_cores_nome_sem_acento",
+      "breakpoints": true
     }
   ]
 }

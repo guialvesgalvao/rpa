@@ -209,7 +209,9 @@ export const blingSincronizacoes = pgTable('bling_sincronizacoes', {
   atualizadoEm: instante('atualizado_em').notNull().defaultNow(),
 });
 
-// Globais: iguais para as duas empresas (valores de referência na migração `artes_cores_maquinas`).
+// Globais: iguais para as duas empresas (valores de referência na migração `artes_cores_maquinas`). Cores
+// novas são criadas na tela (`POST /v1/cores`); a unicidade sem maiúsculas nem acentos está na migração
+// `cores_nome_sem_acento`. Máquinas só por migração.
 export const cores = pgTable('cores', {
   id: uuid('id').primaryKey().defaultRandom(),
   nome: text('nome').notNull().unique(),

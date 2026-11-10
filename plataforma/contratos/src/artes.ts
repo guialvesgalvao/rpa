@@ -129,6 +129,24 @@ export function validarNovaArte(entrada: EntradaNovaArte): ErrosNovaArte {
   return erros;
 }
 
+// Cor nova, criada no cadastro da arte (só o nome). Global: vale para as duas empresas.
+export const NOME_COR_MAX = 30;
+
+export const EsquemaNovaCor = z.object({ nome: z.string() });
+export type NovaCor = z.infer<typeof EsquemaNovaCor>;
+
+// Mesmas regras no site, no app e na API; `null` = nome válido.
+export function validarNovaCor(nome: string): string | null {
+  const limpo = nome.trim();
+  if (!limpo) return 'Informe o nome da cor.';
+  if (limpo.length > NOME_COR_MAX) return `O nome pode ter no máximo ${NOME_COR_MAX} caracteres.`;
+  return null;
+}
+
+// Chave de comparação da cor, sem maiúsculas nem acentos (como o índice único do banco): "4X4" = "4x4".
+export const chaveDaCor = (nome: string): string =>
+  nome.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/\s+/g, ' ').trim();
+
 export const EsquemaArquivoArte = z.object({
   nomeOriginal: z.string(),
   tipoMime: z.string(),

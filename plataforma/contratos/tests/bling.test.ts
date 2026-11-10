@@ -189,6 +189,8 @@ describe('EsquemaSincronizacaoAutomaticaBling', () => {
     ultima: resultado,
     ultimaCompletaEm: '2026-11-04T10:00:00.000Z',
     proximaCompletaEm: '2026-11-07T10:00:00.000Z',
+    // Dados fictícios.
+    conta: { nome: 'Conta Fictícia Ltda', cnpj: '12345678000195' },
   };
 
   it('aceita o status com e sem sincronização anterior', () => {
@@ -199,8 +201,19 @@ describe('EsquemaSincronizacaoAutomaticaBling', () => {
       ultima: null,
       ultimaCompletaEm: null,
       proximaCompletaEm: null,
+      conta: null,
     };
     expect(EsquemaSincronizacaoAutomaticaBling.parse(nunca)).toEqual(nunca);
+  });
+
+  it('recusa status sem conta ou com conta sem nome ou CNPJ', () => {
+    const semConta: Partial<typeof status> = { ...status };
+    delete semConta.conta;
+    expect(EsquemaSincronizacaoAutomaticaBling.safeParse(semConta).success).toBe(false);
+    for (const conta of [{ nome: 'Conta Fictícia Ltda' }, { cnpj: '12345678000195' }])
+      expect(EsquemaSincronizacaoAutomaticaBling.safeParse({ ...status, conta }).success).toBe(
+        false,
+      );
   });
 
   it('recusa campos ausentes, intervalo zero e resultado fora do contrato', () => {

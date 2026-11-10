@@ -93,7 +93,7 @@ O topo do menu mostra a empresa em uso (ABA Embalagens, Roma…). Com mais de um
 
 - **Catálogo:** os produtos que a fábrica produz (ex.: caixa de pizza 35x35), cadastrados no Bling. É o mesmo para todos os clientes da empresa.
 - **Cliente:** quem compra da fábrica (ex.: uma pizzaria), também vindo do Bling.
-- **Arte:** a estampa de um produto do catálogo feita para um cliente específico (ex.: a caixa 35x35 com a marca da pizzaria). Tem ao menos um arquivo (PDF ou imagem), cor e máquinas.
+- **Arte:** a estampa de um produto do catálogo feita para um cliente específico (ex.: a caixa 35x35 com a marca da pizzaria). Tem ao menos um arquivo (PDF ou imagem), cor e máquinas (Favorit, Rekord e Ultra; uma ou mais). Se a cor não está na lista, **+ Nova cor** a cria ali mesmo, só com o nome (sem diferenciar maiúsculas nem acentos de uma existente).
 
 O fluxo é este: o cliente pede à fábrica um produto do catálogo. Se ainda não há arte dele para esse produto, ou se ele quer uma nova, o arte-finalista desenvolve a arte e a cadastra para esse cliente e produto. A OP usa essa arte. Não existe vínculo direto entre cliente e produto: é a arte que liga os dois. Por isso a lista de produtos de um cliente mostra só os que já têm arte, e o cadastro de uma arte nova escolhe o produto no catálogo inteiro.
 
@@ -118,11 +118,11 @@ Na lista de pedidos da aba OP, cada produto marcado tem o botão **Pré-preenche
 
 - **Data entrega de produção**;
 - **Descrição do Processo:** para cada um dos 7 passos, Sim/Não, Quantidade, Responsável e Data (o Visto continua para o papel);
-- **Observação:** até 400 caracteres e 4 linhas; as quebras a mais viram espaço, para a OP continuar em 1 página.
+- **Observação:** até 400 caracteres e 4 linhas; as quebras a mais viram espaço, para a OP continuar em 1 página. Já vem com as **Observações do pedido de venda** (as do Bling, não as internas), a mesma em todos os produtos do pedido, e vai na OP mesmo sem abrir o formulário; dá para editar ou apagar. Se a do pedido passa do limite, vem cortada, com um aviso no formulário.
 
 Ao clicar em **Gerar OPs**, um diálogo lista, agrupado por pedido, cada produto e a arte escolhida (`→ sem arte` quando não houver); só **Gerar OPs** no diálogo gera, **Cancelar** ou Esc não gera nada.
 
-Salvo, o botão vira **Editar dados da OP ✓** e o resumo da seleção conta as OPs pré-preenchidas. A geração usa esses dados; campo vazio sai em branco, como antes. O pré-preenchimento vale só para a próxima geração: fica na tela enquanto o pedido estiver na lista (inclusive ao buscar de novo) e não é salvo em lugar nenhum.
+Salvo (ou quando o pedido já traz observação), o botão vira **Editar dados da OP ✓** e o resumo da seleção conta as OPs pré-preenchidas. A geração usa esses dados; campo vazio sai em branco, como antes. O pré-preenchimento vale só para a próxima geração: fica na tela enquanto o pedido estiver na lista (inclusive ao buscar de novo) e não é salvo em lugar nenhum.
 
 ### Configurações do app
 

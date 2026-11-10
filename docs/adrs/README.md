@@ -12,5 +12,6 @@ Registros das decisões de arquitetura do projeto. Cada ADR traz contexto, decis
 | [0006](0006-arquivos-em-bucket-railway.md)          | Arquivos no Storage Bucket do Railway, com fallback em bytea | aceito                                        | 2026-11-08 |
 | [0007](0007-tarefas-de-arte.md)                     | Tarefas de desenvolvimento de arte                           | aceito                                        | 2026-11-08 |
 | [0008](0008-conta-do-bling-por-empresa.md)          | Aplicativo e conta do Bling por empresa                      | aceito                                        | 2026-11-09 |
+| [0009](0009-cores-cadastraveis.md)                  | Cores cadastráveis no cadastro da arte                       | aceito                                        | 2026-11-10 |
 
 Uma decisão nova ganha o próximo número. Para mudar uma decisão aceita, crie um ADR novo e marque o antigo como substituído.

@@ -15,6 +15,9 @@ export const CLIENTES_POR_EMPRESA = 60;
 /** O seed só dá artes aos 15 primeiros clientes (por CNPJ); do 16º em diante, nenhum tem arte. */
 export const PRIMEIRO_SEM_ARTE = 15;
 
+// Evite os índices 30 a 35 ("Beira-Mar") em buscas com o número: com dígitos no termo a API tira a
+// pontuação ("beiramar") e não acha o nome com hífen.
+
 /** Nome de exibição: o fantasia, ou a razão social quando o cliente não tem fantasia (1 em cada 5). */
 export function nomeDoCliente(indice: number): string {
   const ramo = RAMOS[indice % RAMOS.length];

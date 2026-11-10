@@ -6,3 +6,5 @@ artifacts
 dist
 release
 plataforma
+test-results
+playwright-report

@@ -308,3 +308,53 @@ describe('pré-preenchimento da OP', () => {
     );
   });
 });
+
+describe('observação do pedido como Observação da OP', () => {
+  const comObservacao = (itens: ItemOpTela[]): PedidoOpTela => ({
+    numero: '9001',
+    situacao: 'ok',
+    clienteNome: 'Cliente Ficticio Ltda',
+    dataVenda: '12/10/2026',
+    cliente: null,
+    observacao: 'Entregar até as 8h',
+    itens,
+  });
+
+  it('entra em todos os produtos do pedido e vai na geração sem abrir o formulário', () => {
+    const pedidos = [comObservacao([item(0), item(1)])];
+    const escolhas = montarEscolhas(pedidos);
+    for (const indice of [0, 1]) {
+      expect(escolhas.get(chaveItem('9001', indice))?.preenchimento).toEqual({
+        observacao: 'Entregar até as 8h',
+      });
+    }
+    expect(itensParaGerar(pedidos, escolhas).map((i) => i.preenchimento)).toEqual([
+      { observacao: 'Entregar até as 8h' },
+      { observacao: 'Entregar até as 8h' },
+    ]);
+  });
+
+  it('produto com erro não recebe a observação', () => {
+    const pedidos = [comObservacao([item(0, { erro: 'Produto sem insumos cadastrados' })])];
+    expect(montarEscolhas(pedidos).get(chaveItem('9001', 0))).toEqual({ marcado: false });
+  });
+
+  it('apagada pelo usuário, não volta ao buscar de novo', () => {
+    const pedidos = [comObservacao([item(0)])];
+    const anteriores = new Map<string, EscolhaItem>([[chaveItem('9001', 0), { marcado: true }]]);
+    expect(montarEscolhas(pedidos, anteriores).get(chaveItem('9001', 0))).toEqual({
+      marcado: true,
+    });
+  });
+
+  it('editada pelo usuário, é mantida ao buscar de novo', () => {
+    const pedidos = [comObservacao([item(0)])];
+    const editado = { observacao: 'Entregar às 10h' };
+    const anteriores = new Map<string, EscolhaItem>([
+      [chaveItem('9001', 0), { marcado: true, preenchimento: editado }],
+    ]);
+    expect(montarEscolhas(pedidos, anteriores).get(chaveItem('9001', 0))?.preenchimento).toEqual(
+      editado,
+    );
+  });
+});

@@ -104,3 +104,20 @@ describe('fonte fictícia', () => {
     expect(mockAtivo({ RPA_OP_MOCK: '0' })).toBe(false);
   });
 });
+
+describe('observação do pedido', () => {
+  it('lê as "Observações" (não as internas), sem espaços em volta', () => {
+    const json = carregar();
+    json.venda.observacoes = '  Entregar até as 8h \n';
+    json.venda.observacaoInterna = 'Interna, não vai para a OP';
+    expect(extrairPedidoOp(json).observacao).toBe('Entregar até as 8h');
+  });
+
+  it('vazia, só com espaços ou ausente: sem observação', () => {
+    for (const valor of ['', '   ', null, undefined]) {
+      const json = carregar();
+      json.venda.observacoes = valor;
+      expect(extrairPedidoOp(json)).not.toHaveProperty('observacao');
+    }
+  });
+});

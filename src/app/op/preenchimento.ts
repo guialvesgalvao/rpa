@@ -7,10 +7,14 @@ import { PASSOS_PROCESSO } from '../../processes/op/template.js';
 import type { PreenchimentoOp } from '../api.js';
 import { botao, criar } from '../artes/dom.js';
 
+export const AVISO_OBSERVACAO_CORTADA = 'Observação do pedido cortada para caber na OP.';
+
 export type DepsPreenchimento = {
   /** Ex.: "Pedido 101 · XX0001 — Caixa de pizza 35x35". */
   titulo: string;
   inicial?: PreenchimentoOp;
+  /** Aviso ao lado da Observação (ex.: a do pedido foi cortada para caber na OP). */
+  aviso?: string;
   /** `undefined` = sem dados: a OP volta a sair em branco. */
   salvar: (preenchimento: PreenchimentoOp | undefined) => void;
   voltar: () => void;
@@ -82,7 +86,7 @@ function linhaDoPasso(
  */
 export function montarPreenchimento(
   raiz: HTMLElement,
-  { titulo, inicial, salvar, voltar }: DepsPreenchimento,
+  { titulo, inicial, aviso, salvar, voltar }: DepsPreenchimento,
 ): { encerrar(): void } {
   const card = criar('div', 'card');
 
@@ -123,6 +127,7 @@ export function montarPreenchimento(
   contar();
   const campoObservacao = criar('div', 'artes-campo');
   campoObservacao.append(criar('label', undefined, 'Observação'), observacao, contador);
+  if (aviso) campoObservacao.append(criar('div', 'hint warn', aviso));
 
   const form = criar('form', 'artes-form');
   const salvarBotao = criar('button', 'primary', 'Salvar');

@@ -29,6 +29,8 @@ export type PedidoOp = {
   cnpj?: string;
   dataVenda: Date;
   dataPrevista?: Date;
+  /** "Observações" do pedido de venda (não as internas), sem espaços em volta; ausente se vazia. */
+  observacao?: string;
   itens: ItemOp[];
 };
 
@@ -40,6 +42,7 @@ const schema = z.object({
     data: z.string(),
     dataPrevista: z.string().nullish(),
     cnpj: z.string().nullish(),
+    observacoes: z.string().nullish(),
   }),
   contato: z.object({
     dadosContato: z.object({
@@ -97,6 +100,7 @@ export function extrairPedidoOp(json: unknown, numeroEsperado?: string): PedidoO
   const clienteNome = nome?.trim() || fantasia?.trim();
   if (!clienteNome) throw new Error(`Pedido ${venda.numeroPedido} sem nome de cliente`);
   const previsto = venda.dataPrevista?.trim();
+  const observacao = venda.observacoes?.trim();
 
   return {
     numero: venda.numeroPedido,
@@ -105,6 +109,7 @@ export function extrairPedidoOp(json: unknown, numeroEsperado?: string): PedidoO
     cnpj: normalizarCnpj(cnpj) ?? normalizarCnpj(venda.cnpj),
     dataVenda: parseData(venda.data, 'Data da venda'),
     dataPrevista: previsto ? parseData(previsto, 'Data prevista') : undefined,
+    ...(observacao ? { observacao } : {}),
     itens: itens
       .filter((i) => i.produto?.tipo !== 'S')
       .map((i): ItemOp => {

@@ -1,6 +1,7 @@
 import type { Passo } from '../../core/rastro.js';
 import type { InsumoOp } from '../../processes/bling/pedido-op.js';
 import type { PedidoLido } from '../../processes/op/pedidos.js';
+import { observacaoDoPedido } from '../../processes/op/preenchimento.js';
 import { formatarDataOp } from '../../processes/op/template.js';
 import { type ClienteArtes, produtoDoCodigo } from './artes.js';
 import type { ArteDoProduto, Cliente } from './contratos.js';
@@ -37,6 +38,10 @@ export type PedidoOpTela =
       cliente: Cliente | null;
       /** Por que não há artes (sem CNPJ, cliente não cadastrado, servidor fora). */
       aviso?: string;
+      /** Observação do pedido, já no limite da OP: valor inicial da Observação de cada produto. */
+      observacao?: string;
+      /** A observação do pedido passou do limite e foi cortada. */
+      observacaoCortada?: boolean;
       itens: ItemOpTela[];
     }
   | { numero: string; situacao: 'erro'; erro: string; passos: Passo[] };
@@ -95,6 +100,7 @@ export async function montarPedidosTela(
     } catch (erro) {
       aviso = `Não foi possível buscar as artes: ${mensagemDoErro(erro)}`;
     }
+    const observacao = observacaoDoPedido(pedido.observacao);
     telas.push({
       numero: pedido.numero,
       situacao: 'ok',
@@ -104,6 +110,8 @@ export async function montarPedidosTela(
       dataPrevista: pedido.dataPrevista && formatarDataOp(pedido.dataPrevista),
       cliente,
       aviso,
+      ...(observacao && { observacao: observacao.texto }),
+      ...(observacao?.cortada && { observacaoCortada: true }),
       itens,
     });
   }

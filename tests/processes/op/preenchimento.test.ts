@@ -4,6 +4,7 @@ import {
   dataLocal,
   limitarLinhas,
   normalizarPreenchimento,
+  observacaoDoPedido,
   temPreenchimento,
 } from '../../../src/processes/op/preenchimento.js';
 import { PASSOS_PROCESSO } from '../../../src/processes/op/template.js';
@@ -64,5 +65,29 @@ describe('normalizarPreenchimento', () => {
     expect(normalizarPreenchimento({ processo: [{}], observacao: 'x' })).toEqual({
       observacao: 'x',
     });
+  });
+});
+
+describe('observacaoDoPedido', () => {
+  it('cabe na OP: volta igual, sem corte', () => {
+    expect(observacaoDoPedido(' Entregar até as 8h ')).toEqual({
+      texto: 'Entregar até as 8h',
+      cortada: false,
+    });
+    expect(observacaoDoPedido('a\nb\nc\nd')).toEqual({ texto: 'a\nb\nc\nd', cortada: false });
+  });
+
+  it('mais de 4 linhas: as a mais viram espaço e conta como corte', () => {
+    expect(observacaoDoPedido('a\nb\nc\nd\ne')).toEqual({ texto: 'a\nb\nc\nd e', cortada: true });
+  });
+
+  it('mais de 400 caracteres: corta no limite', () => {
+    const resultado = observacaoDoPedido('x'.repeat(401));
+    expect(resultado).toEqual({ texto: 'x'.repeat(400), cortada: true });
+  });
+
+  it('vazia ou ausente: undefined', () => {
+    expect(observacaoDoPedido(undefined)).toBeUndefined();
+    expect(observacaoDoPedido('   ')).toBeUndefined();
   });
 });

@@ -4,7 +4,7 @@ import { mensagemErro } from '../artes/dom.js';
 import { montarFormulario } from '../artes/formulario.js';
 import { preencherResultado } from '../resultados.js';
 import { renderPedidos } from './dom.js';
-import { montarPreenchimento } from './preenchimento.js';
+import { AVISO_OBSERVACAO_CORTADA, montarPreenchimento } from './preenchimento.js';
 import {
   aplicarArtesRecarregadas,
   type ArtesRecarregadas,
@@ -188,6 +188,10 @@ export function criarOp({ api, artes, escolherPasta, abrirPasta }: DepsOp): Tela
     formulario = montarPreenchimento(detalhe, {
       titulo: `Pedido ${pedido.numero} · ${item.codigo} — ${item.descricao}`,
       inicial: escolha.preenchimento,
+      ...(pedido.observacaoCortada &&
+        escolha.preenchimento?.observacao === pedido.observacao && {
+          aviso: AVISO_OBSERVACAO_CORTADA,
+        }),
       voltar: mostrarPrincipal,
       salvar: (preenchimento) => {
         if (preenchimento) escolha.preenchimento = preenchimento;

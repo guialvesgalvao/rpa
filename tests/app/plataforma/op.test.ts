@@ -139,3 +139,33 @@ describe('montarPedidosTela', () => {
     expect(tela).toEqual({ numero: '7', situacao: 'erro', erro: lido.erro, passos: lido.passos });
   });
 });
+
+describe('observação do pedido na tela', () => {
+  it('vai para o pedido da tela, sem aviso quando cabe na OP', async () => {
+    const [tela] = await montarPedidosTela(
+      [{ numero: '9001', pedido: pedido({ observacao: 'Entregar até as 8h' }) }],
+      'roma',
+      apiFalsa().api,
+    );
+    expect(tela).toMatchObject({ observacao: 'Entregar até as 8h' });
+    expect(tela).not.toHaveProperty('observacaoCortada');
+  });
+
+  it('cortada no limite da OP, com a marca para o aviso', async () => {
+    const [tela] = await montarPedidosTela(
+      [{ numero: '9001', pedido: pedido({ observacao: 'x'.repeat(450) }) }],
+      'roma',
+      apiFalsa().api,
+    );
+    expect(tela).toMatchObject({ observacao: 'x'.repeat(400), observacaoCortada: true });
+  });
+
+  it('pedido sem observação: nada', async () => {
+    const [tela] = await montarPedidosTela(
+      [{ numero: '9001', pedido: pedido() }],
+      'roma',
+      apiFalsa().api,
+    );
+    expect(tela).not.toHaveProperty('observacao');
+  });
+});

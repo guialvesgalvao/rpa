@@ -31,6 +31,20 @@ export const LIMITES_PREENCHIMENTO = {
   linhasObservacao: 4,
 } as const;
 
+/**
+ * Observação do pedido de venda como valor inicial da OP: as linhas a mais viram espaço (como no
+ * `normalizarPreenchimento`) e o texto é cortado no limite. `cortada` avisa a tela. Vazia: `undefined`.
+ */
+export function observacaoDoPedido(
+  texto: string | undefined,
+): { texto: string; cortada: boolean } | undefined {
+  const limpo = texto?.trim();
+  if (!limpo) return undefined;
+  const linhas = limitarLinhas(limpo, LIMITES_PREENCHIMENTO.linhasObservacao);
+  const cortado = linhas.slice(0, LIMITES_PREENCHIMENTO.observacao).trimEnd();
+  return { texto: cortado, cortada: cortado !== limpo };
+}
+
 const DATA_ISO = /^(\d{4})-(\d{2})-(\d{2})$/;
 
 /** `AAAA-MM-DD` → data local (meia-noite), sem o deslocamento de fuso do `new Date(iso)`. */

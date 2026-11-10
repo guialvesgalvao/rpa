@@ -26,9 +26,10 @@ export function artePreSelecionada(artes: readonly ArteDoProduto[]): ArteDoProdu
 export const podeGerar = (item: ItemOpTela): boolean => !item.erro;
 
 /**
- * Escolhas da lista Pedido → Produto: produto que gera OP entra marcado com a arte pré-selecionada;
- * produto com erro fica desmarcado. Um produto que já estava na lista mantém a escolha anterior, se
- * a arte ainda existir, e sempre mantém o pré-preenchimento.
+ * Escolhas da lista Pedido → Produto: produto que gera OP entra marcado com a arte pré-selecionada e
+ * com a observação do pedido como Observação da OP; produto com erro fica desmarcado. Um produto que
+ * já estava na lista mantém a escolha anterior, se a arte ainda existir, e sempre mantém o
+ * pré-preenchimento (inclusive sem nenhum: a observação apagada pelo usuário não volta).
  */
 export function montarEscolhas(
   pedidos: readonly PedidoOpTela[],
@@ -44,15 +45,23 @@ export function montarEscolhas(
         continue;
       }
       const anterior = anteriores.get(chave);
-      const arteValida =
-        anterior && (!anterior.arteId || item.artes.some((a) => a.id === anterior.arteId));
-      const preenchimento = anterior?.preenchimento;
+      if (!anterior) {
+        const { observacao } = pedido;
+        escolhas.set(chave, {
+          marcado: true,
+          arteId: artePreSelecionada(item.artes)?.id,
+          ...(observacao ? { preenchimento: { observacao } } : {}),
+        });
+        continue;
+      }
+      const arteValida = !anterior.arteId || item.artes.some((a) => a.id === anterior.arteId);
+      const { preenchimento } = anterior;
       escolhas.set(
         chave,
         arteValida
           ? { ...anterior }
           : {
-              marcado: anterior?.marcado ?? true,
+              marcado: anterior.marcado,
               arteId: artePreSelecionada(item.artes)?.id,
               ...(preenchimento ? { preenchimento } : {}),
             },

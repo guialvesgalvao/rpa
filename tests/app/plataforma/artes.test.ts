@@ -5,6 +5,7 @@ import {
   criarClienteArtes,
   ErroRequisicao,
   normalizarCnpj,
+  TTL_CORES_MS,
 } from '../../../src/app/plataforma/artes.js';
 import { ErroIndisponivel, ErroRecusado } from '../../../src/app/plataforma/cliente.js';
 
@@ -235,5 +236,82 @@ describe('reservarNumerosOp', () => {
     await expect(
       api(() => json({ numeros: [] }, 201)).cliente.reservarNumerosOp('roma', 1),
     ).rejects.toBeInstanceOf(ErroIndisponivel);
+  });
+});
+
+describe('cache das cores', () => {
+  const MAQUINAS = [MAQUINA];
+  const NOVA = { id: '66666666-6666-4666-8666-666666666666', nome: 'Pantone 485' };
+
+  function apiOpcoes(responderCores: () => Response) {
+    let agora = 0;
+    const chamadas: { url: string; init?: RequestInit }[] = [];
+    const fake = (async (url: string | URL | Request, init?: RequestInit) => {
+      const caminho = new URL(String(url)).pathname;
+      chamadas.push({ url: caminho, ...(init ? { init } : {}) });
+      if (caminho === '/v1/cores' && init?.method === 'POST') return json(NOVA, 201);
+      if (caminho === '/v1/cores') return responderCores();
+      if (caminho === '/v1/maquinas') return json(MAQUINAS);
+      return json([]);
+    }) as typeof fetch;
+    const cliente = criarClienteArtes({
+      baseUrl: 'http://api.local',
+      fetch: fake,
+      obterAcesso: async () => 'acesso-1',
+      agora: () => agora,
+    });
+    const leiturasDeCores = () =>
+      chamadas.filter((c) => c.url === '/v1/cores' && c.init?.method === 'GET').length;
+    return { cliente, chamadas, leiturasDeCores, avancar: (ms: number) => (agora += ms) };
+  }
+
+  it('reaproveita as cores por 1 h; produtos e máquinas são lidos sempre', async () => {
+    const { cliente: c, chamadas, leiturasDeCores, avancar } = apiOpcoes(() => json([COR]));
+
+    expect((await c.opcoes('aba')).cores).toEqual([COR]);
+    avancar(TTL_CORES_MS - 1);
+    expect((await c.opcoes('aba')).cores).toEqual([COR]);
+    expect(leiturasDeCores()).toBe(1);
+    expect(chamadas.filter((x) => x.url === '/v1/maquinas')).toHaveLength(2);
+
+    avancar(1);
+    await c.opcoes('aba');
+    expect(leiturasDeCores()).toBe(2);
+  });
+
+  it('a cor criada entra no cache sem reler a lista', async () => {
+    const { cliente: c, chamadas, leiturasDeCores } = apiOpcoes(() => json([COR]));
+    await c.opcoes('aba');
+
+    expect(await c.criarCor('  Pantone 485 ')).toEqual(NOVA);
+    const post = chamadas.find((x) => x.init?.method === 'POST');
+    expect(JSON.parse(String(post?.init?.body))).toEqual({ nome: 'Pantone 485' });
+    expect((await c.opcoes('aba')).cores).toEqual([COR, NOVA]);
+    expect(leiturasDeCores()).toBe(1);
+  });
+
+  it('falha ao ler as cores não fica no cache', async () => {
+    let falhar = true;
+    const { cliente: c, leiturasDeCores } = apiOpcoes(() =>
+      falhar ? erroApi(503) : json([COR]),
+    );
+
+    await expect(c.opcoes('aba')).rejects.toBeInstanceOf(ErroIndisponivel);
+    falhar = false;
+    expect((await c.opcoes('aba')).cores).toEqual([COR]);
+    expect(leiturasDeCores()).toBe(2);
+  });
+
+  it('cor repetida vira ErroRequisicao com a mensagem da API', async () => {
+    const fake = (async () => erroApi(409, 'cor_existente')) as unknown as typeof fetch;
+    const c = criarClienteArtes({
+      baseUrl: 'http://api.local',
+      fetch: fake,
+      obterAcesso: async () => 'acesso-1',
+    });
+
+    const falha = c.criarCor('4X4');
+    await expect(falha).rejects.toBeInstanceOf(ErroRequisicao);
+    await expect(falha).rejects.toMatchObject({ status: 409, message: 'mensagem da API' });
   });
 });

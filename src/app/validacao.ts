@@ -13,6 +13,7 @@ import {
   COMENTARIO_TAREFA_MAX,
   ESCOPOS_TAREFAS,
   EsquemaNovoUsuario,
+  validarNovaCor,
   EsquemaStatusTarefa,
   type NovoUsuario,
   SENHA_MAXIMA,
@@ -273,6 +274,14 @@ export function validarAnexoParaBaixar(input: unknown): z.infer<typeof anexoPara
   const parsed = anexoParaBaixarSchema.safeParse(input);
   if (!parsed.success) throw new Error('Anexo inválido.');
   return parsed.data;
+}
+
+/** Nome da cor nova (mesmas regras do site e da API), sem os espaços em volta. */
+export function validarNomeCor(input: unknown): string {
+  if (typeof input !== 'string') throw new Error('Informe o nome da cor.');
+  const erro = validarNovaCor(input);
+  if (erro) throw new Error(erro);
+  return input.trim();
 }
 
 /** Novo usuário da aba Usuários: a mensagem do primeiro problema, pronta para a tela. */

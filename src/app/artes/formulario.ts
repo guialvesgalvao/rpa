@@ -1,18 +1,21 @@
 import type { ArquivoEscolhido, ArtesApi, CadastroArte, CadastroResultado } from '../api.js';
 import type { ErrosCadastro } from '../plataforma/artes.js';
 import {
+  chaveDaCor,
   type Cliente,
   LIMITES,
   NOME_ARTE_MAX,
+  NOME_COR_MAX,
   NOME_PADRAO_ARTE,
   type Opcao,
   type TipoArquivo,
   validarNovaArte,
+  validarNovaCor,
 } from '../plataforma/contratos.js';
 import { blocoErro, botao, criar, formatarTamanho, mensagemErro } from './dom.js';
 
 export type DepsFormulario = {
-  api: Pick<ArtesApi, 'opcoes' | 'escolherArquivo' | 'cadastrar'>;
+  api: Pick<ArtesApi, 'opcoes' | 'criarCor' | 'escolherArquivo' | 'cadastrar'>;
   cliente: Pick<Cliente, 'id' | 'nomeExibicao'>;
   /** Produto já escolhido ao abrir (ex.: o item da OP); o usuário pode trocar, salvo com `produtoFixo`. */
   produtoId?: string;
@@ -45,13 +48,18 @@ function campo(rotulo: string, controle: HTMLElement, ajuda?: string): Campo {
   return { raiz, erro };
 }
 
-function opcoesMarcaveis(
-  tipo: 'checkbox' | 'radio',
-  nome: string,
-  opcoes: Opcao[],
-): { grupo: HTMLElement; marcados: () => string[] } {
+type Marcaveis = {
+  grupo: HTMLElement;
+  marcados: () => string[];
+  /** Acrescenta uma opção ao fim do grupo (ex.: a cor recém-criada). */
+  adicionar: (opcao: Opcao) => void;
+  marcar: (id: string) => void;
+};
+
+function opcoesMarcaveis(tipo: 'checkbox' | 'radio', nome: string, opcoes: Opcao[]): Marcaveis {
   const grupo = criar('div', 'artes-opcoes');
-  const inputs = opcoes.map((opcao) => {
+  const inputs: HTMLInputElement[] = [];
+  const adicionar = (opcao: Opcao) => {
     const rotulo = criar('label', 'check');
     const input = criar('input');
     input.type = tipo;
@@ -59,9 +67,98 @@ function opcoesMarcaveis(
     input.value = opcao.id;
     rotulo.append(input, opcao.nome);
     grupo.append(rotulo);
-    return input;
+    inputs.push(input);
+  };
+  opcoes.forEach(adicionar);
+  return {
+    grupo,
+    marcados: () => inputs.filter((i) => i.checked).map((i) => i.value),
+    adicionar,
+    marcar: (id) => {
+      for (const input of inputs) if (input.value === id) input.checked = true;
+    },
+  };
+}
+
+/**
+ * "+ Nova cor": cria a cor pela API (só o nome) e a seleciona. Se o nome já existe na lista (sem
+ * maiúsculas nem acentos), só seleciona a existente.
+ */
+function blocoNovaCor(
+  criarCor: ArtesApi['criarCor'],
+  cores: Opcao[],
+  marcaveis: Marcaveis,
+  erroCampo: HTMLElement,
+): HTMLElement {
+  const bloco = criar('div', 'artes-nova-cor');
+  const linha = criar('div', 'artes-nova-cor-linha');
+  const nome = criar('input');
+  nome.type = 'text';
+  nome.maxLength = NOME_COR_MAX;
+  nome.setAttribute('aria-label', 'Nome da nova cor');
+  const erro = criar('div', 'hint warn');
+  erro.setAttribute('role', 'alert');
+
+  const fechar = () => {
+    nome.value = '';
+    erro.textContent = '';
+    linha.hidden = true;
+    abrir.hidden = false;
+  };
+  const escolher = (cor: Opcao) => {
+    marcaveis.marcar(cor.id);
+    erroCampo.textContent = '';
+    fechar();
+  };
+
+  const adicionar = botao('Adicionar', async () => {
+    const invalido = validarNovaCor(nome.value);
+    if (invalido) {
+      erro.textContent = invalido;
+      return;
+    }
+    const existente = cores.find((cor) => chaveDaCor(cor.nome) === chaveDaCor(nome.value));
+    if (existente) {
+      escolher(existente);
+      return;
+    }
+    erro.textContent = '';
+    adicionar.disabled = true;
+    cancelar.disabled = true;
+    adicionar.textContent = 'Adicionando…';
+    try {
+      const cor = await criarCor(nome.value.trim());
+      cores.push(cor);
+      marcaveis.adicionar(cor);
+      escolher(cor);
+    } catch (falha) {
+      erro.textContent = mensagemErro(falha);
+    } finally {
+      adicionar.disabled = false;
+      cancelar.disabled = false;
+      adicionar.textContent = 'Adicionar';
+    }
   });
-  return { grupo, marcados: () => inputs.filter((i) => i.checked).map((i) => i.value) };
+  const cancelar = botao('Cancelar', fechar);
+  // Enter cria a cor em vez de enviar o formulário da arte.
+  nome.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    adicionar.click();
+  });
+  const abrir = botao(
+    '+ Nova cor',
+    () => {
+      abrir.hidden = true;
+      linha.hidden = false;
+      nome.focus();
+    },
+    'artes-nova-cor-abrir',
+  );
+  linha.append(nome, adicionar, cancelar);
+  linha.hidden = true;
+  bloco.append(abrir, linha, erro);
+  return bloco;
 }
 
 /** Formulário de nova arte, com as mesmas regras e mensagens do site (`validarNovaArte`). */
@@ -156,6 +253,10 @@ export function montarFormulario(
     const campoMaquinas = campo('Máquinas suportadas', maquinas.grupo, 'Marque uma ou mais');
     const cores = opcoesMarcaveis('radio', 'cor', opcoes.cores);
     const campoCor = campo('Cor', cores.grupo);
+    campoCor.raiz.insertBefore(
+      blocoNovaCor(api.criarCor, [...opcoes.cores], cores, campoCor.erro),
+      campoCor.erro,
+    );
 
     const erroGeral = criar('div', 'hint warn');
     erroGeral.setAttribute('role', 'alert');

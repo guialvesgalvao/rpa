@@ -68,7 +68,12 @@ export type DepsClienteArtes = {
   timeoutMs?: number;
   /** Tempo máximo do envio de uma arte (arquivos de até 25 MB), em ms. */
   timeoutEnvioMs?: number;
+  /** Relógio (ms) do cache das cores; injetável nos testes. */
+  agora?: () => number;
 };
+
+/** A lista de cores muda pouco: fica 1 h em memória, e a cor criada por este app entra na hora. */
+export const TTL_CORES_MS = 60 * 60 * 1000;
 
 /** Imagem de uma arte, com o tipo conferido pelos primeiros bytes. */
 export type ImagemArte = { mime: TipoDetectado['mime']; bytes: Uint8Array };
@@ -83,6 +88,8 @@ export type ClienteArtes = {
   artesDoProduto(empresa: string, clienteId: string, produtoId: string): Promise<ArteDoProduto[]>;
   imagemDaArte(empresa: string, arteId: string): Promise<ImagemArte>;
   opcoes(empresa: string): Promise<OpcoesArte>;
+  /** Cor nova (global, só o nome); 409 se já existir sem diferenciar maiúsculas nem acentos. */
+  criarCor(nome: string): Promise<Opcao>;
   cadastrar(empresa: string, clienteId: string, form: FormData): Promise<void>;
   /** Reserva `quantidade` números de OP consecutivos (só admin). */
   reservarNumerosOp(empresa: string, quantidade: number): Promise<number[]>;
@@ -136,8 +143,11 @@ export function criarClienteArtes({
   obterAcesso,
   timeoutMs = TIMEOUT_PADRAO_MS,
   timeoutEnvioMs = TIMEOUT_ENVIO_PADRAO_MS,
+  agora = Date.now,
 }: DepsClienteArtes): ClienteArtes {
   const base = baseUrl.replace(/\/+$/, '');
+  // Cores são globais (iguais nas duas empresas): um cache só. Falha não entra no cache.
+  let cacheCores: { lista: Opcao[]; lidoEm: number } | undefined;
 
   async function chamar(
     metodo: 'GET' | 'POST' | 'PATCH' | 'PUT',
@@ -240,16 +250,24 @@ export function criarClienteArtes({
       return { mime: tipo.mime, bytes };
     },
     async opcoes(empresa) {
-      const [produtos, cores, maquinas] = await Promise.all([
-        chamar('GET', rota(empresa, '/produtos')),
-        chamar('GET', '/v1/cores'),
-        chamar('GET', '/v1/maquinas'),
-      ]);
-      return {
-        produtos: await lerJson(produtos, listaDeOpcoes),
-        cores: await lerJson(cores, listaDeOpcoes),
-        maquinas: await lerJson(maquinas, listaDeOpcoes),
+      const lerCores = async (): Promise<Opcao[]> => {
+        if (cacheCores && agora() - cacheCores.lidoEm < TTL_CORES_MS) return cacheCores.lista;
+        const lista = await lerJson(await chamar('GET', '/v1/cores'), listaDeOpcoes);
+        cacheCores = { lista, lidoEm: agora() };
+        return lista;
       };
+      const [produtos, cores, maquinas] = await Promise.all([
+        chamar('GET', rota(empresa, '/produtos')).then((r) => lerJson(r, listaDeOpcoes)),
+        lerCores(),
+        chamar('GET', '/v1/maquinas').then((r) => lerJson(r, listaDeOpcoes)),
+      ]);
+      return { produtos, cores: [...cores], maquinas };
+    },
+    async criarCor(nome) {
+      const resposta = await chamar('POST', '/v1/cores', { json: { nome: nome.trim() } });
+      const cor = await lerJson(resposta, EsquemaOpcao);
+      if (cacheCores) cacheCores = { ...cacheCores, lista: [...cacheCores.lista, cor] };
+      return cor;
     },
     async cadastrar(empresa, clienteId, form) {
       await chamar('POST', rota(empresa, `/clientes/${encodeURIComponent(clienteId)}/artes`), {

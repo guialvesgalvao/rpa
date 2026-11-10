@@ -39,6 +39,7 @@ const api: RpaApi = {
     obterCliente: (id) => ipcRenderer.invoke(CHANNELS.artesObterCliente, id),
     produtosDoCliente: (id) => ipcRenderer.invoke(CHANNELS.artesProdutosDoCliente, id),
     opcoes: () => ipcRenderer.invoke(CHANNELS.artesOpcoes),
+    criarCor: (nome) => ipcRenderer.invoke(CHANNELS.artesCriarCor, nome),
     escolherArquivo: (tipo) => ipcRenderer.invoke(CHANNELS.artesEscolherArquivo, tipo),
     cadastrar: (entrada) => ipcRenderer.invoke(CHANNELS.artesCadastrar, entrada),
   },

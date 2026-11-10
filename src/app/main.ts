@@ -68,6 +68,7 @@ import {
   type ComentarioTarefa,
   type ContagemTarefas,
   type EventoTarefa,
+  type Opcao,
   type PaginaClientes,
   type Perfil,
   type ProdutoDoCliente,
@@ -99,6 +100,7 @@ import {
   validarConclusao,
   validarConsultaTarefas,
   validarMudancaStatus,
+  validarNomeCor,
   validarNovaTarefa,
   validarNovoUsuario,
   validarResponsavelAutomatico,
@@ -543,6 +545,15 @@ ipcMain.handle(
 ipcMain.handle(CHANNELS.artesOpcoes, async (): Promise<OpcoesArte> => {
   const { empresa } = await contexto();
   return artesApi.opcoes(empresa);
+});
+
+// Cor nova no cadastro da arte (global); a API confere o perfil e a repetição.
+ipcMain.handle(CHANNELS.artesCriarCor, async (_event, input: unknown): Promise<Opcao> => {
+  const nome = validarNomeCor(input);
+  await contexto();
+  const cor = await artesApi.criarCor(nome);
+  logger.info({ corId: cor.id }, 'Cor criada pelo app');
+  return cor;
 });
 
 const FILTROS_ARQUIVO = {

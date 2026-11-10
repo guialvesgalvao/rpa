@@ -15,6 +15,7 @@ import type {
   ComentarioTarefa,
   ContagemTarefas,
   EventoTarefa,
+  Opcao,
   PaginaClientes,
   Perfil,
   ProdutoDoCliente,
@@ -133,6 +134,8 @@ export type ArtesApi = {
   obterCliente(id: string): Promise<Cliente>;
   produtosDoCliente(id: string): Promise<ProdutoDoCliente[]>;
   opcoes(): Promise<OpcoesArte>;
+  /** Cria a cor (só o nome) e a devolve; a mensagem do erro vai pronta para a tela. */
+  criarCor(nome: string): Promise<Opcao>;
   /** `null` se o usuário cancelar o diálogo. */
   escolherArquivo(tipo: TipoArquivo): Promise<ArquivoEscolhido | null>;
   cadastrar(entrada: CadastroArte): Promise<CadastroResultado>;
@@ -286,6 +289,7 @@ export const CHANNELS = {
   artesObterCliente: 'rpa:artes:obter-cliente',
   artesProdutosDoCliente: 'rpa:artes:produtos-do-cliente',
   artesOpcoes: 'rpa:artes:opcoes',
+  artesCriarCor: 'rpa:artes:criar-cor',
   artesEscolherArquivo: 'rpa:artes:escolher-arquivo',
   artesCadastrar: 'rpa:artes:cadastrar',
   tarefasCriar: 'rpa:tarefas:criar',

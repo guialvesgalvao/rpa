@@ -19,7 +19,7 @@ import {
 
 export type DepsOp = {
   api: OpApi;
-  artes: Pick<ArtesApi, 'opcoes' | 'escolherArquivo' | 'cadastrar'>;
+  artes: Pick<ArtesApi, 'opcoes' | 'criarCor' | 'escolherArquivo' | 'cadastrar'>;
   escolherPasta(atual: string): Promise<string | null>;
   abrirPasta(dir: string): Promise<void>;
 };

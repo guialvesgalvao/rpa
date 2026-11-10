@@ -11,6 +11,7 @@ import {
   validarItensOp,
   validarLogin,
   validarMudancaStatus,
+  validarNomeCor,
   validarNovaTarefa,
   validarNovoUsuario,
   validarResponsavelAutomatico,
@@ -314,6 +315,15 @@ describe('usuários e senha', () => {
       'A senha precisa de ao menos 10 caracteres.',
     );
     expect(() => validarNovoUsuario('x')).toThrow();
+  });
+
+  it('nome da cor nova: tira os espaços; recusa vazio, longo ou fora de texto', () => {
+    expect(validarNomeCor('  Pantone 485 ')).toBe('Pantone 485');
+    expect(() => validarNomeCor('   ')).toThrow('Informe o nome da cor.');
+    expect(() => validarNomeCor('a'.repeat(31))).toThrow(
+      'O nome pode ter no máximo 30 caracteres.',
+    );
+    expect(() => validarNomeCor(42)).toThrow('Informe o nome da cor.');
   });
 
   it('troca de senha: exige a atual e a nova com o mínimo', () => {

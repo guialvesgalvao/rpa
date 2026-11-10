@@ -34,6 +34,13 @@ npm --prefix plataforma run dev -w web                # site em http://localhost
 
 Saúde: `GET /v1/saude` (API) e `GET /api/saude` (site) → `{"status":"ok"}`.
 
+Suíte E2E local (raiz: `npm run e2e`, ADR 0010): usa dois scripts da API, chamados pela própria suíte.
+
+- `e2e:banco -- preparar`: cria o banco `rpa_e2e` se faltar, apaga tudo, migra e roda o `semear` mais os usuários da suíte (`desativavel.e2e@exemplo.com` e `troca.e2e@exemplo.com`). `e2e:banco -- desativar <email>` desativa um usuário. Lê só `DATABASE_URL` e recusa host não local ou banco que não termine em `_e2e`.
+- `e2e:servidor`: a API sem `--env-file` (o `.env` local não vaza Bling nem bucket); a suíte passa as variáveis.
+
+O site da suíte roda com `NEXT_DIST_DIR=.next-e2e` (`distDir` em `web/next.config.ts`), na porta 3100, ao lado do `next dev` de sempre.
+
 ## Autenticação
 
 Contratos em `contratos/src/auth.ts`. Erros sempre como `{ "erro": { "codigo", "mensagem" } }`.

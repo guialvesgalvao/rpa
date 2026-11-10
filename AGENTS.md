@@ -13,6 +13,7 @@ Decisões de arquitetura em `docs/adrs/` (índice no `README.md` da pasta).
 - `npx prettier --check src tests` — o `npm run format:check` roda em `.` e pega os planos locais de `docs/plans/`, então falha localmente; prefira caminhos explícitos.
 - `npm test` — precisa do Chromium do Playwright (`npm run browsers:install`), usado pelo teste de integração do PDF do recibo.
 - `npm run app`
+- `npm run e2e` — suíte E2E local (site + app, `e2e/`). Precisa de Docker, `npm --prefix plataforma ci` e do Chromium; sobe Postgres, API (3101) e site (3100) sozinha e recria o banco `rpa_e2e`. Só um grupo: `-- --project=site|app` ou `-- -g "<nome>"`.
 
 ## Fluxo de branches
 
@@ -42,7 +43,12 @@ Decisões de arquitetura em `docs/adrs/` (índice no `README.md` da pasta).
 - **Sempre** perguntar ao usuário, antes de rodar qualquer fluxo que use as credenciais do Bling (app → Gerar, `npm run process -- bling …`, scripts de diagnóstico), se pode rodar e qual número de pedido usar.
 - A autorização vale só para aquela execução. Sem resposta, não rodar.
 - Nunca usar dados reais de clientes em testes ou fixtures.
+- A suíte E2E nunca usa o Bling nem credenciais reais (ADR 0010): banco `rpa_e2e`, dados fictícios, `RPA_OP_MOCK=1`. Ela não precisa dessa autorização; o que usa o Bling real continua precisando.
 
 ## Planos
 
 - `docs/plans/` é local (está em `.git/info/exclude`) e não vai para a `main`.
+- Testes E2E nos planos (ADR 0010):
+  - todo plano avalia E2E local para mudanças de tela ou de fluxo local e, quando fizer sentido, cria ou ajusta os specs de `e2e/` nas tasks de código;
+  - depois de todas as tasks autônomas, uma task de agente roda a suíte inteira (`npm run e2e`) com as demais checagens;
+  - as tasks manuais vêm sempre por último e ficam só com o que um agente não pode validar: Bling real, Railway e aceite visual ou de negócio.

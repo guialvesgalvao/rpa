@@ -206,6 +206,9 @@ npm run typecheck
 npm run lint
 npm run format:check
 npm test
+npm run e2e        # suíte E2E local: site + app contra a API e o banco `rpa_e2e` (ADR 0010)
 ```
+
+A suíte E2E (`e2e/`, Playwright) precisa de Docker, de `npm --prefix plataforma ci` e do Chromium (`npm run browsers:install`). Ela sobe o Postgres, recria o banco `rpa_e2e` com dados fictícios, sobe a API na porta 3101 e o site na 3100, e abre o app numa pasta de dados temporária, com `RPA_OP_MOCK=1`. Nunca usa o Bling nem o `.env`. Relatório: `npx playwright show-report`. Só um grupo: `npm run e2e -- --project=site` (ou `app`), ou `-g "<trecho do nome>"`.
 
 > Nunca coloque credenciais no código; use o `.env` (já ignorado pelo git).

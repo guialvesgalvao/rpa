@@ -1,1 +1,3 @@
 next-env.d.ts
+# Build do `next dev` da suíte E2E local (NEXT_DIST_DIR).
+.next-e2e/

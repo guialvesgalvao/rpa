@@ -13,6 +13,8 @@
     "usuarios": "node --env-file-if-exists=../.env --import tsx src/cli/usuarios.ts",
     "semear-dev": "node --env-file-if-exists=../.env --import tsx src/cli/semear-dev.ts",
     "arquivos:migrar": "node --env-file-if-exists=../.env --import tsx src/cli/migrar-arquivos.ts",
+    "e2e:banco": "node --import tsx src/cli/preparar-e2e.ts",
+    "e2e:servidor": "node --import tsx src/servidor.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

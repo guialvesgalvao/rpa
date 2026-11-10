@@ -235,7 +235,7 @@ Como a gravação funciona (tudo numa transação; uma falha no meio desfaz tudo
 
 **O banco local passa a ter dados reais de clientes (nomes, CNPJ)**: nada disso vai para chat, log nem fixture. Trocar `BLING_CHAVE_TOKENS` invalida a conexão gravada (é preciso autorizar de novo).
 
-Nesta etapa, **produção fica desligada**: sem `BLING_*` no Railway, as rotas respondem `503` e só as migrações (`0007` e `0008`) vão para o banco de produção.
+**Produção** (desde 2026-11-09): as `BLING_*` ficam no serviço da API no Railway, com `BLING_ROMA_CNPJ` preenchido e a sincronização automática ligada; a Roma está conectada à conta do Bling dela. Sem as quatro `BLING_*`, as rotas respondem `503 bling_nao_configurado`.
 
 ### Sincronização automática
 
@@ -282,3 +282,5 @@ Site (`web/`), obrigatórias em produção:
 | `SITE_URL`        | `http://localhost:3000` | endereço público do site: base dos redirecionamentos e `Origin` |
 
 Modelo em `.env.example`. Gere o `JWT_SEGREDO` com `node -e "console.log(require('node:crypto').randomBytes(48).toString('base64url'))"`; trocá-lo invalida os tokens de acesso emitidos (as sessões continuam e renovam). Os testes não leem o ambiente: injetam um segredo fictício em `criarApp`. Em produção, as variáveis ficam no painel do Railway; scripts locais contra produção recebem as credenciais via `railway run`. Nunca coloque credenciais no repositório.
+
+**Variáveis no Railway:** uma variável nova ou alterada só vale depois de um deploy. O **Redeploy** de um deploy reaproveita o commit daquele deploy: para aplicar variáveis, faça o Redeploy do deploy mais recente (o da `main` atual). Feito num deploy antigo, a API volta para o código antigo (em 2026-11-09, isso tirou a checagem da conta do Bling e o `conta` do status, e o app mostrou "Resposta do servidor fora do contrato").

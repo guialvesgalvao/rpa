@@ -5,7 +5,6 @@ import {
   type EscopoTarefas,
   type EventoTarefa,
   type OrigemTarefa,
-  type Perfil,
   STATUS_EM_ANDAMENTO,
   type StatusTarefa,
   type Tarefa,
@@ -37,8 +36,9 @@ import {
 } from '../db/esquema.js';
 import { ErroApi } from '../erros.js';
 
-// Quem pede: o arte finalista só alcança as tarefas de que é responsável; o admin, todas da empresa.
-export type Acesso = { usuarioId: string; perfil: Perfil };
+// Quem pede: só alcança as tarefas de que é responsável, a não ser que acompanhe todas as da empresa
+// (permissão `artes.acompanhar`).
+export type Acesso = { usuarioId: string; veTodas: boolean };
 
 const responsavel = alias(usuarios, 'responsavel');
 
@@ -107,7 +107,7 @@ const alcance = (empresaId: string, acesso: Acesso, tarefaId?: string): SQL | un
   and(
     eq(tarefasArte.empresaId, empresaId),
     tarefaId ? eq(tarefasArte.id, tarefaId) : undefined,
-    acesso.perfil === 'admin' ? undefined : eq(tarefasArte.responsavelId, acesso.usuarioId),
+    acesso.veTodas ? undefined : eq(tarefasArte.responsavelId, acesso.usuarioId),
   );
 
 // `null` quando a tarefa não existe na empresa ou está fora do alcance de quem pede.
@@ -160,20 +160,20 @@ export async function criarTarefa(
   });
   const criada = await obterTarefa(db, entrada.empresaId, tarefaId, {
     usuarioId: entrada.usuarioId ?? '',
-    perfil: 'admin',
+    veTodas: true,
   });
   if (!criada) throw new Error('Tarefa não criada.');
   return criada;
 }
 
-// Mais recentes primeiro. O arte finalista só vê as próprias, qualquer que seja o escopo.
+// Mais recentes primeiro. Quem não acompanha todas só vê as próprias, qualquer que seja o escopo.
 export async function listarTarefas(
   db: Banco,
   empresaId: string,
   acesso: Acesso,
   { escopo, status }: { escopo: EscopoTarefas; status?: StatusTarefa },
 ): Promise<Tarefa[]> {
-  const soMinhas = escopo === 'minhas' || acesso.perfil !== 'admin';
+  const soMinhas = escopo === 'minhas' || !acesso.veTodas;
   const linhas = await consultaTarefas(
     db,
     and(

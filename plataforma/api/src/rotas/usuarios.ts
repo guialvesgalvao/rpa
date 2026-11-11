@@ -1,7 +1,9 @@
 import {
   EsquemaNovoUsuario,
   EsquemaTrocaSenha,
+  type Permissao,
   podeAtribuirEmpresas,
+  temPermissao,
   type UsuarioResumo,
 } from '@plataforma/contratos';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
@@ -11,7 +13,6 @@ import type { Banco } from '../db/cliente.js';
 import { ErroApi, lerCorpo } from '../erros.js';
 import { usuarioDe } from '../plugins/autenticacao.js';
 import {
-  buscarPerfil,
   criarUsuario,
   ErroUsuario,
   listarDoEscopo,
@@ -29,47 +30,62 @@ const paraResumo = ({ id, nome, email, perfil, ativo, empresas, criadoEm }: Usua
   criadoEm: criadoEm.toISOString(),
 });
 
-// Usuários pela tela (admin): lista e cria só dentro das empresas do próprio admin. Editar, desativar e trocar
-// a senha de outro usuário continuam na CLI.
+// Usuários pela tela: lista e cria só dentro das empresas em que quem pede tem a permissão.
 export function rotasUsuarios(
   app: FastifyInstance,
   { db, limite }: { db: Banco; limite: Limite },
 ): void {
-  const preHandler = [app.autenticacao.exigirUsuario, app.autenticacao.exigirPerfil('admin')];
+  const { exigirUsuario, exigirPermissaoEmAlgumaEmpresa } = app.autenticacao;
 
-  // Empresas do admin lidas do banco: o token pode estar até 15 min desatualizado.
-  async function empresasDoAdmin(request: FastifyRequest): Promise<string[]> {
-    const perfil = await buscarPerfil(db, usuarioDe(request).usuarioId);
-    if (!perfil?.ativo) throw new ErroApi(401, 'token_invalido', 'Token de acesso inválido.');
-    if (perfil.perfil !== 'admin') {
-      throw new ErroApi(403, 'perfil_proibido', 'Seu perfil não permite esta ação.');
-    }
-    return perfil.empresas.map((empresa) => empresa.slug);
+  // Empresas em que quem pede tem todas as permissões informadas (lidas do banco nesta requisição).
+  function empresasCom(request: FastifyRequest, ...chaves: Permissao[]): string[] {
+    return Object.entries(usuarioDe(request).permissoes)
+      .filter(([, permissoes]) => chaves.every((chave) => temPermissao(permissoes, chave)))
+      .map(([slug]) => slug);
   }
 
-  app.get('/v1/usuarios', { preHandler }, async (request): Promise<UsuarioResumo[]> => {
-    const usuarios = await listarDoEscopo(db, await empresasDoAdmin(request));
-    return usuarios.map(paraResumo);
-  });
+  // Rotas do app anterior às permissões (ADR 0011): sem empresa no caminho e com `perfil` no corpo.
+  app.get(
+    '/v1/usuarios',
+    { preHandler: [exigirUsuario, exigirPermissaoEmAlgumaEmpresa('usuarios')] },
+    async (request): Promise<UsuarioResumo[]> => {
+      const usuarios = await listarDoEscopo(db, empresasCom(request, 'usuarios'));
+      return usuarios.map(paraResumo);
+    },
+  );
 
-  app.post('/v1/usuarios', { preHandler }, async (request, reply): Promise<UsuarioResumo> => {
-    const novo = lerCorpo(EsquemaNovoUsuario, request.body);
-    if (!podeAtribuirEmpresas(await empresasDoAdmin(request), novo.empresas)) {
-      throw new ErroApi(403, 'empresa_proibida', 'Sem acesso a uma das empresas escolhidas.');
-    }
-    try {
-      const criado = await criarUsuario(db, { ...novo, deveTrocarSenha: true });
-      request.log.info({ usuarioId: criado.id, perfil: criado.perfil }, 'Usuário criado pela tela');
-      return reply.code(201).send(paraResumo(criado));
-    } catch (erro) {
-      if (erro instanceof ErroUsuario) {
-        throw erro.codigo === 'email_em_uso'
-          ? new ErroApi(409, 'email_em_uso', erro.message)
-          : new ErroApi(400, 'requisicao_invalida', erro.message);
+  // Como `perfil` vira permissões, criar por aqui exige poder criar usuários e também editar permissões.
+  const criacao = [
+    exigirUsuario,
+    exigirPermissaoEmAlgumaEmpresa('usuarios.editar'),
+    exigirPermissaoEmAlgumaEmpresa('usuarios.permissoes'),
+  ];
+  app.post(
+    '/v1/usuarios',
+    { preHandler: criacao },
+    async (request, reply): Promise<UsuarioResumo> => {
+      const novo = lerCorpo(EsquemaNovoUsuario, request.body);
+      const permitidas = empresasCom(request, 'usuarios.editar', 'usuarios.permissoes');
+      if (!podeAtribuirEmpresas(permitidas, novo.empresas)) {
+        throw new ErroApi(403, 'empresa_proibida', 'Sem acesso a uma das empresas escolhidas.');
       }
-      throw erro;
-    }
-  });
+      try {
+        const criado = await criarUsuario(db, { ...novo, deveTrocarSenha: true });
+        request.log.info(
+          { usuarioId: criado.id, perfil: criado.perfil },
+          'Usuário criado pela tela',
+        );
+        return reply.code(201).send(paraResumo(criado));
+      } catch (erro) {
+        if (erro instanceof ErroUsuario) {
+          throw erro.codigo === 'email_em_uso'
+            ? new ErroApi(409, 'email_em_uso', erro.message)
+            : new ErroApi(400, 'requisicao_invalida', erro.message);
+        }
+        throw erro;
+      }
+    },
+  );
 
   // Troca da própria senha (qualquer perfil). Não há bloqueio nas outras rotas: quem pede a troca é a tela.
   app.post(

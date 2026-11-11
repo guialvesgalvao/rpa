@@ -158,12 +158,11 @@ export function rotasArtes(
   void app.register(async (escopo) => {
     await escopo.register(multipart, { limits: LIMITES_MULTIPART });
 
-    const comEmpresa = [
-      escopo.autenticacao.exigirUsuario,
-      escopo.autenticacao.exigirEmpresa('empresa'),
-    ];
-    const cadastro = [...comEmpresa, escopo.autenticacao.exigirPerfil('admin', 'arte_finalista')];
-    const soAdmin = [...comEmpresa, escopo.autenticacao.exigirPerfil('admin')];
+    const { exigirUsuario, exigirEmpresa, exigirPermissao } = escopo.autenticacao;
+    const daEmpresa = [exigirUsuario, exigirEmpresa('empresa')];
+    const comEmpresa = [...daEmpresa, exigirPermissao('artes')];
+    const cadastro = [...daEmpresa, exigirPermissao('artes.adicionar')];
+    const edicao = [...daEmpresa, exigirPermissao('artes.editar')];
 
     // Empresa do token que não existe no banco: tratada como inexistente.
     async function empresaDe(request: FastifyRequest): Promise<string> {
@@ -249,7 +248,7 @@ export function rotasArtes(
 
     escopo.patch(
       '/v1/empresas/:empresa/artes/:id',
-      { preHandler: soAdmin },
+      { preHandler: edicao },
       async (request): Promise<Arte> => {
         const empresaId = await empresaDe(request);
         const { id } = request.params as { id: string };
@@ -269,7 +268,7 @@ export function rotasArtes(
 
     escopo.delete(
       '/v1/empresas/:empresa/artes/:id',
-      { preHandler: soAdmin },
+      { preHandler: edicao },
       async (request, reply) => {
         const empresaId = await empresaDe(request);
         const { id } = request.params as { id: string };

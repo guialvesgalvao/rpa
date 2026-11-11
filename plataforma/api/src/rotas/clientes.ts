@@ -23,7 +23,12 @@ import type { Banco } from '../db/cliente.js';
 import { ErroApi, lerCorpo } from '../erros.js';
 
 export function rotasClientes(app: FastifyInstance, { db }: { db: Banco }): void {
-  const preHandler = [app.autenticacao.exigirUsuario, app.autenticacao.exigirEmpresa('empresa')];
+  // Clientes, produtos e artes são do módulo Artes.
+  const preHandler = [
+    app.autenticacao.exigirUsuario,
+    app.autenticacao.exigirEmpresa('empresa'),
+    app.autenticacao.exigirPermissao('artes'),
+  ];
 
   // Empresa do token que não existe no banco: tratada como inexistente.
   async function empresaDe(request: FastifyRequest): Promise<string> {

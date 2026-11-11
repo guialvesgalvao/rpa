@@ -14,6 +14,7 @@ import {
   type TarefaDetalhe,
   detectarTipo,
   LIMITES,
+  temPermissao,
 } from '@plataforma/contratos';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 
@@ -126,11 +127,11 @@ export function rotasTarefas(
   void app.register(async (escopo) => {
     await escopo.register(multipart, { limits: LIMITES_MULTIPART });
 
-    const preHandler = [
-      escopo.autenticacao.exigirUsuario,
-      escopo.autenticacao.exigirEmpresa('empresa'),
-      escopo.autenticacao.exigirPerfil('admin', 'arte_finalista'),
-    ];
+    const { exigirUsuario, exigirEmpresa, exigirPermissao } = escopo.autenticacao;
+    const daEmpresa = [exigirUsuario, exigirEmpresa('empresa')];
+    const preHandler = [...daEmpresa, exigirPermissao('artes')];
+    // Criar a tarefa e concluí-la (o que cadastra a arte) é de quem pode adicionar artes.
+    const cadastro = [...daEmpresa, exigirPermissao('artes.adicionar')];
 
     // Empresa do token que não existe no banco: tratada como inexistente.
     async function empresaDe(request: FastifyRequest): Promise<string> {
@@ -141,8 +142,9 @@ export function rotasTarefas(
     }
 
     const acessoDe = (request: FastifyRequest): Acesso => {
-      const { usuarioId, perfil } = usuarioDe(request);
-      return { usuarioId, perfil };
+      const { usuarioId, permissoes } = usuarioDe(request);
+      const { empresa } = request.params as { empresa: string };
+      return { usuarioId, veTodas: temPermissao(permissoes[empresa], 'artes.acompanhar') };
     };
 
     function tarefaIdDe(request: FastifyRequest): string {
@@ -153,7 +155,7 @@ export function rotasTarefas(
 
     escopo.post(
       '/v1/empresas/:empresa/clientes/:id/produtos/:produtoId/tarefas',
-      { preHandler },
+      { preHandler: cadastro },
       async (request, reply): Promise<Tarefa> => {
         const empresaId = await empresaDe(request);
         const { id, produtoId } = request.params as { id: string; produtoId: string };
@@ -180,12 +182,8 @@ export function rotasTarefas(
       },
     );
 
-    // Responsável pelas tarefas automáticas da empresa: só o admin vê e muda.
-    const soAdmin = [
-      escopo.autenticacao.exigirUsuario,
-      escopo.autenticacao.exigirEmpresa('empresa'),
-      escopo.autenticacao.exigirPerfil('admin'),
-    ];
+    // Responsável pelas tarefas automáticas da empresa: só quem acompanha todas as tarefas vê e muda.
+    const soAdmin = [...daEmpresa, exigirPermissao('artes.acompanhar')];
 
     escopo.get(
       '/v1/empresas/:empresa/tarefas/responsavel-automatico',
@@ -243,7 +241,7 @@ export function rotasTarefas(
     // Multipart com os mesmos campos do cadastro de arte; cliente e produto são os da tarefa.
     escopo.post(
       '/v1/empresas/:empresa/tarefas/:id/concluir',
-      { preHandler },
+      { preHandler: cadastro },
       async (request): Promise<Tarefa> => {
         const empresaId = await empresaDe(request);
         const tarefaId = tarefaIdDe(request);

@@ -400,15 +400,10 @@ describe('GET /v1/eu', () => {
 
 describe('plugin de autenticação', () => {
   function registrarRotasDeTeste() {
-    const { exigirUsuario, exigirEmpresa, exigirPerfil } = app.autenticacao;
+    const { exigirUsuario, exigirEmpresa } = app.autenticacao;
     app.get(
       '/v1/teste/:empresa',
       { preHandler: [exigirUsuario, exigirEmpresa('empresa')] },
-      async () => ({ ok: true }),
-    );
-    app.get(
-      '/v1/teste-admin',
-      { preHandler: [exigirUsuario, exigirPerfil('admin')] },
       async () => ({ ok: true }),
     );
   }
@@ -431,26 +426,5 @@ describe('plugin de autenticação', () => {
     });
     esperarErro(proibida, 403, 'empresa_proibida');
     esperarErro(await app.inject({ method: 'GET', url: '/v1/teste/aba' }), 401, 'nao_autenticado');
-  });
-
-  it('exigirPerfil: 403 para perfil não permitido', async () => {
-    registrarRotasDeTeste();
-    await cadastrar();
-    await cadastrar({ email: 'admin@exemplo.com', perfil: 'admin' });
-    const arteFinalista = await login('web');
-    const admin = await login('web', 'admin@exemplo.com');
-
-    const negada = await app.inject({
-      method: 'GET',
-      url: '/v1/teste-admin',
-      headers: autorizacao(arteFinalista.acesso),
-    });
-    esperarErro(negada, 403, 'perfil_proibido');
-    const aceita = await app.inject({
-      method: 'GET',
-      url: '/v1/teste-admin',
-      headers: autorizacao(admin.acesso),
-    });
-    expect(aceita.statusCode).toBe(200);
   });
 });

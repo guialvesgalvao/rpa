@@ -6,11 +6,11 @@ import { violouUnico } from '../artes/servico.js';
 import type { Banco } from '../db/cliente.js';
 import { ErroApi, lerCorpo } from '../erros.js';
 
-// Cores e máquinas são globais (iguais nas duas empresas): basta estar autenticado. Cor nova: os perfis que
-// cadastram arte (admin e arte_finalista).
+// Cores e máquinas são globais (iguais nas duas empresas): basta estar autenticado. Cor nova: quem pode
+// adicionar artes em alguma empresa.
 export function rotasOpcoes(app: FastifyInstance, { db }: { db: Banco }): void {
   const preHandler = app.autenticacao.exigirUsuario;
-  const cadastro = [preHandler, app.autenticacao.exigirPerfil('admin', 'arte_finalista')];
+  const cadastro = [preHandler, app.autenticacao.exigirPermissaoEmAlgumaEmpresa('artes.adicionar')];
 
   app.get('/v1/cores', { preHandler }, async (): Promise<Opcao[]> => listarCores(db));
   app.get('/v1/maquinas', { preHandler }, async (): Promise<Opcao[]> => listarMaquinas(db));

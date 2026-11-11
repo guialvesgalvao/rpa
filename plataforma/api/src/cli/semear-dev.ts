@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 
+import { PERMISSOES_DO_PERFIL } from '@plataforma/contratos';
 import { and, eq, isNull } from 'drizzle-orm';
 
 import { gerarHash } from '../auth/senha.js';
@@ -134,18 +135,24 @@ async function semearUsuarios(db: Banco, empresaIds: string[]): Promise<string> 
     },
   ];
   let adminId = '';
-  for (const usuario of dados) {
+  for (const { perfil, ...usuario } of dados) {
     const [linha] = await db
       .insert(usuarios)
       .values({ ...usuario, senhaHash: hash })
       .onConflictDoUpdate({ target: usuarios.email, set: { nome: usuario.nome } })
       .returning({ id: usuarios.id });
     if (!linha) throw new Error('usuário não gravado');
+    // O perfil fictício vira as permissões equivalentes em cada empresa (ADR 0011). Rodar de novo repõe as
+    // permissões do seed, mesmo num banco de desenvolvimento semeado antes delas.
+    const permissoes = [...PERMISSOES_DO_PERFIL[perfil]];
     await db
       .insert(usuarioEmpresas)
-      .values(empresaIds.map((empresaId) => ({ usuarioId: linha.id, empresaId })))
-      .onConflictDoNothing();
-    if (usuario.perfil === 'admin') adminId = linha.id;
+      .values(empresaIds.map((empresaId) => ({ usuarioId: linha.id, empresaId, permissoes })))
+      .onConflictDoUpdate({
+        target: [usuarioEmpresas.usuarioId, usuarioEmpresas.empresaId],
+        set: { permissoes },
+      });
+    if (perfil === 'admin') adminId = linha.id;
   }
   return adminId;
 }

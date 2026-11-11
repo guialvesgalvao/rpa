@@ -94,7 +94,7 @@ export function rotasBling(
   const preHandler = [
     app.autenticacao.exigirUsuario,
     app.autenticacao.exigirEmpresa('empresa'),
-    app.autenticacao.exigirPerfil('admin'),
+    app.autenticacao.exigirPermissao('ops'),
     exigirSincronizacao,
   ];
 

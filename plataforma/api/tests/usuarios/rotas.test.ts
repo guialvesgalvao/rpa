@@ -140,8 +140,8 @@ describe('POST /v1/usuarios', () => {
 
   it('arte finalista: 403; sem login: 401', async () => {
     const token = await entrar('ana@exemplo.com', 'arte_finalista', ['aba']);
-    esperarErro(await criar(token, novo('x@exemplo.com', ['aba'])), 403, 'perfil_proibido');
-    esperarErro(await listar(token), 403, 'perfil_proibido');
+    esperarErro(await criar(token, novo('x@exemplo.com', ['aba'])), 403, 'permissao_proibida');
+    esperarErro(await listar(token), 403, 'permissao_proibida');
     const semLogin = await app.inject({ method: 'GET', url: '/v1/usuarios' });
     esperarErro(semLogin, 401, 'nao_autenticado');
   });

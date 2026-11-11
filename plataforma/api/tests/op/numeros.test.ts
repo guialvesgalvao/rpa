@@ -115,7 +115,7 @@ describe('POST /op/numeros', () => {
     esperarErro(await reservar('roma', { quantidade: 1 }, null), 401, 'nao_autenticado');
 
     const finalista = await entrar('ana@exemplo.com', 'arte_finalista', ['roma']);
-    esperarErro(await reservar('roma', { quantidade: 1 }, finalista), 403, 'perfil_proibido');
+    esperarErro(await reservar('roma', { quantidade: 1 }, finalista), 403, 'permissao_proibida');
 
     const soAba = await entrar('bia@exemplo.com', 'admin', ['aba']);
     esperarErro(await reservar('roma', { quantidade: 1 }, soAba), 403, 'empresa_proibida');

@@ -402,7 +402,7 @@ describe('PATCH /artes/:id', () => {
     esperarErro(
       await enviar('PATCH', urlArte(arte.id), [{ nome: 'nome', valor: 'X' }]),
       403,
-      'perfil_proibido',
+      'permissao_proibida',
     );
     esperarErro(
       await enviar('PATCH', urlArte('00000000-0000-4000-8000-000000000000'), [], tokenAdmin),
@@ -429,7 +429,7 @@ describe('DELETE /artes/:id', () => {
 
   it('arte finalista recebe 403 e nada é removido', async () => {
     const arte = await cadastrar();
-    esperarErro(await del(arte.id, tokenFinalista), 403, 'perfil_proibido');
+    esperarErro(await del(arte.id, tokenFinalista), 403, 'permissao_proibida');
     esperarErro(await del(arte.id, null), 401, 'nao_autenticado');
     expect(await db.select().from(artes)).toHaveLength(1);
     expect(await db.select().from(arquivos)).toHaveLength(1);

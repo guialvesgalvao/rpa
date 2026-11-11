@@ -10,7 +10,7 @@ export function rotasOp(app: FastifyInstance, { db }: { db: Banco }): void {
   const preHandler = [
     app.autenticacao.exigirUsuario,
     app.autenticacao.exigirEmpresa('empresa'),
-    app.autenticacao.exigirPerfil('admin'),
+    app.autenticacao.exigirPermissao('ops'),
   ];
 
   app.post(

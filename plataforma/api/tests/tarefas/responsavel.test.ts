@@ -138,7 +138,7 @@ describe('rotas do responsável automático', () => {
     esperarErro(
       await app.inject({ method: 'GET', url: URL_RESPONSAVEL, headers: auth(token) }),
       403,
-      'perfil_proibido',
+      'permissao_proibida',
     );
   });
 });

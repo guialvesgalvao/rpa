@@ -1,4 +1,4 @@
-import { type Perfil, perfilLegado, type Permissao, temPermissao } from '@plataforma/contratos';
+import { perfilLegado, type Permissao, temPermissao } from '@plataforma/contratos';
 import type { FastifyRequest, preHandlerAsyncHookHandler } from 'fastify';
 
 import type { DadosAcesso, Tokens } from '../auth/tokens.js';
@@ -64,14 +64,6 @@ export function criarAutenticacao(deps: { db: Banco; tokens: Tokens; relogio: ()
       }
     };
 
-  const exigirPerfil =
-    (...perfis: Perfil[]): preHandlerAsyncHookHandler =>
-    async (request) => {
-      if (!perfis.includes(usuarioDe(request).perfil)) {
-        throw new ErroApi(403, 'perfil_proibido', 'Seu perfil não permite esta ação.');
-      }
-    };
-
   const semPermissao = () =>
     new ErroApi(403, 'permissao_proibida', 'Você não tem permissão para esta ação.');
 
@@ -96,7 +88,6 @@ export function criarAutenticacao(deps: { db: Banco; tokens: Tokens; relogio: ()
   return {
     exigirUsuario,
     exigirEmpresa,
-    exigirPerfil,
     exigirPermissao,
     exigirPermissaoEmAlgumaEmpresa,
   };

@@ -64,6 +64,20 @@ const api: RpaApi = {
     baixarAnexo: (anexo) => ipcRenderer.invoke(CHANNELS.tarefasBaixarAnexo, anexo),
     historico: (id) => ipcRenderer.invoke(CHANNELS.tarefasHistorico, id),
   },
+  compras: {
+    insumos: () => ipcRenderer.invoke(CHANNELS.comprasInsumos),
+    listar: (consulta) => ipcRenderer.invoke(CHANNELS.comprasListar, consulta),
+    obter: (id) => ipcRenderer.invoke(CHANNELS.comprasObter, id),
+    criar: (novo) => ipcRenderer.invoke(CHANNELS.comprasCriar, novo),
+    editar: (id, edicao) => ipcRenderer.invoke(CHANNELS.comprasEditar, { id, edicao }),
+    assumir: (id) => ipcRenderer.invoke(CHANNELS.comprasAssumir, id),
+    mudarStatus: (id, status) => ipcRenderer.invoke(CHANNELS.comprasMudarStatus, { id, status }),
+    comentar: (id, texto, anexoIds) =>
+      ipcRenderer.invoke(CHANNELS.comprasComentar, { id, texto, anexoIds }),
+    historico: (id) => ipcRenderer.invoke(CHANNELS.comprasHistorico, id),
+    escolherAnexos: () => ipcRenderer.invoke(CHANNELS.comprasEscolherAnexos),
+    baixarAnexo: (anexo) => ipcRenderer.invoke(CHANNELS.comprasBaixarAnexo, anexo),
+  },
   op: {
     clientePorCnpj: (cnpj) => ipcRenderer.invoke(CHANNELS.opClientePorCnpj, cnpj),
     artesDoItem: (clienteId, codigo) =>

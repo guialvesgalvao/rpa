@@ -681,6 +681,10 @@
         color: var(--ok);
         border-color: var(--ok);
       }
+      .compra-status[data-status='em_andamento'] {
+        color: #1d5fa8;
+        border-color: #1d5fa8;
+      }
       .tarefa-status[data-status='cancelada'] {
         text-decoration: line-through;
       }
@@ -1016,6 +1020,13 @@
           <div class="pagina">
             <div id="artes-offline" class="hint warn" hidden>Sem conexão com o servidor.</div>
             <div id="artes-raiz"></div>
+          </div>
+        </section>
+
+        <section data-aba="compras" hidden>
+          <div class="pagina">
+            <div id="compras-offline" class="hint warn" hidden>Sem conexão com o servidor.</div>
+            <div id="compras-raiz"></div>
           </div>
         </section>
 

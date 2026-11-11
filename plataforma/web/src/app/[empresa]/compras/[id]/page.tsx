@@ -1,15 +1,15 @@
 import {
+  acoesDoPedido,
   formatarQuantidade,
-  ROTULOS_STATUS_COMPRA,
   rotuloArea,
   rotuloInsumo,
+  ROTULOS_STATUS_COMPRA,
   temPermissao,
 } from '@plataforma/contratos';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { formatarTamanho } from '../../../../anexos';
-import { acoesDoPedido } from '../../../../compras';
 import { AcoesPedido } from '../../../../componentes/AcoesPedido';
 import { formatarDataHora } from '../../../../datas';
 import { insumosDaEmpresa, pedidoDaEmpresa } from '../../../../servidor/compras';

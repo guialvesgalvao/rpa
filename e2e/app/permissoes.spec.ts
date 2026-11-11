@@ -29,7 +29,7 @@ test('admin: OP só aparece na Roma; troca de empresa pelo seletor', async () =>
     await janela.locator('dialog#empresas').getByRole('button', { name: /Roma/ }).click();
     await fecharConfiguracoesSeAbrir(janela);
     await expect(janela.locator('#empresa-nome')).toHaveText(/Roma/);
-    expect(await abasDoMenu(janela)).toEqual(['Artes', 'Fatura', 'OP', 'Usuários']);
+    expect(await abasDoMenu(janela)).toEqual(['Artes', 'Compras', 'Fatura', 'OP', 'Usuários']);
   } finally {
     await app.close();
   }

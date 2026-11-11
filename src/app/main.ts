@@ -27,6 +27,7 @@ import { ensureDir } from '../utils/fs.js';
 import {
   type ArquivoEscolhido,
   CHANNELS,
+  type PedidoCompraTela,
   type CadastroResultado,
   type ConclusaoResultado,
   type ConfigTela,
@@ -41,7 +42,7 @@ import {
   type StatusAutomaticaBling,
 } from './api.js';
 import { logoDaEmpresa, podeTrocarEmpresa, rotuloEmpresa } from './empresa.js';
-import { podeConfigurarBling, podeSincronizarBling, podeUsarOp } from './menu.js';
+import { podeConfigurarBling, podeSincronizarBling, podeUsarCompras, podeUsarOp } from './menu.js';
 import {
   type ArquivoLocal,
   type ArtesDoItem,
@@ -61,15 +62,21 @@ import {
   urlAutorizacaoSegura,
 } from './plataforma/bling.js';
 import { criarCliente, ErroIndisponivel, ErroRecusado } from './plataforma/cliente.js';
+import { criarClienteCompras } from './plataforma/compras.js';
 import { montarPedidosTela } from './plataforma/op.js';
 import {
+  acoesDoPedido,
   type ArteDoProduto,
   type Cliente,
+  type ComentarioCompra,
   type ComentarioTarefa,
   type ContagemTarefas,
+  type EventoCompra,
   type EventoTarefa,
+  type Insumo,
   type Opcao,
   type PaginaClientes,
+  type PedidoCompra,
   type Permissao,
   temPermissao,
   type ProdutoDoCliente,
@@ -97,8 +104,13 @@ import {
 import {
   type CadastroEntrada,
   validarCadastro,
+  validarAnexoCompraParaBaixar,
   validarAnexoParaBaixar,
   validarComentario,
+  validarConsultaCompras,
+  validarEdicaoPedidoCompra,
+  validarMudancaStatusCompra,
+  validarNovoPedidoCompra,
   validarConclusao,
   validarConsultaTarefas,
   validarMudancaStatus,
@@ -190,6 +202,12 @@ const blingApi = criarClienteBling({
   fetch,
   obterAcesso: obterAcessoApi,
 });
+// Pedidos de compra de insumos: pela API da plataforma, com o mesmo token.
+const comprasApi = criarClienteCompras({
+  baseUrl: urlDaApi(app.isPackaged),
+  fetch,
+  obterAcesso: obterAcessoApi,
+});
 /** Arquivos escolhidos nos diálogos: a janela só conhece o id, nunca o caminho. */
 const arquivosEscolhidos = new Map<string, ArquivoLocal>();
 
@@ -275,6 +293,21 @@ async function exigirSincronizacao(): Promise<string> {
   const { empresa, permissoes } = await contexto();
   if (!podeSincronizarBling(permissoes, empresa)) throw new Error('Sem permissão.');
   return empresa;
+}
+
+/**
+ * Compras é do módulo, só nas empresas com sincronização do Bling; com `chaves`, exige também uma delas. Repete no
+ * main a regra do menu (a API confere de novo). Devolve o contexto da empresa em uso.
+ */
+async function exigirCompras(
+  ...chaves: Permissao[]
+): Promise<{ usuarioId: string; empresa: string; permissoes: string[] }> {
+  const atual = await contexto();
+  const permitido =
+    podeUsarCompras(atual.permissoes, atual.empresa) &&
+    (chaves.length === 0 || chaves.some((chave) => temPermissao(atual.permissoes, chave)));
+  if (!permitido) throw new Error('Sem permissão.');
+  return atual;
 }
 
 /**
@@ -761,28 +794,41 @@ ipcMain.handle(
   },
 );
 
+/**
+ * Monta o multipart do comentário com os arquivos escolhidos no diálogo, relendo cada um no envio (tamanho e tipo
+ * podem ter mudado depois do diálogo), envia e esquece os ids enviados.
+ */
+async function comentarComAnexos<T>(
+  texto: string,
+  anexoIds: string[],
+  enviar: (form: FormData) => Promise<T>,
+): Promise<T> {
+  const locais: ArquivoLocal[] = [];
+  for (const anexoId of anexoIds) {
+    const escolhido = arquivosEscolhidos.get(anexoId);
+    if (!escolhido) throw new Error('Arquivo não selecionado. Escolha o arquivo de novo.');
+    try {
+      locais.push(await inspecionarArquivo(escolhido.caminho));
+    } catch {
+      throw new Error(`Não foi possível ler ${escolhido.nome}.`);
+    }
+  }
+  const envio = await montarEnvioComentario(texto, locais);
+  if ('erro' in envio) throw new Error(envio.erro);
+  const comentario = await enviar(envio.form);
+  for (const anexoId of anexoIds) arquivosEscolhidos.delete(anexoId);
+  return comentario;
+}
+
 ipcMain.handle(
   CHANNELS.tarefasComentar,
   async (_event, input: unknown): Promise<ComentarioTarefa> => {
     const { id, texto, anexoIds } = validarComentario(input);
     const { empresa } = await contexto();
     if (anexoIds.length === 0) return artesApi.comentarTarefa(empresa, id, texto);
-
-    // Relê cada arquivo no envio (tamanho e tipo podem ter mudado depois do diálogo).
-    const locais: ArquivoLocal[] = [];
-    for (const anexoId of anexoIds) {
-      const escolhido = arquivosEscolhidos.get(anexoId);
-      if (!escolhido) throw new Error('Arquivo não selecionado. Escolha o arquivo de novo.');
-      try {
-        locais.push(await inspecionarArquivo(escolhido.caminho));
-      } catch {
-        throw new Error(`Não foi possível ler ${escolhido.nome}.`);
-      }
-    }
-    const envio = await montarEnvioComentario(texto, locais);
-    if ('erro' in envio) throw new Error(envio.erro);
-    const comentario = await artesApi.comentarTarefaComAnexos(empresa, id, envio.form);
-    for (const anexoId of anexoIds) arquivosEscolhidos.delete(anexoId);
+    const comentario = await comentarComAnexos(texto, anexoIds, (form) =>
+      artesApi.comentarTarefaComAnexos(empresa, id, form),
+    );
     logger.info({ empresa, anexos: anexoIds.length }, 'Comentário com anexos');
     return comentario;
   },
@@ -792,8 +838,8 @@ const FILTROS_ANEXO = [
   { name: 'PDF ou imagem', extensions: ['pdf', 'png', 'jpg', 'jpeg', 'webp'] },
 ];
 
-ipcMain.handle(CHANNELS.tarefasEscolherAnexos, async (event): Promise<ArquivoEscolhido[]> => {
-  await contexto();
+/** Diálogo de anexos de comentário (vários, PDF ou imagem): guarda os caminhos e devolve só os ids. */
+async function escolherAnexos(event: Electron.IpcMainInvokeEvent): Promise<ArquivoEscolhido[]> {
   const window = BrowserWindow.fromWebContents(event.sender);
   const options: OpenDialogOptions = {
     properties: ['openFile', 'multiSelections'],
@@ -816,11 +862,19 @@ ipcMain.handle(CHANNELS.tarefasEscolherAnexos, async (event): Promise<ArquivoEsc
     });
   }
   return escolhidos;
+}
+
+ipcMain.handle(CHANNELS.tarefasEscolherAnexos, async (event): Promise<ArquivoEscolhido[]> => {
+  await contexto();
+  return escolherAnexos(event);
 });
 
-ipcMain.handle(CHANNELS.tarefasBaixarAnexo, async (event, input: unknown): Promise<boolean> => {
-  const { tarefaId, comentarioId, anexoId, nome } = validarAnexoParaBaixar(input);
-  const { empresa } = await contexto();
+/** Pede o destino (só o nome do anexo como sugestão) e grava o que `baixar` trouxer; `false` se cancelou. */
+async function salvarAnexo(
+  event: Electron.IpcMainInvokeEvent,
+  nome: string,
+  baixar: () => Promise<Uint8Array>,
+): Promise<boolean> {
   const window = BrowserWindow.fromWebContents(event.sender);
   // Só o nome do arquivo como sugestão: nada de caminho vindo da API.
   const sugestao =
@@ -832,10 +886,18 @@ ipcMain.handle(CHANNELS.tarefasBaixarAnexo, async (event, input: unknown): Promi
     ? await dialog.showSaveDialog(window, options)
     : await dialog.showSaveDialog(options);
   if (result.canceled || !result.filePath) return false;
-  const conteudo = await artesApi.baixarAnexo(empresa, tarefaId, comentarioId, anexoId);
-  await writeFile(result.filePath, conteudo);
-  logger.info({ empresa }, 'Anexo de comentário baixado');
+  await writeFile(result.filePath, await baixar());
   return true;
+}
+
+ipcMain.handle(CHANNELS.tarefasBaixarAnexo, async (event, input: unknown): Promise<boolean> => {
+  const { tarefaId, comentarioId, anexoId, nome } = validarAnexoParaBaixar(input);
+  const { empresa } = await contexto();
+  const salvo = await salvarAnexo(event, nome, () =>
+    artesApi.baixarAnexo(empresa, tarefaId, comentarioId, anexoId),
+  );
+  if (salvo) logger.info({ empresa }, 'Anexo de comentário baixado');
+  return salvo;
 });
 
 ipcMain.handle(
@@ -846,6 +908,94 @@ ipcMain.handle(
     return artesApi.historicoTarefa(empresa, id);
   },
 );
+
+// Compras (ADR 0012): só nas empresas com sincronização do Bling. O main barra pelo módulo e pela subpermissão de
+// cada ação; o alcance (quem só pede vê os próprios) e as regras de status são da API.
+ipcMain.handle(CHANNELS.comprasInsumos, async (): Promise<Insumo[]> => {
+  const { empresa } = await exigirCompras('compras.pedir');
+  return comprasApi.insumos(empresa);
+});
+
+ipcMain.handle(CHANNELS.comprasListar, async (_event, input: unknown): Promise<PedidoCompra[]> => {
+  const consulta = validarConsultaCompras(input);
+  const { empresa } = await exigirCompras();
+  return comprasApi.listar(empresa, consulta);
+});
+
+ipcMain.handle(CHANNELS.comprasObter, async (_event, input: unknown): Promise<PedidoCompraTela> => {
+  const id = validarId(input);
+  const { empresa, usuarioId, permissoes } = await exigirCompras();
+  const pedido = await comprasApi.obter(empresa, id);
+  return { ...pedido, acoes: acoesDoPedido(pedido, usuarioId, permissoes) };
+});
+
+ipcMain.handle(CHANNELS.comprasCriar, async (_event, input: unknown): Promise<PedidoCompra> => {
+  const novo = validarNovoPedidoCompra(input);
+  const { empresa } = await exigirCompras('compras.pedir');
+  const pedido = await comprasApi.criar(empresa, novo);
+  logger.info({ empresa }, 'Pedido de compra criado');
+  return pedido;
+});
+
+ipcMain.handle(CHANNELS.comprasEditar, async (_event, input: unknown): Promise<PedidoCompra> => {
+  const { id, edicao } = validarEdicaoPedidoCompra(input);
+  const { empresa } = await exigirCompras('compras.pedir', 'compras.acompanhar');
+  return comprasApi.editar(empresa, id, edicao);
+});
+
+ipcMain.handle(CHANNELS.comprasAssumir, async (_event, input: unknown): Promise<PedidoCompra> => {
+  const id = validarId(input);
+  const { empresa } = await exigirCompras('compras.acompanhar');
+  return comprasApi.assumir(empresa, id);
+});
+
+// O criador cancela o próprio pedido ainda Aberto só com o módulo: a API confere quem pode cada mudança.
+ipcMain.handle(
+  CHANNELS.comprasMudarStatus,
+  async (_event, input: unknown): Promise<PedidoCompra> => {
+    const { id, status } = validarMudancaStatusCompra(input);
+    const { empresa } = await exigirCompras();
+    return comprasApi.mudarStatus(empresa, id, status);
+  },
+);
+
+ipcMain.handle(
+  CHANNELS.comprasComentar,
+  async (_event, input: unknown): Promise<ComentarioCompra> => {
+    const { id, texto, anexoIds } = validarComentario(input);
+    const { empresa } = await exigirCompras();
+    if (anexoIds.length === 0) return comprasApi.comentar(empresa, id, texto);
+    const comentario = await comentarComAnexos(texto, anexoIds, (form) =>
+      comprasApi.comentarComAnexos(empresa, id, form),
+    );
+    logger.info({ empresa, anexos: anexoIds.length }, 'Comentário com anexos no pedido de compra');
+    return comentario;
+  },
+);
+
+ipcMain.handle(
+  CHANNELS.comprasHistorico,
+  async (_event, input: unknown): Promise<EventoCompra[]> => {
+    const id = validarId(input);
+    const { empresa } = await exigirCompras();
+    return comprasApi.historico(empresa, id);
+  },
+);
+
+ipcMain.handle(CHANNELS.comprasEscolherAnexos, async (event): Promise<ArquivoEscolhido[]> => {
+  await exigirCompras();
+  return escolherAnexos(event);
+});
+
+ipcMain.handle(CHANNELS.comprasBaixarAnexo, async (event, input: unknown): Promise<boolean> => {
+  const { pedidoId, comentarioId, anexoId, nome } = validarAnexoCompraParaBaixar(input);
+  const { empresa } = await exigirCompras();
+  const salvo = await salvarAnexo(event, nome, () =>
+    comprasApi.baixarAnexo(empresa, pedidoId, comentarioId, anexoId),
+  );
+  if (salvo) logger.info({ empresa }, 'Anexo de comentário do pedido de compra baixado');
+  return salvo;
+});
 
 /** Acompanhamento em curso: um novo clique (ex.: depois de reabrir Configurações) espera o mesmo. */
 let sincronizacaoBling: Promise<ResultadoSincronizacaoBling> | undefined;

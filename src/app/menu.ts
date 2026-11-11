@@ -1,4 +1,4 @@
-import { type Permissao, temPermissao } from './plataforma/contratos.js';
+import { empresaTemCompras, type Permissao, temPermissao } from './plataforma/contratos.js';
 
 /** Sincronização com o Bling: quem tem OP's nas empresas da lista do `contratos` (hoje, a Roma). */
 export { podeSincronizarBling } from './plataforma/contratos.js';
@@ -8,16 +8,20 @@ export { podeSincronizarBling } from './plataforma/contratos.js';
  * dela (ADR 0011): aba nova só entra com a permissão correspondente no catálogo.
  */
 export type Automacao = {
-  id: 'fatura' | 'op' | 'artes' | 'usuarios';
+  id: 'fatura' | 'op' | 'artes' | 'compras' | 'usuarios';
   rotulo: string;
   permissao: Permissao;
 };
 
-/** Fatura é o fluxo de documentos do Bling; Usuários é o painel de usuários da empresa. */
+/**
+ * Fatura é o fluxo de documentos do Bling; Compras, os pedidos de insumos (ADR 0012); Usuários, o painel de
+ * usuários da empresa.
+ */
 export const AUTOMACOES: Automacao[] = [
   { id: 'fatura', rotulo: 'Fatura', permissao: 'faturas' },
   { id: 'op', rotulo: 'OP', permissao: 'ops' },
   { id: 'artes', rotulo: 'Artes', permissao: 'artes' },
+  { id: 'compras', rotulo: 'Compras', permissao: 'compras' },
   { id: 'usuarios', rotulo: 'Usuários', permissao: 'usuarios' },
 ];
 
@@ -37,8 +41,17 @@ export function podeConfigurarBling(permissoes: readonly string[] | undefined): 
   return temPermissao(permissoes, 'faturas') || temPermissao(permissoes, 'ops');
 }
 
+/** Compras é de quem tem o módulo, só nas empresas com sincronização do Bling. O main repete a checagem. */
+export function podeUsarCompras(
+  permissoes: readonly string[] | undefined,
+  empresaSlug: string | undefined,
+): boolean {
+  return temPermissao(permissoes, 'compras') && empresaTemCompras(empresaSlug);
+}
+
 /**
- * Abas liberadas pelas permissões do usuário na empresa em uso; a OP, além da permissão, só existe na Roma.
+ * Abas liberadas pelas permissões do usuário na empresa em uso; a OP, além da permissão, só existe na Roma, e
+ * Compras, nas empresas com sincronização do Bling.
  * Sem nenhuma permissão, a lista vem vazia e a tela avisa que falta acesso.
  */
 export function abasDaSessao(
@@ -47,7 +60,9 @@ export function abasDaSessao(
 ): Automacao[] {
   return AUTOMACOES.filter(
     ({ id, permissao }) =>
-      temPermissao(permissoes, permissao) && (id !== 'op' || empresaSlug === EMPRESA_OP),
+      temPermissao(permissoes, permissao) &&
+      (id !== 'op' || empresaSlug === EMPRESA_OP) &&
+      (id !== 'compras' || empresaTemCompras(empresaSlug)),
   );
 }
 

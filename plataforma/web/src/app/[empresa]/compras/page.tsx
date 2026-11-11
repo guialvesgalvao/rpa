@@ -1,15 +1,16 @@
 import {
+  escoposDaLista,
   formatarQuantidade,
-  ROTULOS_STATUS_COMPRA,
   rotuloArea,
   rotuloInsumo,
+  ROTULOS_STATUS_COMPRA,
   STATUS_COMPRA,
   temPermissao,
 } from '@plataforma/contratos';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
-import { consultaDaLista, escoposDaLista } from '../../../compras';
+import { consultaDaLista } from '../../../compras';
 import { formatarDataHora } from '../../../datas';
 import { pedidosDaEmpresa } from '../../../servidor/compras';
 import { exigirPermissaoNaPagina } from '../../../servidor/eu';

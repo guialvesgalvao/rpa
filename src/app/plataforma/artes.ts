@@ -147,20 +147,26 @@ const TIMEOUT_ENVIO_PADRAO_MS = 5 * 60_000;
 
 type Esquema<T> = { safeParse(dado: unknown): { success: true; data: T } | { success: false } };
 
-export function criarClienteArtes({
+export type DepsRequisicoes = Pick<DepsClienteArtes, 'baseUrl' | 'fetch' | 'obterAcesso'> & {
+  timeoutMs?: number;
+};
+
+export type MetodoHttp = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
+
+/**
+ * Chamadas autenticadas à API da plataforma, com o mapa de erros que as telas usam: rede, 5xx, 408 e 429 viram
+ * `ErroIndisponivel`; 401/403, `ErroRecusado`; os outros 4xx, `ErroRequisicao` (com o código e a mensagem da API).
+ */
+export function criarRequisicoes({
   baseUrl,
   fetch: buscar,
   obterAcesso,
   timeoutMs = TIMEOUT_PADRAO_MS,
-  timeoutEnvioMs = TIMEOUT_ENVIO_PADRAO_MS,
-  agora = Date.now,
-}: DepsClienteArtes): ClienteArtes {
+}: DepsRequisicoes) {
   const base = baseUrl.replace(/\/+$/, '');
-  // Cores são globais (iguais nas duas empresas): um cache só. Falha não entra no cache.
-  let cacheCores: { lista: Opcao[]; lidoEm: number } | undefined;
 
   async function chamar(
-    metodo: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE',
+    metodo: MetodoHttp,
     caminho: string,
     opcoes: { corpo?: FormData; json?: unknown; timeout?: number } = {},
   ): Promise<Response> {
@@ -197,6 +203,21 @@ export function criarClienteArtes({
     if (!resultado.success) throw new ErroIndisponivel('Resposta do servidor fora do contrato.');
     return resultado.data;
   }
+
+  return { chamar, lerJson };
+}
+
+export function criarClienteArtes({
+  baseUrl,
+  fetch: buscar,
+  obterAcesso,
+  timeoutMs = TIMEOUT_PADRAO_MS,
+  timeoutEnvioMs = TIMEOUT_ENVIO_PADRAO_MS,
+  agora = Date.now,
+}: DepsClienteArtes): ClienteArtes {
+  const { chamar, lerJson } = criarRequisicoes({ baseUrl, fetch: buscar, obterAcesso, timeoutMs });
+  // Cores são globais (iguais nas duas empresas): um cache só. Falha não entra no cache.
+  let cacheCores: { lista: Opcao[]; lidoEm: number } | undefined;
 
   const rota = (empresa: string, resto: string) =>
     `/v1/empresas/${encodeURIComponent(empresa)}${resto}`;

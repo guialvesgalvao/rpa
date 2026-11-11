@@ -9,18 +9,28 @@ import type {
   ErrosCadastro,
   OpcoesArte,
 } from './plataforma/artes.js';
+import type { ConsultaComprasApp } from './plataforma/compras.js';
 import type { ItemOpTela, PedidoOpTela } from './plataforma/op.js';
 import type {
+  AcoesPermitidas,
   Cliente,
+  ComentarioCompra,
   ComentarioTarefa,
   ContagemTarefas,
+  EdicaoPedidoCompra,
+  EventoCompra,
   EventoTarefa,
+  Insumo,
+  NovoPedidoCompra,
   Opcao,
   PaginaClientes,
+  PedidoCompra,
+  PedidoCompraDetalhe,
   Area,
   ProdutoDoCliente,
   ResponsavelAutomatico,
   SincronizacaoAutomaticaBling,
+  StatusCompra,
   StatusTarefa,
   Tarefa,
   TarefaDetalhe,
@@ -148,6 +158,40 @@ export type AnexoParaBaixar = {
   nome: string;
 };
 
+export type { ConsultaComprasApp };
+
+/** Pedido aberto na tela, com o que o usuário pode fazer nele (calculado no main, pelas regras da API). */
+export type PedidoCompraTela = PedidoCompraDetalhe & { acoes: AcoesPermitidas };
+
+export type AnexoCompraParaBaixar = {
+  pedidoId: string;
+  comentarioId: string;
+  anexoId: string;
+  nome: string;
+};
+
+/**
+ * Pedidos de compra de insumos da empresa em uso (só nas empresas com sincronização do Bling). A API decide o
+ * alcance: quem só pede vê os próprios. Falha de rede ou de permissão vem como mensagem pronta para a tela.
+ */
+export type ComprasApi = {
+  /** Produtos ativos com código TPP (só com `compras.pedir`). */
+  insumos(): Promise<Insumo[]>;
+  listar(consulta: ConsultaComprasApp): Promise<PedidoCompra[]>;
+  obter(id: string): Promise<PedidoCompraTela>;
+  criar(novo: NovoPedidoCompra): Promise<PedidoCompra>;
+  editar(id: string, edicao: EdicaoPedidoCompra): Promise<PedidoCompra>;
+  assumir(id: string): Promise<PedidoCompra>;
+  mudarStatus(id: string, status: StatusCompra): Promise<PedidoCompra>;
+  /** Texto ou anexos (ids de `escolherAnexos`); a validação dos arquivos é refeita no envio. */
+  comentar(id: string, texto: string, anexoIds?: string[]): Promise<ComentarioCompra>;
+  historico(id: string): Promise<EventoCompra[]>;
+  /** Diálogo de arquivos (PDF e imagens, vários); a janela só conhece os ids. */
+  escolherAnexos(): Promise<ArquivoEscolhido[]>;
+  /** Pede o destino e grava o anexo; `false` se o usuário cancelou. */
+  baixarAnexo(anexo: AnexoCompraParaBaixar): Promise<boolean>;
+};
+
 /** Artes da empresa em uso. Falha de rede ou de permissão vem como mensagem pronta para a tela. */
 export type ArtesApi = {
   listarClientes(busca: string, cursor: string | null): Promise<PaginaClientes>;
@@ -250,6 +294,7 @@ export type RpaApi = {
   usuarios: UsuariosApi;
   artes: ArtesApi;
   tarefas: TarefasApi;
+  compras: ComprasApi;
   op: OpApi;
   bling: BlingApi;
 };
@@ -327,6 +372,17 @@ export const CHANNELS = {
   tarefasEscolherAnexos: 'rpa:tarefas:escolher-anexos',
   tarefasBaixarAnexo: 'rpa:tarefas:baixar-anexo',
   tarefasHistorico: 'rpa:tarefas:historico',
+  comprasInsumos: 'rpa:compras:insumos',
+  comprasListar: 'rpa:compras:listar',
+  comprasObter: 'rpa:compras:obter',
+  comprasCriar: 'rpa:compras:criar',
+  comprasEditar: 'rpa:compras:editar',
+  comprasAssumir: 'rpa:compras:assumir',
+  comprasMudarStatus: 'rpa:compras:mudar-status',
+  comprasComentar: 'rpa:compras:comentar',
+  comprasHistorico: 'rpa:compras:historico',
+  comprasEscolherAnexos: 'rpa:compras:escolher-anexos',
+  comprasBaixarAnexo: 'rpa:compras:baixar-anexo',
   opClientePorCnpj: 'rpa:op:cliente-por-cnpj',
   opArtesDoItem: 'rpa:op:artes-do-item',
   opBuscarPedidos: 'rpa:op:buscar-pedidos',

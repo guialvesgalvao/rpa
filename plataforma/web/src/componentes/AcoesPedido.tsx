@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  type AcoesPermitidas,
   ANEXOS_POR_COMENTARIO,
   COMENTARIO_COMPRA_MAX,
   EsquemaErro,
@@ -14,7 +15,6 @@ import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 
 import { ACEITOS_ANEXO, problemaDosAnexos } from '../anexos';
-import type { AcoesPermitidas } from '../compras';
 import { FormPedido } from './FormPedido';
 
 type Props = {

@@ -7,11 +7,21 @@ import {
   normalizarPreenchimento,
 } from '../processes/op/preenchimento.js';
 import { PASSOS_PROCESSO } from '../processes/op/template.js';
-import type { ConsultaTarefasApp, ItemParaGerarOp } from './api.js';
+import type {
+  AnexoCompraParaBaixar,
+  ConsultaComprasApp,
+  ConsultaTarefasApp,
+  ItemParaGerarOp,
+} from './api.js';
 import {
   ANEXOS_POR_COMENTARIO,
   COMENTARIO_TAREFA_MAX,
+  type EdicaoPedidoCompra,
+  ESCOPOS_COMPRAS,
   ESCOPOS_TAREFAS,
+  EsquemaEdicaoPedidoCompra,
+  EsquemaNovoPedidoCompra,
+  EsquemaStatusCompra,
   EsquemaCriacaoUsuario,
   EsquemaEdicaoUsuario,
   EsquemaPermissoesUsuario,
@@ -19,9 +29,11 @@ import {
   EsquemaStatusTarefa,
   type CriacaoUsuario,
   type EdicaoUsuario,
+  type NovoPedidoCompra,
   type Permissao,
   SENHA_MAXIMA,
   SENHA_MINIMA,
+  type StatusCompra,
   type StatusTarefa,
 } from './plataforma/contratos.js';
 
@@ -338,5 +350,58 @@ const trocaSenhaSchema = z.object({
 export function validarTrocaSenha(input: unknown): { senhaAtual: string; novaSenha: string } {
   const parsed = trocaSenhaSchema.safeParse(input);
   if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? 'Senha inválida.');
+  return parsed.data;
+}
+
+// Compras: as mesmas regras da API (quantidade com até 3 casas, observação até 500); a API confere de novo.
+
+const consultaComprasSchema = z.object({
+  escopo: z.enum(ESCOPOS_COMPRAS),
+  status: EsquemaStatusCompra.optional(),
+});
+
+export function validarConsultaCompras(input: unknown): ConsultaComprasApp {
+  const parsed = consultaComprasSchema.safeParse(input);
+  if (!parsed.success) throw new Error('Filtro de pedidos inválido.');
+  return parsed.data;
+}
+
+export function validarNovoPedidoCompra(input: unknown): NovoPedidoCompra {
+  const parsed = EsquemaNovoPedidoCompra.safeParse(input);
+  if (!parsed.success) {
+    throw new Error(primeiroProblema(parsed.error, 'Informe o insumo e a quantidade.'));
+  }
+  return parsed.data;
+}
+
+const edicaoPedidoSchema = z.object({ id: z.uuid(), edicao: EsquemaEdicaoPedidoCompra });
+
+export function validarEdicaoPedidoCompra(input: unknown): {
+  id: string;
+  edicao: EdicaoPedidoCompra;
+} {
+  const parsed = edicaoPedidoSchema.safeParse(input);
+  if (!parsed.success) throw new Error(primeiroProblema(parsed.error, 'Edição inválida.'));
+  return parsed.data;
+}
+
+const mudancaStatusCompraSchema = z.object({ id: z.uuid(), status: EsquemaStatusCompra });
+
+export function validarMudancaStatusCompra(input: unknown): { id: string; status: StatusCompra } {
+  const parsed = mudancaStatusCompraSchema.safeParse(input);
+  if (!parsed.success) throw new Error('Status inválido.');
+  return parsed.data;
+}
+
+const anexoCompraSchema = z.object({
+  pedidoId: z.uuid(),
+  comentarioId: z.uuid(),
+  anexoId: z.uuid(),
+  nome: z.string().min(1).max(500),
+});
+
+export function validarAnexoCompraParaBaixar(input: unknown): AnexoCompraParaBaixar {
+  const parsed = anexoCompraSchema.safeParse(input);
+  if (!parsed.success) throw new Error('Anexo inválido.');
   return parsed.data;
 }

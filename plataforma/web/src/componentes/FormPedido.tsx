@@ -3,15 +3,16 @@
 import {
   EsquemaErro,
   EsquemaPedidoCompra,
+  filtrarInsumos,
   type Insumo,
+  lerQuantidade,
   OBSERVACAO_COMPRA_MAX,
   type PedidoCompra,
+  quantidadeParaCampo,
   rotuloInsumo,
 } from '@plataforma/contratos';
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
-
-import { filtrarInsumos, lerQuantidade, quantidadeParaCampo } from '../compras';
 
 type Campo = 'insumo' | 'quantidade' | 'geral';
 type Erros = Partial<Record<Campo, string>>;

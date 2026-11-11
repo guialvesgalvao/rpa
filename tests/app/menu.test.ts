@@ -8,6 +8,7 @@ import {
   ordenarMenu,
   podeConfigurarBling,
   podeSincronizarBling,
+  podeUsarCompras,
   podeUsarOp,
 } from '../../src/app/menu.js';
 import { PERMISSOES } from '../../src/app/plataforma/contratos.js';
@@ -19,8 +20,14 @@ const FINALISTA = ['artes', 'artes.adicionar'];
 const rotulos = (itens: { rotulo: string }[]) => itens.map((item) => item.rotulo);
 
 describe('menu de automações', () => {
-  it('ordena Artes, Fatura e OP', () => {
-    expect(rotulos(ordenarMenu(AUTOMACOES))).toEqual(['Artes', 'Fatura', 'OP', 'Usuários']);
+  it('ordena Artes, Compras, Fatura, OP e Usuários', () => {
+    expect(rotulos(ordenarMenu(AUTOMACOES))).toEqual([
+      'Artes',
+      'Compras',
+      'Fatura',
+      'OP',
+      'Usuários',
+    ]);
   });
 
   it('ignora maiúsculas e acentos na ordem', () => {
@@ -84,8 +91,24 @@ describe('menu de automações', () => {
     ]);
   });
 
+  it('Compras só com o módulo e nas empresas com sincronização do Bling', () => {
+    expect(abasDaSessao(['compras'], 'roma').map((aba) => aba.id)).toEqual(['compras']);
+    expect(abasDaSessao(['compras', 'compras.pedir'], 'aba')).toEqual([]);
+    expect(podeUsarCompras(['compras'], 'roma')).toBe(true);
+    expect(podeUsarCompras(['compras'], 'aba')).toBe(false);
+    expect(podeUsarCompras(['compras'], undefined)).toBe(false);
+    expect(podeUsarCompras(['compras.acompanhar'], 'roma')).toBe(false);
+    expect(ordenarMenu(abasDaSessao(ADMIN, 'roma')).map((aba) => aba.rotulo)).toEqual([
+      'Artes',
+      'Compras',
+      'Fatura',
+      'OP',
+      'Usuários',
+    ]);
+  });
+
   it('sem permissão, ou só com subpermissão solta, não há abas nem aba para abrir', () => {
-    for (const permissoes of [[], undefined, ['artes.adicionar'], ['compras']]) {
+    for (const permissoes of [[], undefined, ['artes.adicionar'], ['compras.pedir']]) {
       expect(abasDaSessao(permissoes, 'roma')).toEqual([]);
     }
     expect(abaAoRemontar([], 'artes')).toBeUndefined();
@@ -100,7 +123,7 @@ describe('menu de automações', () => {
 
   it('não altera AUTOMACOES ao montar as abas do perfil', () => {
     abasDaSessao(ADMIN, 'roma').pop();
-    expect(AUTOMACOES).toHaveLength(4);
+    expect(AUTOMACOES).toHaveLength(5);
   });
 
   it('ao remontar, fica na aba atual se ela continua liberada', () => {

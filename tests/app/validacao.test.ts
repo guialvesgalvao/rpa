@@ -22,6 +22,11 @@ import {
   validarSelecao,
   validarSlug,
   validarTrocaSenha,
+  validarAnexoCompraParaBaixar,
+  validarConsultaCompras,
+  validarEdicaoPedidoCompra,
+  validarMudancaStatusCompra,
+  validarNovoPedidoCompra,
 } from '../../src/app/validacao.js';
 import { PASSOS_PROCESSO } from '../../src/processes/op/template.js';
 
@@ -360,5 +365,52 @@ describe('usuários e senha', () => {
     expect(() => validarTrocaSenha({ senhaAtual: 'a', novaSenha: 'curta' })).toThrow(
       'A nova senha precisa de ao menos 10 caracteres.',
     );
+  });
+});
+
+describe('compras', () => {
+  const ID = '7b0e6c0a-3f5e-4c59-9d0a-2f3c1a4b5d6e';
+
+  it('consulta: escopo da lista e status opcional', () => {
+    expect(validarConsultaCompras({ escopo: 'todos', status: 'aberta' })).toEqual({
+      escopo: 'todos',
+      status: 'aberta',
+    });
+    expect(validarConsultaCompras({ escopo: 'meus' })).toEqual({ escopo: 'meus' });
+    for (const invalida of [{}, { escopo: 'outros' }, { escopo: 'meus', status: 'x' }, null]) {
+      expect(() => validarConsultaCompras(invalida)).toThrow('Filtro de pedidos inválido.');
+    }
+  });
+
+  it('novo pedido: insumo, quantidade positiva com até 3 casas e observação aparada', () => {
+    expect(
+      validarNovoPedidoCompra({ insumoId: ID, quantidade: 2.5, observacao: ' urgente ' }),
+    ).toEqual({ insumoId: ID, quantidade: 2.5, observacao: 'urgente' });
+    for (const quantidade of [0, -1, 1.0001, '3']) {
+      expect(() => validarNovoPedidoCompra({ insumoId: ID, quantidade })).toThrow();
+    }
+    expect(() => validarNovoPedidoCompra({ insumoId: 'x', quantidade: 1 })).toThrow();
+  });
+
+  it('edição: id e ao menos um campo', () => {
+    expect(validarEdicaoPedidoCompra({ id: ID, edicao: { observacao: null } })).toEqual({
+      id: ID,
+      edicao: { observacao: null },
+    });
+    expect(() => validarEdicaoPedidoCompra({ id: ID, edicao: {} })).toThrow();
+    expect(() => validarEdicaoPedidoCompra({ id: 'x', edicao: { quantidade: 1 } })).toThrow();
+  });
+
+  it('status e anexo para baixar', () => {
+    expect(validarMudancaStatusCompra({ id: ID, status: 'cancelada' })).toEqual({
+      id: ID,
+      status: 'cancelada',
+    });
+    expect(() => validarMudancaStatusCompra({ id: ID, status: 'pausada' })).toThrow(
+      'Status inválido.',
+    );
+    const anexo = { pedidoId: ID, comentarioId: ID, anexoId: ID, nome: 'cotacao.pdf' };
+    expect(validarAnexoCompraParaBaixar(anexo)).toEqual(anexo);
+    expect(() => validarAnexoCompraParaBaixar({ ...anexo, nome: '' })).toThrow('Anexo inválido.');
   });
 });

@@ -19,6 +19,7 @@ import { podeTrocarEmpresa, tituloJanela } from './empresa.js';
 import { SENHA_MINIMA, temPermissao } from './plataforma/contratos.js';
 import { criarArtes } from './artes/index.js';
 import { mensagemErro } from './artes/dom.js';
+import { criarCompras } from './compras/index.js';
 import {
   abaAoRemontar,
   abasDaSessao,
@@ -26,6 +27,7 @@ import {
   ordenarMenu,
   podeConfigurarBling,
   podeSincronizarBling,
+  podeUsarCompras,
 } from './menu.js';
 import { criarOp } from './op/index.js';
 import { criarUsuarios } from './usuarios/index.js';
@@ -90,6 +92,8 @@ const areaApp = $('app');
 const faixaOffline = $('offline');
 const artesOffline = $('artes-offline');
 const artes = criarArtes($('artes-raiz'), window.rpa.artes, window.rpa.tarefas);
+const comprasOffline = $('compras-offline');
+const compras = criarCompras($('compras-raiz'), window.rpa.compras);
 const opTela = criarOp({
   api: window.rpa.op,
   artes: window.rpa.artes,
@@ -595,6 +599,7 @@ function aplicarSessao(sessao: SessaoTela) {
     empresaMontada = undefined;
     abaAtual = undefined;
     artes.encerrar();
+    compras.encerrar();
     opTela.encerrar();
     usuariosTela.encerrar();
     aplicarEmpresa(undefined, 0);
@@ -611,6 +616,7 @@ function aplicarSessao(sessao: SessaoTela) {
   const offline = sessao.situacao === 'offline';
   faixaOffline.hidden = !offline;
   artesOffline.hidden = !offline;
+  comprasOffline.hidden = !offline;
   const { permissoes } = sessao;
   // Credenciais do Bling: de quem gera Faturas ou OPs. Sincronização: OP's na Roma. Responsável automático:
   // quem acompanha todas as tarefas de arte.
@@ -634,6 +640,8 @@ function aplicarSessao(sessao: SessaoTela) {
   empresaMontada = chaveEmpresa;
   if (temPermissao(permissoes, 'artes')) artes.reiniciar(permissoes);
   else artes.encerrar();
+  if (podeUsarCompras(permissoes, sessao.empresa?.slug)) compras.reiniciar(permissoes);
+  else compras.encerrar();
   if (temPermissao(permissoes, 'usuarios') && sessao.empresa) {
     usuariosTela.reiniciar({
       empresas: sessao.empresas,

@@ -3,12 +3,18 @@ import { describe, expect, it } from 'vitest';
 import {
   abaAoRemontar,
   abaInicial,
-  abasDoPerfil,
+  abasDaSessao,
   AUTOMACOES,
   ordenarMenu,
+  podeConfigurarBling,
   podeSincronizarBling,
   podeUsarOp,
 } from '../../src/app/menu.js';
+import { PERMISSOES } from '../../src/app/plataforma/contratos.js';
+
+// O que os perfis antigos viraram na migração: o administrador tem tudo; a arte finalista, Artes + adicionar.
+const ADMIN = [...PERMISSOES];
+const FINALISTA = ['artes', 'artes.adicionar'];
 
 const rotulos = (itens: { rotulo: string }[]) => itens.map((item) => item.rotulo);
 
@@ -38,14 +44,14 @@ describe('menu de automações', () => {
   });
 
   it('admin da Roma vê todas as abas', () => {
-    expect(abasDoPerfil('admin', 'roma').map((aba) => aba.id)).toEqual(
+    expect(abasDaSessao(ADMIN, 'roma').map((aba) => aba.id)).toEqual(
       AUTOMACOES.map((aba) => aba.id),
     );
   });
 
   it('admin de outra empresa, ou sem empresa, não vê a OP', () => {
     for (const empresa of ['aba', undefined, 'ROMA', ' roma']) {
-      expect(abasDoPerfil('admin', empresa).map((aba) => aba.id)).toEqual([
+      expect(abasDaSessao(ADMIN, empresa).map((aba) => aba.id)).toEqual([
         'fatura',
         'artes',
         'usuarios',
@@ -54,43 +60,69 @@ describe('menu de automações', () => {
   });
 
   it.each(['aba', 'roma', undefined])('arte finalista (%s) vê só Artes e abre nela', (empresa) => {
-    const abas = abasDoPerfil('arte_finalista', empresa);
+    const abas = abasDaSessao(FINALISTA, empresa);
     expect(abas.map((aba) => aba.id)).toEqual(['artes']);
     expect(abaInicial(abas).id).toBe('artes');
   });
 
-  it('OP só para admin + roma', () => {
-    expect(podeUsarOp('admin', 'roma')).toBe(true);
-    expect(podeUsarOp('admin', 'aba')).toBe(false);
-    expect(podeUsarOp('admin', undefined)).toBe(false);
-    expect(podeUsarOp('arte_finalista', 'roma')).toBe(false);
-    expect(podeUsarOp('arte_finalista', 'aba')).toBe(false);
+  it('OP só com a permissão e na Roma', () => {
+    expect(podeUsarOp(['ops'], 'roma')).toBe(true);
+    expect(podeUsarOp(ADMIN, 'roma')).toBe(true);
+    expect(podeUsarOp(ADMIN, 'aba')).toBe(false);
+    expect(podeUsarOp(ADMIN, undefined)).toBe(false);
+    expect(podeUsarOp(FINALISTA, 'roma')).toBe(false);
+    expect(podeUsarOp(FINALISTA, 'aba')).toBe(false);
+  });
+
+  it('cada aba exige a permissão do módulo dela', () => {
+    expect(abasDaSessao(['faturas'], 'roma').map((aba) => aba.id)).toEqual(['fatura']);
+    expect(abasDaSessao(['ops'], 'roma').map((aba) => aba.id)).toEqual(['op']);
+    expect(abasDaSessao(['ops'], 'aba')).toEqual([]);
+    expect(abasDaSessao(['usuarios', 'artes'], 'aba').map((aba) => aba.id)).toEqual([
+      'artes',
+      'usuarios',
+    ]);
+  });
+
+  it('sem permissão, ou só com subpermissão solta, não há abas nem aba para abrir', () => {
+    for (const permissoes of [[], undefined, ['artes.adicionar'], ['compras']]) {
+      expect(abasDaSessao(permissoes, 'roma')).toEqual([]);
+    }
+    expect(abaAoRemontar([], 'artes')).toBeUndefined();
+  });
+
+  it('credenciais do Bling: quem gera Faturas ou OPs', () => {
+    expect(podeConfigurarBling(['faturas'])).toBe(true);
+    expect(podeConfigurarBling(['ops'])).toBe(true);
+    expect(podeConfigurarBling(FINALISTA)).toBe(false);
+    expect(podeConfigurarBling(undefined)).toBe(false);
   });
 
   it('não altera AUTOMACOES ao montar as abas do perfil', () => {
-    abasDoPerfil('admin', 'roma').pop();
+    abasDaSessao(ADMIN, 'roma').pop();
     expect(AUTOMACOES).toHaveLength(4);
   });
 
   it('ao remontar, fica na aba atual se ela continua liberada', () => {
-    const daRoma = abasDoPerfil('admin', 'roma');
-    const daAba = abasDoPerfil('admin', 'aba');
-    expect(abaAoRemontar(daAba, 'fatura').id).toBe('fatura');
-    expect(abaAoRemontar(daRoma, 'op').id).toBe('op');
+    const daRoma = abasDaSessao(ADMIN, 'roma');
+    const daAba = abasDaSessao(ADMIN, 'aba');
+    expect(abaAoRemontar(daAba, 'fatura')?.id).toBe('fatura');
+    expect(abaAoRemontar(daRoma, 'op')?.id).toBe('op');
   });
 
   it('ao remontar sem a aba atual (OP fora da Roma) ou sem aba, abre na primeira', () => {
-    expect(abaAoRemontar(abasDoPerfil('admin', 'aba'), 'op').id).toBe('artes');
-    expect(abaAoRemontar(abasDoPerfil('admin', 'roma'), undefined).id).toBe('artes');
+    expect(abaAoRemontar(abasDaSessao(ADMIN, 'aba'), 'op')?.id).toBe('artes');
+    expect(abaAoRemontar(abasDaSessao(ADMIN, 'roma'), undefined)?.id).toBe('artes');
   });
 });
 
 describe('podeSincronizarBling', () => {
-  it('só o admin da Roma vê a sincronização com o Bling', () => {
-    expect(podeSincronizarBling('admin', 'roma')).toBe(true);
-    expect(podeSincronizarBling('arte_finalista', 'roma')).toBe(false);
-    expect(podeSincronizarBling('admin', 'aba')).toBe(false);
-    expect(podeSincronizarBling('admin', 'ROMA')).toBe(false);
-    expect(podeSincronizarBling('admin', undefined)).toBe(false);
+  it('só quem tem OP na Roma vê a sincronização com o Bling', () => {
+    expect(podeSincronizarBling(['ops'], 'roma')).toBe(true);
+    expect(podeSincronizarBling(ADMIN, 'roma')).toBe(true);
+    expect(podeSincronizarBling(FINALISTA, 'roma')).toBe(false);
+    expect(podeSincronizarBling(ADMIN, 'aba')).toBe(false);
+    expect(podeSincronizarBling(ADMIN, 'ROMA')).toBe(false);
+    expect(podeSincronizarBling(ADMIN, undefined)).toBe(false);
   });
 });

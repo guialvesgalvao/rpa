@@ -5,7 +5,6 @@ import { z } from 'zod';
 import type { Config } from '../config/env.js';
 import { ensureDir } from '../utils/fs.js';
 import type { ConfigEntrada, ConfigTela } from './api.js';
-import type { Perfil } from './plataforma/contratos.js';
 
 /** Configuração do Bling de uma empresa, de um usuário. A senha fica só cifrada. */
 export type SettingsEmpresa = {
@@ -118,11 +117,11 @@ export function definirEmpresaAtual(atual: Settings, usuarioId: string, empresa:
 }
 
 /**
- * Falta preencher a configuração desta empresa? O admin precisa de usuário, senha e pasta; o arte
- * finalista nunca configura o Bling.
+ * Falta preencher a configuração desta empresa? Quem configura o Bling (Faturas ou OPs) precisa de usuário,
+ * senha e pasta; os demais nunca configuram.
  */
-export function faltaConfig(perfil: Perfil, cfgEmpresa: SettingsEmpresa | undefined): boolean {
-  if (perfil !== 'admin') return false;
+export function faltaConfig(configura: boolean, cfgEmpresa: SettingsEmpresa | undefined): boolean {
+  if (!configura) return false;
   return !cfgEmpresa?.blingUser || !cfgEmpresa.blingPasswordEnc || !cfgEmpresa.destDir;
 }
 
@@ -188,8 +187,8 @@ export async function paraTela(
     destDir: config.bling.boletosDir,
     chromePath: settings.chromePath ?? '',
     chromePadrao: envConfig.chromePath,
-    // Esta tela só existe para o admin.
-    falta: faltaConfig('admin', settingsDaEmpresa(settings, usuarioId, empresa)),
+    // Esta tela só existe para quem configura o Bling.
+    falta: faltaConfig(true, settingsDaEmpresa(settings, usuarioId, empresa)),
   };
 }
 

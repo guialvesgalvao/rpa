@@ -11,21 +11,23 @@ import {
 } from '../src/index.ts';
 
 describe('podeSincronizarBling', () => {
-  it('libera o admin da Roma', () => {
+  it('libera quem tem OP na Roma', () => {
     expect(EMPRESAS_SINCRONIZACAO_BLING).toEqual(['roma']);
-    expect(podeSincronizarBling('admin', 'roma')).toBe(true);
+    expect(podeSincronizarBling(['ops'], 'roma')).toBe(true);
   });
 
-  it('recusa a arte finalista, mesmo na Roma', () => {
-    expect(podeSincronizarBling('arte_finalista', 'roma')).toBe(false);
+  it('recusa quem não tem OP, mesmo na Roma', () => {
+    expect(podeSincronizarBling([], 'roma')).toBe(false);
+    expect(podeSincronizarBling(undefined, 'roma')).toBe(false);
+    expect(podeSincronizarBling(['artes', 'artes.adicionar'], 'roma')).toBe(false);
   });
 
   it('recusa empresas fora da lista, slug com outra caixa e empresa ausente', () => {
-    expect(podeSincronizarBling('admin', 'aba')).toBe(false);
-    expect(podeSincronizarBling('admin', 'ROMA')).toBe(false);
-    expect(podeSincronizarBling('admin', ' roma')).toBe(false);
-    expect(podeSincronizarBling('admin', '')).toBe(false);
-    expect(podeSincronizarBling('admin', undefined)).toBe(false);
+    expect(podeSincronizarBling(['ops'], 'aba')).toBe(false);
+    expect(podeSincronizarBling(['ops'], 'ROMA')).toBe(false);
+    expect(podeSincronizarBling(['ops'], ' roma')).toBe(false);
+    expect(podeSincronizarBling(['ops'], '')).toBe(false);
+    expect(podeSincronizarBling(['ops'], undefined)).toBe(false);
   });
 });
 

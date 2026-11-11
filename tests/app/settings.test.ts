@@ -187,17 +187,17 @@ describe('atualizarSettings', () => {
 describe('faltaConfig', () => {
   const completa = { blingUser: 'robo', blingPasswordEnc: 'cifrado:x', destDir: 'pasta' };
 
-  it('admin precisa de usuário, senha e pasta', () => {
-    expect(faltaConfig('admin', completa)).toBe(false);
-    expect(faltaConfig('admin', undefined)).toBe(true);
-    expect(faltaConfig('admin', { ...completa, blingUser: undefined })).toBe(true);
-    expect(faltaConfig('admin', { ...completa, blingPasswordEnc: undefined })).toBe(true);
-    expect(faltaConfig('admin', { ...completa, destDir: undefined })).toBe(true);
+  it('quem configura o Bling precisa de usuário, senha e pasta', () => {
+    expect(faltaConfig(true, completa)).toBe(false);
+    expect(faltaConfig(true, undefined)).toBe(true);
+    expect(faltaConfig(true, { ...completa, blingUser: undefined })).toBe(true);
+    expect(faltaConfig(true, { ...completa, blingPasswordEnc: undefined })).toBe(true);
+    expect(faltaConfig(true, { ...completa, destDir: undefined })).toBe(true);
   });
 
-  it('arte finalista nunca precisa', () => {
-    expect(faltaConfig('arte_finalista', undefined)).toBe(false);
-    expect(faltaConfig('arte_finalista', {})).toBe(false);
+  it('quem não configura nunca precisa', () => {
+    expect(faltaConfig(false, undefined)).toBe(false);
+    expect(faltaConfig(false, {})).toBe(false);
   });
 });
 

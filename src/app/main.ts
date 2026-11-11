@@ -41,7 +41,7 @@ import {
   type StatusAutomaticaBling,
 } from './api.js';
 import { logoDaEmpresa, podeTrocarEmpresa, rotuloEmpresa } from './empresa.js';
-import { podeSincronizarBling, podeUsarOp } from './menu.js';
+import { podeConfigurarBling, podeSincronizarBling, podeUsarOp } from './menu.js';
 import {
   type ArquivoLocal,
   type ArtesDoItem,
@@ -70,7 +70,8 @@ import {
   type EventoTarefa,
   type Opcao,
   type PaginaClientes,
-  type Perfil,
+  type Permissao,
+  temPermissao,
   type ProdutoDoCliente,
   type ResponsavelAutomatico,
   type Tarefa,
@@ -211,7 +212,7 @@ async function paraTela(estado: EstadoSessao): Promise<SessaoTela> {
     atualizarIcone(undefined);
     return estado;
   }
-  const { id, nome, email, perfil, empresas, deveTrocarSenha } = estado.perfil;
+  const { id, nome, email, empresas, deveTrocarSenha } = estado.perfil;
   const slug = empresaAtual(
     await lerSettings(settingsFile),
     id,
@@ -223,7 +224,7 @@ async function paraTela(estado: EstadoSessao): Promise<SessaoTela> {
     situacao: estado.situacao,
     nome,
     email,
-    perfil,
+    permissoes: atual?.permissoes ?? [],
     empresas,
     deveTrocarSenha,
     empresa: atual && {
@@ -235,39 +236,41 @@ async function paraTela(estado: EstadoSessao): Promise<SessaoTela> {
   };
 }
 
-/** A Fatura é só do admin; vale o perfil da sessão (em cache, se offline). */
-function exigirAdmin(): void {
-  const estado = sessao.estado();
-  if (estado.situacao === 'deslogado' || estado.perfil.perfil !== 'admin') {
-    throw new Error('Sem permissão.');
-  }
-}
-
-/** Usuário da sessão e a empresa em uso (a última escolhida, ou a primeira dele). */
-async function contexto(): Promise<{ usuarioId: string; empresa: string; perfil: Perfil }> {
+/** Usuário da sessão, a empresa em uso (a última escolhida, ou a primeira dele) e as permissões nela. */
+async function contexto(): Promise<{ usuarioId: string; empresa: string; permissoes: string[] }> {
   const estado = sessao.estado();
   if (estado.situacao === 'deslogado') throw new Error('Sem permissão.');
-  const { id, empresas, perfil } = estado.perfil;
+  const { id, empresas } = estado.perfil;
   const empresa = empresaAtual(
     await lerSettings(settingsFile),
     id,
     empresas.map((e) => e.slug),
   );
   if (!empresa) throw new Error('Seu usuário não tem empresa vinculada.');
-  return { usuarioId: id, empresa, perfil };
+  const permissoes = empresas.find((e) => e.slug === empresa)?.permissoes ?? [];
+  return { usuarioId: id, empresa, permissoes };
 }
 
-/** A OP é só do admin da Roma; repete no main a regra do menu. Devolve a empresa em uso. */
+/**
+ * Exige, na empresa em uso, ao menos uma das permissões (as da sessão; em cache, se offline). Repete no main
+ * a regra das abas: a tela só esconde, quem barra é aqui e a API.
+ */
+async function exigirPermissao(...chaves: Permissao[]): Promise<void> {
+  const { permissoes } = await contexto();
+  if (!chaves.some((chave) => temPermissao(permissoes, chave))) throw new Error('Sem permissão.');
+}
+
+/** A OP é de quem tem a permissão, só na Roma; repete no main a regra do menu. Devolve a empresa em uso. */
 async function exigirOp(): Promise<string> {
-  const { empresa, perfil } = await contexto();
-  if (!podeUsarOp(perfil, empresa)) throw new Error('Sem permissão.');
+  const { empresa, permissoes } = await contexto();
+  if (!podeUsarOp(permissoes, empresa)) throw new Error('Sem permissão.');
   return empresa;
 }
 
-/** A sincronização com o Bling é só do admin da Roma; repete no main a regra da tela. */
+/** A sincronização com o Bling é de quem tem OP's na Roma; repete no main a regra da tela. */
 async function exigirSincronizacao(): Promise<string> {
-  const { empresa, perfil } = await contexto();
-  if (!podeSincronizarBling(perfil, empresa)) throw new Error('Sem permissão.');
+  const { empresa, permissoes } = await contexto();
+  if (!podeSincronizarBling(permissoes, empresa)) throw new Error('Sem permissão.');
   return empresa;
 }
 
@@ -330,9 +333,10 @@ function itemParaGerar({ numero, indice, arteId, preenchimento }: ItemParaGerarO
  * exige usuário, senha e pasta do Bling (o robô vai entrar nele).
  */
 async function configDoBling(credenciais: boolean): Promise<Config> {
-  const { usuarioId, empresa, perfil } = await contexto();
+  const { usuarioId, empresa, permissoes } = await contexto();
   const settings = await lerSettings(settingsFile);
-  if (credenciais && faltaConfig(perfil, settingsDaEmpresa(settings, usuarioId, empresa))) {
+  const configura = podeConfigurarBling(permissoes);
+  if (credenciais && faltaConfig(configura, settingsDaEmpresa(settings, usuarioId, empresa))) {
     throw new Error('Preencha o usuário, a senha e a pasta do Bling em Configurações.');
   }
   const config = await montarConfig(envConfig, settings, usuarioId, empresa, dirDados, cifra);
@@ -381,14 +385,14 @@ ipcMain.handle(CHANNELS.defaults, async (): Promise<Defaults> => {
 });
 
 ipcMain.handle(CHANNELS.obterConfig, async (): Promise<ConfigTela> => {
-  exigirAdmin();
+  await exigirPermissao('faturas', 'ops');
   const { usuarioId, empresa } = await contexto();
   const settings = await lerSettings(settingsFile);
   return paraTelaConfig(envConfig, settings, usuarioId, empresa, dirDados, cifra);
 });
 
 ipcMain.handle(CHANNELS.salvarConfig, async (_event, input: unknown): Promise<ConfigTela> => {
-  exigirAdmin();
+  await exigirPermissao('faturas', 'ops');
   if (running) throw new Error('Aguarde a execução terminar para alterar as configurações.');
   const { usuarioId, empresa } = await contexto();
   const settings = await atualizarSettings(
@@ -426,7 +430,7 @@ ipcMain.handle(CHANNELS.abrirPasta, async (_event, dir: string) => {
 ipcMain.handle(
   CHANNELS.gerar,
   async (event, input: unknown, destDir: string): Promise<GerarResultado> => {
-    exigirAdmin();
+    await exigirPermissao('faturas');
     if (running) throw new Error('Já existe uma execução em andamento.');
     if (typeof destDir !== 'string' || !destDir.trim()) {
       throw new Error('Escolha a pasta de destino.');
@@ -489,14 +493,14 @@ ipcMain.handle(CHANNELS.senhaTrocar, async (_event, input: unknown): Promise<Ses
   }
 });
 
-// Usuários: só o admin; a API confere o perfil e as empresas de novo (lidas do banco).
+// Usuários: a API confere as permissões e as empresas de novo (lidas do banco).
 ipcMain.handle(CHANNELS.usuariosListar, async (): Promise<UsuarioResumo[]> => {
-  exigirAdmin();
+  await exigirPermissao('usuarios');
   return artesApi.listarUsuarios();
 });
 
 ipcMain.handle(CHANNELS.usuariosCriar, async (_event, input: unknown): Promise<UsuarioResumo> => {
-  exigirAdmin();
+  await exigirPermissao('usuarios.editar');
   const novo = validarNovoUsuario(input);
   const criado = await artesApi.criarUsuario(novo);
   logger.info({ perfil: criado.perfil }, 'Usuário criado pelo app');
@@ -654,9 +658,9 @@ ipcMain.handle(CHANNELS.tarefasListar, async (_event, input: unknown): Promise<T
   return artesApi.listarTarefas(empresa, consulta);
 });
 
-// Só o admin escolhe quem recebe as tarefas automáticas; a API confere de novo.
+// Só quem acompanha todas as tarefas escolhe quem recebe as automáticas; a API confere de novo.
 ipcMain.handle(CHANNELS.tarefasResponsavelObter, async (): Promise<ResponsavelAutomatico> => {
-  exigirAdmin();
+  await exigirPermissao('artes.acompanhar');
   const { empresa } = await contexto();
   return artesApi.obterResponsavelAutomatico(empresa);
 });
@@ -664,7 +668,7 @@ ipcMain.handle(CHANNELS.tarefasResponsavelObter, async (): Promise<ResponsavelAu
 ipcMain.handle(
   CHANNELS.tarefasResponsavelDefinir,
   async (_event, input: unknown): Promise<ResponsavelAutomatico> => {
-    exigirAdmin();
+    await exigirPermissao('artes.acompanhar');
     const responsavelId = validarResponsavelAutomatico(input);
     const { empresa } = await contexto();
     const resultado = await artesApi.definirResponsavelAutomatico(empresa, responsavelId);

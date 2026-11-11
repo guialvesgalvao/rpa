@@ -2,7 +2,7 @@ import type { ArtesApi, TarefasApi } from '../api.js';
 import {
   ATALHOS_TAREFAS,
   type AtalhoTarefas,
-  type Perfil,
+  temPermissao,
   rotuloAtalho,
   type TarefaDetalhe,
   tituloTarefa,
@@ -28,7 +28,7 @@ export function criarArtes(
   raiz: HTMLElement,
   api: ArtesApi,
   tarefas: TarefasApi,
-): { reiniciar(perfil: Perfil): void; encerrar(): void } {
+): { reiniciar(permissoes: readonly string[]): void; encerrar(): void } {
   const areaLista = document.createElement('div');
   const areaDetalhe = document.createElement('div');
   raiz.append(areaLista, areaDetalhe);
@@ -38,7 +38,8 @@ export function criarArtes(
   let submenu: HTMLElement | undefined;
   let atualizarAtalhos: (() => void) | undefined;
   let detalhe: Visao | undefined;
-  let perfilAtual: Perfil = 'arte_finalista';
+  // Permissões do usuário na empresa em uso.
+  let permissoesAtuais: readonly string[] = [];
 
   function mostrarLista() {
     const voltando = detalhe !== undefined;
@@ -86,7 +87,7 @@ export function criarArtes(
       montarTarefas(areaDetalhe, {
         api: tarefas,
         ...(atalho.status ? { status: atalho.status } : {}),
-        comResponsavel: perfilAtual === 'admin',
+        comResponsavel: temPermissao(permissoesAtuais, 'artes.acompanhar'),
         voltar: mostrarLista,
         abrir: (tarefa) => mostrarTarefa(tarefa.id, () => mostrarTarefas(atalho)),
       }),
@@ -168,9 +169,9 @@ export function criarArtes(
 
   return {
     encerrar,
-    reiniciar(perfil) {
+    reiniciar(permissoes) {
       encerrar();
-      perfilAtual = perfil;
+      permissoesAtuais = permissoes;
       const atalhos = montarAtalhos();
       submenu = atalhos.bloco;
       areaLista.append(submenu);

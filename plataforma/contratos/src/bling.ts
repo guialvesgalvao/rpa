@@ -1,14 +1,17 @@
 import { z } from 'zod';
 
-import type { Perfil } from './auth.ts';
+import { temPermissao } from './permissoes.ts';
 
 // Empresas que podem ler produtos e clientes do Bling pela API v3. A API e o app consultam esta lista.
 export const EMPRESAS_SINCRONIZACAO_BLING = ['roma'] as const;
 
-/** A sincronização é só do admin das empresas da lista (slug com comparação exata). */
-export function podeSincronizarBling(perfil: Perfil, empresaSlug: string | undefined): boolean {
+/** A sincronização é de quem tem OP's (`ops`) nas empresas da lista (slug com comparação exata). */
+export function podeSincronizarBling(
+  permissoes: readonly string[] | undefined,
+  empresaSlug: string | undefined,
+): boolean {
   return (
-    perfil === 'admin' &&
+    temPermissao(permissoes, 'ops') &&
     empresaSlug !== undefined &&
     (EMPRESAS_SINCRONIZACAO_BLING as readonly string[]).includes(empresaSlug)
   );

@@ -16,14 +16,15 @@ import type {
   SessaoTela,
 } from './api.js';
 import { podeTrocarEmpresa, tituloJanela } from './empresa.js';
-import { type Perfil, SENHA_MINIMA } from './plataforma/contratos.js';
+import { SENHA_MINIMA, temPermissao } from './plataforma/contratos.js';
 import { criarArtes } from './artes/index.js';
 import { mensagemErro } from './artes/dom.js';
 import {
   abaAoRemontar,
-  abasDoPerfil,
+  abasDaSessao,
   type Automacao,
   ordenarMenu,
+  podeConfigurarBling,
   podeSincronizarBling,
 } from './menu.js';
 import { criarOp } from './op/index.js';
@@ -108,6 +109,7 @@ $('troca-senha-dica').textContent = `Ao menos ${SENHA_MINIMA} caracteres.`;
 const usuarioEl = $('usuario');
 const usuarioNome = $('usuario-nome');
 const sair = $<HTMLButtonElement>('sair');
+const semAcesso = $('sem-acesso');
 const cfgCampos = $('cfg-campos');
 const cfgSincronizacao = $('cfg-sincronizacao');
 const cfgResponsavel = $('cfg-responsavel');
@@ -314,11 +316,11 @@ function selecionarAba(id: Automacao['id']) {
 }
 
 /**
- * Monta o menu com as abas do perfil na empresa em uso. Fica na aba aberta se ela continua
- * liberada (troca de empresa); senão, abre na primeira.
+ * Monta o menu com as abas que as permissões liberam na empresa em uso. Fica na aba aberta se ela continua
+ * liberada (troca de empresa); senão, abre na primeira. Sem nenhuma aba, mostra o aviso de sem acesso.
  */
-function montarMenu(perfil: Perfil, empresaSlug: string | undefined) {
-  const abas = abasDoPerfil(perfil, empresaSlug);
+function montarMenu(permissoes: readonly string[], empresaSlug: string | undefined) {
+  const abas = abasDaSessao(permissoes, empresaSlug);
   for (const botao of menu.querySelectorAll('button[data-aba]')) botao.remove();
   // O menu fica clicável mesmo com uma geração em andamento: trocar de aba não a interrompe.
   for (const automacao of ordenarMenu(abas)) {
@@ -329,7 +331,15 @@ function montarMenu(perfil: Perfil, empresaSlug: string | undefined) {
     botao.addEventListener('click', () => selecionarAba(automacao.id));
     usuarioEl.before(botao);
   }
-  selecionarAba(abaAoRemontar(abas, abaAtual).id);
+  const aba = abaAoRemontar(abas, abaAtual);
+  semAcesso.hidden = aba !== undefined;
+  if (aba) {
+    selecionarAba(aba.id);
+    return;
+  }
+  abaAtual = undefined;
+  for (const secao of document.querySelectorAll<HTMLElement>('section[data-aba]'))
+    secao.hidden = true;
 }
 
 window.rpa.onProgresso(renderItem);
@@ -565,7 +575,7 @@ function aplicarEmpresa(empresa: EmpresaAtualTela | undefined, total: number) {
   document.title = tituloJanela(empresa?.nome);
 }
 
-/** E-mail, perfil e empresa para os quais o menu já foi montado; evita refazê-lo a cada aviso igual. */
+/** E-mail, permissões e empresa para os quais o menu já foi montado; evita refazê-lo a cada aviso igual. */
 let montadoPara: string | undefined;
 /** Usuário, perfil e empresa para os quais a tela já carregou o Bling; trocar a empresa recarrega. */
 let empresaMontada: string | undefined;
@@ -601,32 +611,36 @@ function aplicarSessao(sessao: SessaoTela) {
   const offline = sessao.situacao === 'offline';
   faixaOffline.hidden = !offline;
   artesOffline.hidden = !offline;
-  const admin = sessao.perfil === 'admin';
-  cfgCampos.hidden = !admin;
-  cfgSalvar.hidden = !admin;
-  cfgSincronizacao.hidden = !podeSincronizarBling(sessao.perfil, sessao.empresa?.slug);
-  cfgResponsavel.hidden = !admin;
+  const { permissoes } = sessao;
+  // Credenciais do Bling: de quem gera Faturas ou OPs. Sincronização: OP's na Roma. Responsável automático:
+  // quem acompanha todas as tarefas de arte.
+  const configura = podeConfigurarBling(permissoes);
+  cfgCampos.hidden = !configura;
+  cfgSalvar.hidden = !configura;
+  cfgSincronizacao.hidden = !podeSincronizarBling(permissoes, sessao.empresa?.slug);
+  cfgResponsavel.hidden = !temPermissao(permissoes, 'artes.acompanhar');
   usuarioNome.textContent = sessao.nome;
 
   aplicarEmpresa(sessao.empresa, sessao.empresas.length);
   atualizarControles();
 
   // A OP depende da empresa: o menu é refeito ao trocá-la.
-  const chaveEmpresa = `${sessao.email}:${sessao.perfil}:${sessao.empresa?.slug ?? ''}`;
+  const chaveEmpresa = `${sessao.email}:${permissoes.join(',')}:${sessao.empresa?.slug ?? ''}`;
   if (montadoPara !== chaveEmpresa) {
     montadoPara = chaveEmpresa;
-    montarMenu(sessao.perfil, sessao.empresa?.slug);
+    montarMenu(permissoes, sessao.empresa?.slug);
   }
   if (empresaMontada === chaveEmpresa) return;
   empresaMontada = chaveEmpresa;
-  artes.reiniciar(sessao.perfil);
-  if (admin) usuariosTela.reiniciar(sessao.empresas);
+  if (temPermissao(permissoes, 'artes')) artes.reiniciar(permissoes);
+  else artes.encerrar();
+  if (temPermissao(permissoes, 'usuarios')) usuariosTela.reiniciar(sessao.empresas);
   else usuariosTela.encerrar();
   opTela.reiniciar();
   limparFatura();
   atualizarContagem();
-  // Arte finalista nunca vê o modal do Bling.
-  if (admin) void carregarAdmin().catch((error) => (cfgErro.textContent = mensagemErro(error)));
+  // Quem não configura o Bling nunca vê o modal dele.
+  if (configura) void carregarAdmin().catch((error) => (cfgErro.textContent = mensagemErro(error)));
 }
 
 formLogin.addEventListener('submit', async (event) => {

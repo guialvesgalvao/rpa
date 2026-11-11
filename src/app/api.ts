@@ -46,7 +46,8 @@ export type SessaoTela =
       situacao: 'online' | 'offline';
       nome: string;
       email: string;
-      perfil: Perfil;
+      /** Permissões do usuário na empresa em uso (catálogo do `contratos`); decidem abas e blocos da tela. */
+      permissoes: string[];
       empresas: EmpresaTela[];
       empresa?: EmpresaAtualTela;
       /** Senha inicial definida pelo admin: a tela pede a troca antes de mostrar o app. */

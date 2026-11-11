@@ -46,6 +46,14 @@ const MAPA: [Metodo, string, Permissao][] = [
   ['POST', `${E}/bling/sincronizacao`, 'ops'],
   ['GET', `${E}/bling/sincronizacao`, 'ops'],
   ['GET', `${E}/bling/sincronizacao/automatica`, 'ops'],
+  ['GET', `${E}/compras/insumos`, 'compras.pedir'],
+  ['POST', `${E}/compras/pedidos`, 'compras.pedir'],
+  ['GET', `${E}/compras/pedidos`, 'compras'],
+  ['GET', `${E}/compras/pedidos/${ID}`, 'compras'],
+  ['GET', `${E}/compras/pedidos/${ID}/historico`, 'compras'],
+  ['PATCH', `${E}/compras/pedidos/${ID}`, 'compras'],
+  ['PATCH', `${E}/compras/pedidos/${ID}/status`, 'compras'],
+  ['POST', `${E}/compras/pedidos/${ID}/assumir`, 'compras.acompanhar'],
 ];
 
 const { db, fechar } = criarBancoTeste();

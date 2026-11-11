@@ -25,6 +25,7 @@ import { rotasArtes } from './rotas/artes.js';
 import { rotasAuth } from './rotas/auth.js';
 import { rotasBling, type ServicosBling } from './rotas/bling.js';
 import { rotasClientes } from './rotas/clientes.js';
+import { rotasCompras } from './rotas/compras.js';
 import { rotasOp } from './rotas/op.js';
 import { rotasOpcoes } from './rotas/opcoes.js';
 import { rotasTarefas } from './rotas/tarefas.js';
@@ -74,6 +75,7 @@ export function criarApp({
   rotasOp(app, { db });
   rotasTarefas(app, { db, armazem });
   rotasUsuarios(app, { db, limite });
+  rotasCompras(app, { db });
   const servicosBling = bling && criarServicosBling(app, { db, jwtSegredo, relogio, bling });
   rotasBling(app, { db, bling: servicosBling });
   if (servicosBling) {

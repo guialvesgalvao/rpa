@@ -127,6 +127,13 @@
       "when": 1794362387435,
       "tag": "0017_permissoes_area_exclusao",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1794400278214,
+      "tag": "0018_compras_pedidos",
+      "breakpoints": true
     }
   ]
 }

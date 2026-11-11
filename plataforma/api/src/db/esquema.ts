@@ -9,6 +9,7 @@ import {
   index,
   integer,
   jsonb,
+  numeric,
   pgTable,
   primaryKey,
   text,
@@ -463,5 +464,76 @@ export const tarefasArteHistorico = pgTable(
       sql`(${t.statusAnterior} is null or ${t.statusAnterior} in ${STATUS_TAREFA_SQL}) and ${t.statusNovo} in ${STATUS_TAREFA_SQL}`,
     ),
     index('tarefas_arte_historico_tarefa_idx').on(t.tarefaId, t.criadoEm),
+  ],
+);
+
+// Pedidos de compra de insumos (ver `contratos/src/compras.ts` e ADR 0012). A lista de status se repete no CHECK
+// abaixo; ao mudar, mude os dois.
+export const comprasPedidos = pgTable(
+  'compras_pedidos',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    empresaId: uuid('empresa_id')
+      .notNull()
+      .references(() => empresas.id),
+    // O insumo: produto da empresa com código `TPP…` (a regra do código é da API).
+    produtoId: uuid('produto_id').notNull(),
+    quantidade: numeric('quantidade', { precision: 12, scale: 3, mode: 'number' }).notNull(),
+    observacao: text('observacao'),
+    status: text('status').notNull().default('aberta'),
+    criadoPor: uuid('criado_por').references(() => usuarios.id, { onDelete: 'set null' }),
+    // Cópia da área do criador no momento do pedido; nula se ele não tinha área.
+    areaCriador: text('area_criador').$type<AreaUsuario>(),
+    responsavelId: uuid('responsavel_id').references(() => usuarios.id, { onDelete: 'set null' }),
+    criadoEm: instante('criado_em').notNull().defaultNow(),
+    atualizadoEm: instante('atualizado_em').notNull().defaultNow(),
+  },
+  (t) => [
+    foreignKey({
+      name: 'compras_pedidos_produto_empresa_fk',
+      columns: [t.produtoId, t.empresaId],
+      foreignColumns: [produtos.id, produtos.empresaId],
+    }),
+    check('compras_pedidos_quantidade_positiva', sql`${t.quantidade} > 0`),
+    check(
+      'compras_pedidos_observacao_valida',
+      sql`${t.observacao} is null or (btrim(${t.observacao}) <> '' and char_length(${t.observacao}) <= 500)`,
+    ),
+    check(
+      'compras_pedidos_status_valido',
+      sql`${t.status} in ('aberta', 'em_andamento', 'concluida', 'cancelada')`,
+    ),
+    check(
+      'compras_pedidos_area_valida',
+      sql`${t.areaCriador} in ('arte_finalista', 'producao', 'administracao', 'direcao')`,
+    ),
+    index('compras_pedidos_empresa_status_idx').on(t.empresaId, t.status),
+    index('compras_pedidos_criador_idx').on(t.criadoPor),
+    index('compras_pedidos_responsavel_idx').on(t.responsavelId),
+  ],
+);
+
+// Um evento por mudança do pedido; `dados` segue `EsquemaDadosEventoCompra` (sem o `tipo`, que tem coluna própria).
+// `clock_timestamp()` para que dois eventos da mesma transação (assumir: responsável e status) fiquem em ordem.
+export const comprasHistorico = pgTable(
+  'compras_historico',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    pedidoId: uuid('pedido_id')
+      .notNull()
+      .references(() => comprasPedidos.id, { onDelete: 'cascade' }),
+    tipo: text('tipo').notNull(),
+    dados: jsonb('dados').$type<Record<string, unknown>>().notNull().default({}),
+    autorId: uuid('autor_id').references(() => usuarios.id, { onDelete: 'set null' }),
+    criadoEm: instante('criado_em')
+      .notNull()
+      .default(sql`clock_timestamp()`),
+  },
+  (t) => [
+    check(
+      'compras_historico_tipo_valido',
+      sql`${t.tipo} in ('criacao', 'status', 'responsavel', 'edicao')`,
+    ),
+    index('compras_historico_pedido_idx').on(t.pedidoId, t.criadoEm),
   ],
 );

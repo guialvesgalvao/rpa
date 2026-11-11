@@ -2,6 +2,7 @@ export * from './estado-lista.ts';
 export * from './artes.ts';
 export * from './auth.ts';
 export * from './bling.ts';
+export * from './compras.ts';
 export * from './empresas.ts';
 export * from './op.ts';
 export * from './permissoes.ts';

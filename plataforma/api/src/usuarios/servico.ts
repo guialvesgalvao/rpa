@@ -246,7 +246,8 @@ export async function buscarPerfil(db: Banco, id: string): Promise<PerfilUsuario
       id: usuarios.id,
       nome: usuarios.nome,
       email: usuarios.email,
-      perfil: usuarios.perfil,
+      // Coluna legada, nula em usuário novo (ADR 0011).
+      perfil: sql<Perfil>`coalesce(${usuarios.perfil}, 'arte_finalista')`,
       ativo: usuarios.ativo,
       deveTrocarSenha: usuarios.deveTrocarSenha,
       empresaSlug: empresas.slug,
@@ -287,7 +288,8 @@ export async function listar(db: Banco, id?: string): Promise<UsuarioListado[]> 
       id: usuarios.id,
       email: usuarios.email,
       nome: usuarios.nome,
-      perfil: usuarios.perfil,
+      // Coluna legada, nula em usuário novo (ADR 0011).
+      perfil: sql<Perfil>`coalesce(${usuarios.perfil}, 'arte_finalista')`,
       ativo: usuarios.ativo,
       criadoEm: usuarios.criadoEm,
       empresa: empresas.slug,

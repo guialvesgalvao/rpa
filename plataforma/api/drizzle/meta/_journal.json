@@ -120,6 +120,13 @@
       "when": 1794280145045,
       "tag": "0016_cores_nome_sem_acento",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1794362387435,
+      "tag": "0017_permissoes_area_exclusao",
+      "breakpoints": true
     }
   ]
 }

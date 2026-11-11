@@ -20,6 +20,28 @@ import {
 export const PERFIS = ['admin', 'arte_finalista'] as const;
 export type Perfil = (typeof PERFIS)[number];
 
+// As mesmas chaves de `PERMISSOES` e `AREAS` em `@plataforma/contratos` (os testes do esquema conferem): mudar junto.
+const PERMISSOES_SQL = sql.raw(
+  [
+    'artes',
+    'artes.adicionar',
+    'artes.editar',
+    'artes.acompanhar',
+    'faturas',
+    'ops',
+    'usuarios',
+    'usuarios.permissoes',
+    'usuarios.editar',
+    'compras',
+    'compras.pedir',
+    'compras.acompanhar',
+  ]
+    .map((chave) => `'${chave}'`)
+    .join(', '),
+);
+export const AREAS_USUARIO = ['arte_finalista', 'producao', 'administracao', 'direcao'] as const;
+export type AreaUsuario = (typeof AREAS_USUARIO)[number];
+
 export const ORIGENS_SESSAO = ['web', 'desktop'] as const;
 export type OrigemSessao = (typeof ORIGENS_SESSAO)[number];
 
@@ -41,8 +63,13 @@ export const usuarios = pgTable(
     email: text('email').notNull().unique(),
     nome: text('nome').notNull(),
     senhaHash: text('senha_hash').notNull(),
-    perfil: text('perfil').$type<Perfil>().notNull(),
+    // Legado (ADR 0011): não decide mais acesso e não é gravado em usuário novo. Sai num plano futuro.
+    perfil: text('perfil').$type<Perfil>(),
+    // Só informativa; vazia nos usuários anteriores à coluna.
+    area: text('area').$type<AreaUsuario>(),
     ativo: boolean('ativo').notNull().default(true),
+    // Exclusão pela tela: a linha fica (histórico e e-mail bloqueado), o acesso acaba.
+    excluidoEm: instante('excluido_em'),
     // Criado pela tela com a senha inicial do admin: a tela pede a troca no login (a API não bloqueia).
     deveTrocarSenha: boolean('deve_trocar_senha').notNull().default(false),
     criadoEm: instante('criado_em').notNull().defaultNow(),
@@ -51,6 +78,10 @@ export const usuarios = pgTable(
   (t) => [
     check('usuarios_email_minusculo', sql`${t.email} = lower(${t.email})`),
     check('usuarios_perfil_valido', sql`${t.perfil} in ('admin', 'arte_finalista')`),
+    check(
+      'usuarios_area_valida',
+      sql`${t.area} in ('arte_finalista', 'producao', 'administracao', 'direcao')`,
+    ),
   ],
 );
 
@@ -63,8 +94,19 @@ export const usuarioEmpresas = pgTable(
     empresaId: uuid('empresa_id')
       .notNull()
       .references(() => empresas.id, { onDelete: 'cascade' }),
+    // Permissões do usuário nesta empresa (catálogo em `@plataforma/contratos`).
+    permissoes: text('permissoes')
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
   },
-  (t) => [primaryKey({ columns: [t.usuarioId, t.empresaId] })],
+  (t) => [
+    primaryKey({ columns: [t.usuarioId, t.empresaId] }),
+    check(
+      'usuario_empresas_permissoes_validas',
+      sql`${t.permissoes} <@ array[${PERMISSOES_SQL}]::text[]`,
+    ),
+  ],
 );
 
 // Os hashes são o SHA-256 (hex) do token de renovação; o token em si nunca é gravado.

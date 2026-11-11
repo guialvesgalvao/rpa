@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { EMPRESAS_SINCRONIZACAO_BLING } from './bling.ts';
+
 // Catálogo de permissões (ADR 0011). Cada módulo da aba lateral tem uma permissão própria e, dentro dela, as
 // subpermissões. A lista plana repete os valores do CHECK de `usuario_empresas.permissoes`: mudar junto.
 export const PERMISSOES = [
@@ -111,4 +113,20 @@ export function perfilLegado(
 /** Módulos que o usuário pode abrir, na ordem do catálogo. */
 export function modulosPermitidos(permissoes: readonly string[] | undefined): ModuloPermissao[] {
   return MODULOS.filter((modulo) => temPermissao(permissoes, modulo.chave));
+}
+
+/** Módulos que existem na empresa: Compras só onde os insumos são sincronizados do Bling. */
+export function modulosDaEmpresa(slug: string): ModuloPermissao[] {
+  const comCompras = (EMPRESAS_SINCRONIZACAO_BLING as readonly string[]).includes(slug);
+  return MODULOS.filter((modulo) => modulo.chave !== 'compras' || comCompras);
+}
+
+/** Marca ou desmarca uma permissão no painel. Desmarcar o módulo desmarca as subpermissões dele. */
+export function alternarPermissao(
+  permissoes: readonly string[],
+  chave: Permissao,
+  marcada: boolean,
+): Permissao[] {
+  const semElas = permissoes.filter((outra) => outra !== chave && !outra.startsWith(`${chave}.`));
+  return normalizarPermissoes(marcada ? [...permissoes, chave] : semElas);
 }

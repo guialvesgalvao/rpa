@@ -5,6 +5,8 @@ import {
   EsquemaEdicaoUsuario,
   EsquemaEu,
   MODULOS,
+  alternarPermissao,
+  modulosDaEmpresa,
   PERMISSOES,
   PERMISSOES_DO_PERFIL,
   modulosPermitidos,
@@ -144,5 +146,35 @@ describe('contratos com permissões', () => {
   it('edição exige ao menos um campo', () => {
     expect(EsquemaEdicaoUsuario.safeParse({}).success).toBe(false);
     expect(EsquemaEdicaoUsuario.parse({ area: null })).toEqual({ area: null });
+  });
+});
+
+describe('modulosDaEmpresa', () => {
+  it('Compras só aparece na empresa com sincronização do Bling', () => {
+    expect(modulosDaEmpresa('roma').map((modulo) => modulo.chave)).toContain('compras');
+    expect(modulosDaEmpresa('aba').map((modulo) => modulo.chave)).toEqual([
+      'artes',
+      'faturas',
+      'ops',
+      'usuarios',
+    ]);
+  });
+});
+
+describe('alternarPermissao', () => {
+  it('marca o módulo e a subpermissão; a subpermissão sem o módulo não entra', () => {
+    expect(alternarPermissao([], 'artes', true)).toEqual(['artes']);
+    expect(alternarPermissao(['artes'], 'artes.editar', true)).toEqual(['artes', 'artes.editar']);
+    expect(alternarPermissao([], 'artes.editar', true)).toEqual([]);
+  });
+
+  it('desmarcar o módulo leva as subpermissões dele; desmarcar uma subpermissão, só ela', () => {
+    const marcadas = ['artes', 'artes.adicionar', 'artes.editar', 'ops'];
+    expect(alternarPermissao(marcadas, 'artes', false)).toEqual(['ops']);
+    expect(alternarPermissao(marcadas, 'artes.editar', false)).toEqual([
+      'artes',
+      'artes.adicionar',
+      'ops',
+    ]);
   });
 });

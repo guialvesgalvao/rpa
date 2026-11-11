@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { mensagemTrocaSenha, opcoesDeEmpresa } from '../src/usuarios';
+import { empresasCom, mensagemTrocaSenha } from '../src/usuarios';
 
 describe('mensagemTrocaSenha', () => {
   it('sem erro: nada; código conhecido: a mensagem dele', () => {
@@ -17,15 +17,28 @@ describe('mensagemTrocaSenha', () => {
   });
 });
 
-describe('opcoesDeEmpresa', () => {
-  const aba = { slug: 'aba', nome: 'ABA Embalagens' };
-  const roma = { slug: 'roma', nome: 'Roma Embalagens' };
+describe('empresasCom', () => {
+  const eu = {
+    empresas: [
+      { slug: 'roma', nome: 'Roma Embalagens', permissoes: ['usuarios', 'usuarios.editar'] },
+      {
+        slug: 'aba',
+        nome: 'ABA Embalagens',
+        permissoes: ['usuarios', 'usuarios.editar', 'usuarios.permissoes'],
+      },
+      { slug: 'delta', nome: 'Delta', permissoes: ['usuarios.editar'] },
+    ],
+  };
 
-  it('uma empresa: fixa', () => {
-    expect(opcoesDeEmpresa([roma])).toEqual({ opcoes: [roma], fixa: true });
+  it('devolve, em ordem de nome, as empresas em que o usuário tem a permissão', () => {
+    expect(empresasCom(eu, 'usuarios.editar').map((empresa) => empresa.slug)).toEqual([
+      'aba',
+      'roma',
+    ]);
+    expect(empresasCom(eu, 'usuarios.permissoes').map((empresa) => empresa.slug)).toEqual(['aba']);
   });
 
-  it('várias: em ordem de nome, livres', () => {
-    expect(opcoesDeEmpresa([roma, aba])).toEqual({ opcoes: [aba, roma], fixa: false });
+  it('subpermissão sem o módulo não conta; sem nenhuma, lista vazia', () => {
+    expect(empresasCom(eu, 'artes')).toEqual([]);
   });
 });

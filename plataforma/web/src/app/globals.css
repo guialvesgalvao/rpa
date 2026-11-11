@@ -504,6 +504,13 @@ footer {
   gap: 8px;
   padding: 4px 0;
 }
+/* Painel de permissões: subpermissões recuadas sob o módulo. */
+.permissoes-modulo + .permissoes-modulo {
+  margin-top: 6px;
+}
+.permissoes-sub {
+  margin-left: 26px;
+}
 .nova-cor-abrir {
   margin-top: 6px;
   padding: 6px 12px;

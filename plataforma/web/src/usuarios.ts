@@ -1,4 +1,4 @@
-import { SENHA_MINIMA } from '@plataforma/contratos';
+import { type Eu, type Permissao, SENHA_MINIMA, temPermissao } from '@plataforma/contratos';
 
 import { ordenarEmpresas, type Empresa } from './empresas';
 
@@ -21,13 +21,8 @@ export function mensagemTrocaSenha(codigo: unknown): string | undefined {
   );
 }
 
-// Empresas que o admin pode dar ao usuário novo: as dele. Com uma só, ela vem fixa (marcada e travada).
-export function opcoesDeEmpresa<T extends Pick<Empresa, 'slug' | 'nome'>>(
-  empresasAdmin: readonly T[],
-): {
-  opcoes: T[];
-  fixa: boolean;
-} {
-  const opcoes = ordenarEmpresas(empresasAdmin);
-  return { opcoes, fixa: opcoes.length === 1 };
+// Empresas do usuário em que ele tem a permissão, na ordem do seletor: as que ele pode dar a outro usuário
+// (`usuarios.editar`) ou em que pode marcar permissões (`usuarios.permissoes`).
+export function empresasCom(eu: Pick<Eu, 'empresas'>, chave: Permissao): Empresa[] {
+  return ordenarEmpresas(eu.empresas.filter((empresa) => temPermissao(empresa.permissoes, chave)));
 }

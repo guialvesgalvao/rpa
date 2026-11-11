@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, type Page, test } from '@playwright/test';
 
 import { ESTADO_SITE, USUARIOS } from '../apoio/ambiente.js';
 import { apiComo, artesDoProduto, produtosDoCliente } from '../apoio/api.js';
@@ -31,18 +31,6 @@ test('2.13 arte-finalista não edita nem remove arte pela API; admin remove', as
 
 test.describe('Usuários (admin)', () => {
   test.use({ storageState: ESTADO_SITE.admin });
-
-  test('admin cria um usuário pela tela', async ({ page }) => {
-    await page.goto('/aba/usuarios');
-    await page.getByLabel('Nome', { exact: true }).fill('Pessoa Fictícia E2E');
-    await page.getByLabel('E-mail').fill('nova.e2e@exemplo.com');
-    await page.getByLabel('Perfil').selectOption('arte_finalista');
-    await page.getByRole('group', { name: 'Empresas' }).getByLabel('ABA Embalagens').check();
-    await page.getByLabel('Senha inicial').fill('senha-inicial-e2e-123');
-    await page.getByRole('button', { name: 'Criar usuário' }).click();
-    await expect(page.getByRole('status')).toContainText('Usuário nova.e2e@exemplo.com criado');
-    await expect(page.getByRole('cell', { name: 'nova.e2e@exemplo.com' })).toBeVisible();
-  });
 
   test('troca de empresa ABA → Roma pelo seletor', async ({ page }) => {
     await page.goto('/aba/artes');
@@ -111,4 +99,114 @@ test('quem ainda não tem permissão nenhuma vê o aviso de sem acesso', async (
     'Você ainda não tem acesso a nenhum módulo nesta empresa.',
   );
   await expect(page.getByRole('navigation', { name: 'Abas' }).getByRole('link')).toHaveCount(0);
+});
+
+// Painel de usuários: o ciclo inteiro de um usuário fictício, em ordem (criar, editar, tirar uma permissão,
+// conferir o que ele vê, excluir e conferir que não entra mais).
+test.describe.serial('painel de usuários', () => {
+  const EMAIL = 'nova.e2e@exemplo.com';
+  const SENHA_INICIAL = 'senha-inicial-e2e-123';
+  const SENHA_NOVA = 'senha-nova-painel-e2e-789';
+  const permissoesNaAba = (page: Page) =>
+    page.getByRole('group', { name: 'Permissões em ABA Embalagens' });
+
+  test.describe('como administrador', () => {
+    test.use({ storageState: ESTADO_SITE.admin });
+
+    test('cria um usuário com área e permissões', async ({ page }) => {
+      await page.goto('/aba/usuarios');
+      await page.getByLabel('Nome', { exact: true }).fill('Pessoa Fictícia E2E');
+      await page.getByLabel('E-mail').fill(EMAIL);
+      await page.getByRole('group', { name: 'Empresas' }).getByLabel('ABA Embalagens').check();
+      await page.getByLabel('Senha inicial').fill(SENHA_INICIAL);
+
+      // A área é obrigatória no formulário.
+      await page.getByRole('button', { name: 'Criar usuário' }).click();
+      await expect(page.getByText('Escolha a área.')).toBeVisible();
+      await page.getByLabel('Área').selectOption({ label: 'Produção' });
+
+      // Subpermissão só com o módulo marcado.
+      const permissoes = permissoesNaAba(page);
+      await expect(permissoes.getByLabel('Pode adicionar novas')).toBeDisabled();
+      await permissoes.getByLabel('Artes', { exact: true }).check();
+      await permissoes.getByLabel('Pode adicionar novas').check();
+      await permissoes.getByLabel('Usuários', { exact: true }).check();
+      // Compras só existe na empresa com sincronização do Bling (Roma).
+      await expect(permissoes.getByLabel('Compras', { exact: true })).toHaveCount(0);
+
+      await page.getByRole('button', { name: 'Criar usuário' }).click();
+      await expect(page.getByRole('status')).toContainText(`Usuário ${EMAIL} criado`);
+      const linha = page.getByRole('row').filter({ hasText: EMAIL });
+      await expect(linha.getByRole('cell', { name: 'Produção' })).toBeVisible();
+    });
+
+    test('edita nome e área e tira a permissão de Artes', async ({ page }) => {
+      await page.goto('/aba/usuarios');
+      await page.getByRole('link', { name: 'Editar Pessoa Fictícia E2E' }).click();
+      await expect(page).toHaveURL(/\/aba\/usuarios\/[0-9a-f-]{36}$/);
+
+      await page.getByLabel('Nome', { exact: true }).fill('Pessoa Editada E2E');
+      await page.getByLabel('Área').selectOption({ label: 'Direção' });
+      await page.getByRole('button', { name: 'Salvar dados' }).click();
+      await expect(page.getByRole('status')).toHaveText('Dados salvos.');
+      await expect(page.getByRole('heading', { name: 'Pessoa Editada E2E' })).toBeVisible();
+
+      const permissoes = permissoesNaAba(page);
+      await expect(permissoes.getByLabel('Pode adicionar novas')).toBeChecked();
+      await permissoes.getByLabel('Artes', { exact: true }).uncheck();
+      // Desmarcar o módulo leva a subpermissão junto.
+      await expect(permissoes.getByLabel('Pode adicionar novas')).not.toBeChecked();
+      await page.getByRole('button', { name: 'Salvar permissões em ABA Embalagens' }).click();
+      await expect(page.getByText('Permissões em ABA Embalagens salvas.')).toBeVisible();
+
+      await page.goto('/aba/usuarios');
+      const linha = page.getByRole('row').filter({ hasText: EMAIL });
+      await expect(
+        linha.getByRole('cell', { name: 'Pessoa Editada E2E', exact: true }),
+      ).toBeVisible();
+      await expect(linha.getByRole('cell', { name: 'Direção' })).toBeVisible();
+    });
+  });
+
+  test('o usuário criado troca a senha e só vê Usuários', async ({ page }) => {
+    await entrarNoSite(page, EMAIL, SENHA_INICIAL, /\/trocar-senha/);
+    await page.locator('#senhaAtual').fill(SENHA_INICIAL);
+    await page.locator('#novaSenha').fill(SENHA_NOVA);
+    await page.locator('#confirmacao').fill(SENHA_NOVA);
+    await page.getByRole('button', { name: /trocar/i }).click();
+    await expect(page).toHaveURL(/\/aba\/usuarios$/);
+
+    const abas = page.getByRole('navigation', { name: 'Abas' });
+    await expect(abas.getByRole('link', { name: 'Usuários' })).toBeVisible();
+    await expect(abas.getByRole('link', { name: 'Artes' })).toHaveCount(0);
+    // Só o módulo, sem subpermissão: vê a lista, não edita ninguém.
+    await expect(page.getByRole('link', { name: /^Editar / })).toHaveCount(0);
+  });
+
+  test.describe('como administrador, de novo', () => {
+    test.use({ storageState: ESTADO_SITE.admin });
+
+    test('exclui o usuário e não pode excluir a si mesmo', async ({ page }) => {
+      await page.goto('/aba/usuarios');
+      await page.getByRole('link', { name: 'Editar Admin Fictício' }).click();
+      await expect(page.getByRole('heading', { name: 'Dados' })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Excluir usuário' })).toHaveCount(0);
+
+      await page.goto('/aba/usuarios');
+      await page.getByRole('link', { name: 'Editar Pessoa Editada E2E' }).click();
+      page.once('dialog', (dialogo) => void dialogo.accept());
+      await page.getByRole('button', { name: 'Excluir usuário' }).click();
+      await expect(page).toHaveURL(/\/aba\/usuarios\?excluido=1$/);
+      await expect(page.getByRole('status')).toHaveText('Usuário excluído');
+      await expect(page.getByRole('cell', { name: EMAIL })).toHaveCount(0);
+    });
+  });
+
+  test('o usuário excluído não entra mais', async ({ page }) => {
+    await page.goto('/entrar');
+    await page.getByLabel('E-mail').fill(EMAIL);
+    await page.getByLabel('Senha').fill(SENHA_NOVA);
+    await page.getByRole('button', { name: 'Entrar' }).click();
+    await expect(page.locator('main').getByRole('alert')).toHaveText('E-mail ou senha inválidos.');
+  });
 });

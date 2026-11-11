@@ -1,4 +1,5 @@
 import {
+  temPermissao,
   precisaDaArteParaConcluir,
   ROTULOS_STATUS_TAREFA,
   tituloTarefa,
@@ -10,6 +11,7 @@ import { formatarTamanho } from '../../../../../anexos';
 import { AcoesTarefa } from '../../../../../componentes/AcoesTarefa';
 import { formatarDataHora } from '../../../../../datas';
 import { tarefaDaEmpresa } from '../../../../../servidor/artes';
+import { exigirPermissaoNaPagina } from '../../../../../servidor/eu';
 
 export const metadata: Metadata = {
   title: 'Tarefa de arte · Plataforma RPA',
@@ -26,6 +28,8 @@ export default async function PaginaTarefa({
 }: PageProps<'/[empresa]/artes/tarefas/[id]'>) {
   const { empresa, id } = await params;
   const consulta = await searchParams;
+  const { permissoes } = await exigirPermissaoNaPagina(empresa, 'artes');
+  const podeConcluir = temPermissao(permissoes, 'artes.adicionar');
   const tarefa = await tarefaDaEmpresa(empresa, id);
   const mensagem = Object.keys(MENSAGENS).find((chave) => consulta[chave] !== undefined);
 
@@ -70,7 +74,7 @@ export default async function PaginaTarefa({
           </dd>
         </dl>
         <div className="actions">
-          {precisaDaArteParaConcluir(tarefa) && (
+          {podeConcluir && precisaDaArteParaConcluir(tarefa) && (
             <Link
               className="botao primary"
               href={`/${empresa}/artes/tarefas/${tarefa.id}/concluir`}
@@ -83,7 +87,12 @@ export default async function PaginaTarefa({
           </Link>
         </div>
         {/* `key`: o estado do seletor volta ao status do servidor depois de cada atualização. */}
-        <AcoesTarefa key={tarefa.atualizadoEm} empresa={empresa} tarefa={tarefa} />
+        <AcoesTarefa
+          key={tarefa.atualizadoEm}
+          empresa={empresa}
+          tarefa={tarefa}
+          podeConcluir={podeConcluir}
+        />
       </div>
       <div className="card">
         <h2>Comentários</h2>

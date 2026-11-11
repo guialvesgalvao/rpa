@@ -27,6 +27,19 @@ export const USUARIOS_E2E = [
     empresas: ['aba'],
     deveTrocarSenha: true,
   },
+  // Permissões por módulo (ADR 0011): quem só vê a lista de usuários e quem ainda não tem nenhuma.
+  {
+    email: 'so-usuarios.e2e@exemplo.com',
+    nome: 'Usuária Só Usuários',
+    empresas: ['aba'],
+    permissoes: { aba: ['usuarios'] },
+  },
+  {
+    email: 'sem-acesso.e2e@exemplo.com',
+    nome: 'Usuário Sem Acesso',
+    empresas: ['aba'],
+    permissoes: { aba: [] },
+  },
 ];
 
 export function exigirBancoE2e(url: string): string {

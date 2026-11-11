@@ -59,6 +59,6 @@ export async function POST(request: NextRequest) {
     return voltar(codigo ?? 'falha');
   }
 
-  const destino = slugValido(empresa) ? `/${empresa}/artes` : '/entrar';
+  const destino = slugValido(empresa) ? `/${empresa}` : '/entrar';
   return gravarCookies(redirecionar(destino, siteUrl), novos);
 }

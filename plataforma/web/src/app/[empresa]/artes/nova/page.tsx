@@ -4,6 +4,7 @@ import Link from 'next/link';
 
 import { FormNovaArte } from '../../../../componentes/FormNovaArte';
 import { clienteDaEmpresa, opcoesNovaArte } from '../../../../servidor/artes';
+import { exigirPermissaoNaPagina } from '../../../../servidor/eu';
 
 export const metadata: Metadata = {
   title: 'Nova arte · Plataforma RPA',
@@ -16,6 +17,7 @@ export default async function NovaArte({
   const { empresa } = await params;
   const { cliente: clienteId, produto } = await searchParams;
   if (typeof clienteId !== 'string') notFound();
+  await exigirPermissaoNaPagina(empresa, 'artes.adicionar');
 
   const [cliente, opcoes] = await Promise.all([
     clienteDaEmpresa(empresa, clienteId),

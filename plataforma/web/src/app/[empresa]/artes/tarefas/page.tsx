@@ -1,4 +1,5 @@
 import {
+  temPermissao,
   ESCOPOS_TAREFAS,
   filtrosDeTarefas,
   ROTULOS_STATUS_TAREFA,
@@ -9,7 +10,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { formatarDataHora } from '../../../../datas';
-import { usuarioDaSessao } from '../../../../servidor/eu';
+import { exigirPermissaoNaPagina } from '../../../../servidor/eu';
 import { tarefasDaEmpresa } from '../../../../servidor/artes';
 
 export const metadata: Metadata = {
@@ -20,19 +21,20 @@ const ehEscopo = (valor: unknown): valor is EscopoTarefas =>
   typeof valor === 'string' && (ESCOPOS_TAREFAS as readonly string[]).includes(valor);
 
 // Lista aberta pelos atalhos da home de Artes (`escopo=todas&filtro=<status>`), com o filtro de status num GET
-// simples. O arte finalista só vê as próprias (a API decide), qualquer que seja o escopo.
+// simples. Quem não acompanha todas só vê as próprias (a API decide), qualquer que seja o escopo.
 export default async function Tarefas({
   params,
   searchParams,
 }: PageProps<'/[empresa]/artes/tarefas'>) {
   const { empresa } = await params;
   const { escopo: escopoPedido, filtro: filtroPedido } = await searchParams;
-  const eu = await usuarioDaSessao();
+  const { permissoes } = await exigirPermissaoNaPagina(empresa, 'artes');
   const escopo: EscopoTarefas = ehEscopo(escopoPedido) ? escopoPedido : 'todas';
   const filtros = filtrosDeTarefas(escopo);
   const filtro = filtros.find((f) => f.valor === filtroPedido) ?? filtros[0]!;
   const tarefas = await tarefasDaEmpresa(empresa, filtro.consulta);
-  const comResponsavel = eu.perfil === 'admin';
+  // Só quem acompanha todas vê tarefas de outras pessoas.
+  const comResponsavel = temPermissao(permissoes, 'artes.acompanhar');
 
   return (
     <div className="pagina">

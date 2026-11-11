@@ -1,18 +1,11 @@
 'use client';
 
-import type { Perfil } from '@plataforma/contratos';
 import Link from 'next/link';
 import { useSelectedLayoutSegment } from 'next/navigation';
 
 import { logoDaEmpresa, type Empresa } from '../empresas';
+import { itensDoMenu } from '../modulos';
 import { SeletorEmpresa } from './SeletorEmpresa';
-
-// As abas do site; Configurações e as automações do app desktop não entram aqui. `perfis`: quem vê a aba
-// (ausente = todos). A API confere o perfil de novo em cada rota.
-const ITENS: { segmento: string; rotulo: string; perfis?: Perfil[] }[] = [
-  { segmento: 'artes', rotulo: 'Artes' },
-  { segmento: 'usuarios', rotulo: 'Usuários', perfis: ['admin'] },
-];
 
 // Topo com a empresa atual (seletor só para quem tem mais de uma), as abas e, no rodapé, o usuário e Sair.
 // Em telas estreitas vira uma barra no topo (`globals.css`).
@@ -20,12 +13,13 @@ export function MenuLateral({
   atual,
   empresas,
   usuario,
-  perfil,
+  permissoes,
 }: {
   atual: Empresa;
   empresas: Empresa[];
   usuario: string;
-  perfil: Perfil;
+  // As permissões do usuário na empresa atual: decidem as abas (`modulos.ts`).
+  permissoes: string[];
 }) {
   const segmento = useSelectedLayoutSegment();
   const logo = logoDaEmpresa(atual.slug);
@@ -42,7 +36,7 @@ export function MenuLateral({
       </div>
 
       <nav className="menu-itens" aria-label="Abas">
-        {ITENS.filter((item) => !item.perfis || item.perfis.includes(perfil)).map((item) => (
+        {itensDoMenu(permissoes).map((item) => (
           <Link
             key={item.segmento}
             href={`/${atual.slug}/${item.segmento}`}

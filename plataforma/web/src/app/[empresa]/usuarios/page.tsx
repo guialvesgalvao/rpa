@@ -1,9 +1,8 @@
-import { ROTULOS_PERFIL } from '@plataforma/contratos';
+import { ROTULOS_PERFIL, temPermissao } from '@plataforma/contratos';
 import type { Metadata } from 'next';
-import { notFound } from 'next/navigation';
 
 import { FormNovoUsuario } from '../../../componentes/FormNovoUsuario';
-import { usuarioDaSessao } from '../../../servidor/eu';
+import { exigirPermissaoNaPagina } from '../../../servidor/eu';
 import { usuariosDoAdmin } from '../../../servidor/usuarios';
 import { opcoesDeEmpresa } from '../../../usuarios';
 
@@ -11,11 +10,12 @@ export const metadata: Metadata = {
   title: 'Usuários · Plataforma RPA',
 };
 
-// Só admin: lista os usuários das empresas dele e cria novos (editar, desativar e trocar a senha de outro
-// usuário continuam na CLI). A API confere perfil e empresas de novo.
-export default async function Usuarios() {
-  const eu = await usuarioDaSessao();
-  if (eu.perfil !== 'admin') notFound();
+// Quem tem o módulo Usuários vê a lista; criar exige poder editar usuários e permissões. A API confere de novo.
+export default async function Usuarios({ params }: PageProps<'/[empresa]/usuarios'>) {
+  const { empresa } = await params;
+  const { eu, permissoes } = await exigirPermissaoNaPagina(empresa, 'usuarios');
+  const podeCriar =
+    temPermissao(permissoes, 'usuarios.editar') && temPermissao(permissoes, 'usuarios.permissoes');
   const usuarios = await usuariosDoAdmin();
   const nomes = new Map(eu.empresas.map((empresa) => [empresa.slug, empresa.nome]));
   const { opcoes, fixa } = opcoesDeEmpresa(eu.empresas);
@@ -54,10 +54,12 @@ export default async function Usuarios() {
           </div>
         )}
       </div>
-      <div className="card">
-        <h2>Novo usuário</h2>
-        <FormNovoUsuario empresas={opcoes} empresaFixa={fixa} />
-      </div>
+      {podeCriar && (
+        <div className="card">
+          <h2>Novo usuário</h2>
+          <FormNovoUsuario empresas={opcoes} empresaFixa={fixa} />
+        </div>
+      )}
     </div>
   );
 }

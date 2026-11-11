@@ -17,7 +17,12 @@ export default async function LayoutEmpresa({ children, params }: LayoutProps<'/
   return (
     <div className="empresa" data-empresa={atual.slug}>
       <div className="app">
-        <MenuLateral atual={atual} empresas={empresas} usuario={eu.nome} perfil={eu.perfil} />
+        <MenuLateral
+          atual={atual}
+          empresas={empresas}
+          usuario={eu.nome}
+          permissoes={atual.permissoes}
+        />
         <main>{children}</main>
       </div>
       <footer>Plataforma RPA</footer>

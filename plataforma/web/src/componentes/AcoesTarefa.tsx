@@ -15,7 +15,12 @@ import { useState, type FormEvent } from 'react';
 
 import { ACEITOS_ANEXO, problemaDosAnexos } from '../anexos';
 
-type Props = { empresa: string; tarefa: Pick<Tarefa, 'id' | 'status' | 'arteId'> };
+type Props = {
+  empresa: string;
+  tarefa: Pick<Tarefa, 'id' | 'status' | 'arteId'>;
+  // Concluir cadastra a arte: só para quem pode adicionar artes.
+  podeConcluir: boolean;
+};
 
 async function mensagemDe(resposta: Response, padrao: string): Promise<string> {
   const falha = EsquemaErro.safeParse(await resposta.json().catch(() => null));
@@ -24,7 +29,7 @@ async function mensagemDe(resposta: Response, padrao: string): Promise<string> {
 
 // Mudança de status (Concluída sem arte leva ao formulário da arte) e novo comentário; depois de cada ação,
 // a página é recarregada do servidor.
-export function AcoesTarefa({ empresa, tarefa }: Props) {
+export function AcoesTarefa({ empresa, tarefa, podeConcluir }: Props) {
   const roteador = useRouter();
   const base = `/api/v1/empresas/${encodeURIComponent(empresa)}/tarefas/${tarefa.id}`;
   const [status, setStatus] = useState<StatusTarefa>(tarefa.status);
@@ -118,7 +123,9 @@ export function AcoesTarefa({ empresa, tarefa }: Props) {
           disabled={ocupado}
           onChange={(e) => void mudarStatus(e.target.value as StatusTarefa)}
         >
-          {STATUS_TAREFA.map((s) => (
+          {STATUS_TAREFA.filter(
+            (s) => podeConcluir || s !== 'concluida' || tarefa.status === 'concluida',
+          ).map((s) => (
             <option key={s} value={s}>
               {ROTULOS_STATUS_TAREFA[s]}
             </option>

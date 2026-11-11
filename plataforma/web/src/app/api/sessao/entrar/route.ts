@@ -37,6 +37,7 @@ export async function POST(request: NextRequest) {
   const empresa = empresaInicial(resultado.dados.eu, request.cookies.get(COOKIE_EMPRESA)?.value);
   if (!empresa) return falha();
 
-  const inicio = destino ?? `/${encodeURIComponent(empresa)}/artes`;
+  // A raiz da empresa leva à primeira aba que o usuário pode abrir.
+  const inicio = destino ?? `/${encodeURIComponent(empresa)}`;
   return gravarCookies(redirecionar(inicio, siteUrl), montarCookies(resultado.dados));
 }

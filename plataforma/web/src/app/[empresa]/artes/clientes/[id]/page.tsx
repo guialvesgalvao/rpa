@@ -1,8 +1,9 @@
-import { rotuloArtes } from '@plataforma/contratos';
+import { rotuloArtes, temPermissao } from '@plataforma/contratos';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { NovoTrabalhoArte } from '../../../../../componentes/NovoTrabalhoArte';
+import { exigirPermissaoNaPagina } from '../../../../../servidor/eu';
 import {
   clienteDaEmpresa,
   produtosDaEmpresa,
@@ -19,6 +20,8 @@ export default async function PaginaCliente({
 }: PageProps<'/[empresa]/artes/clientes/[id]'>) {
   const { empresa, id } = await params;
   const { cadastrada } = await searchParams;
+  const { permissoes } = await exigirPermissaoNaPagina(empresa, 'artes');
+  const podeAdicionar = temPermissao(permissoes, 'artes.adicionar');
   const [cliente, produtos, catalogo] = await Promise.all([
     clienteDaEmpresa(empresa, id),
     produtosDoCliente(empresa, id),
@@ -39,10 +42,12 @@ export default async function PaginaCliente({
         <h2>{cliente.nomeExibicao}</h2>
         {cliente.nomeFantasia && <div className="hint">{cliente.razaoSocial}</div>}
       </div>
-      <div className="card">
-        <h2>Novo trabalho de arte</h2>
-        <NovoTrabalhoArte empresa={empresa} clienteId={cliente.id} catalogo={catalogo} />
-      </div>
+      {podeAdicionar && (
+        <div className="card">
+          <h2>Novo trabalho de arte</h2>
+          <NovoTrabalhoArte empresa={empresa} clienteId={cliente.id} catalogo={catalogo} />
+        </div>
+      )}
       <div className="card">
         <h2>Produtos com arte</h2>
         {produtos.length === 0 ? (

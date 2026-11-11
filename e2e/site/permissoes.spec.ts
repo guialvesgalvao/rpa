@@ -5,7 +5,8 @@ import { apiComo, artesDoProduto, produtosDoCliente } from '../apoio/api.js';
 import { clienteDoSeed } from '../apoio/site-artes.js';
 import { entrarNoSite } from '../apoio/site.js';
 
-// Perfis e empresas: 2.13 de testes-manuais-pendentes, Usuários e troca de empresa.
+// Permissões e empresas: 2.13 de testes-manuais-pendentes, Usuários, troca de empresa e o que cada conjunto de
+// permissões vê no site (ADR 0011).
 
 test('2.13 arte-finalista não edita nem remove arte pela API; admin remove', async () => {
   // O 4º cliente do seed tem artes.
@@ -87,4 +88,27 @@ test('usuário com senha inicial troca a senha no primeiro login', async ({ page
   // A senha nova vale no próximo login.
   await page.context().clearCookies();
   await entrarNoSite(page, USUARIOS.trocaSenha, 'senha-nova-e2e-456');
+});
+
+test('quem só tem o módulo Usuários abre na lista de usuários e não alcança Artes', async ({
+  page,
+}) => {
+  await entrarNoSite(page, USUARIOS.soUsuarios, undefined, /\/aba\/usuarios/);
+  const abas = page.getByRole('navigation', { name: 'Abas' });
+  await expect(abas.getByRole('link', { name: 'Usuários' })).toBeVisible();
+  await expect(abas.getByRole('link', { name: 'Artes' })).toHaveCount(0);
+  await expect(page.getByRole('cell', { name: USUARIOS.soUsuarios })).toBeVisible();
+  // Só vê a lista: criar exige "Editar e excluir usuários".
+  await expect(page.getByRole('heading', { name: 'Novo usuário' })).toHaveCount(0);
+
+  await page.goto('/aba/artes');
+  await expect(page.getByRole('heading', { name: 'Página não encontrada' }).first()).toBeVisible();
+});
+
+test('quem ainda não tem permissão nenhuma vê o aviso de sem acesso', async ({ page }) => {
+  await entrarNoSite(page, USUARIOS.semAcesso, undefined, /\/aba$/);
+  await expect(page.getByRole('status')).toHaveText(
+    'Você ainda não tem acesso a nenhum módulo nesta empresa.',
+  );
+  await expect(page.getByRole('navigation', { name: 'Abas' }).getByRole('link')).toHaveCount(0);
 });

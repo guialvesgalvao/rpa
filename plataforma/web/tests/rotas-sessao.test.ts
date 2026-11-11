@@ -45,7 +45,7 @@ describe('POST /api/sessao/entrar', () => {
     const resposta = await postEntrar({ email: 'pessoa@exemplo.com', senha: 'senha-ficticia' });
 
     expect(resposta.status).toBe(303);
-    expect(resposta.headers.get('location')).toBe(`${SITE_URL}/aba/artes`);
+    expect(resposta.headers.get('location')).toBe(`${SITE_URL}/aba`);
     expect(corpoJson(chamadas[0])).toEqual({
       email: 'pessoa@exemplo.com',
       senha: 'senha-ficticia',
@@ -68,7 +68,7 @@ describe('POST /api/sessao/entrar', () => {
       { rpa_empresa: 'roma' },
     );
 
-    expect(resposta.headers.get('location')).toBe(`${SITE_URL}/roma/artes`);
+    expect(resposta.headers.get('location')).toBe(`${SITE_URL}/roma`);
   });
 
   it('vai para o destino interno pedido', async () => {
@@ -92,7 +92,7 @@ describe('POST /api/sessao/entrar', () => {
       destino: '//mal.exemplo/aba',
     });
 
-    expect(resposta.headers.get('location')).toBe(`${SITE_URL}/aba/artes`);
+    expect(resposta.headers.get('location')).toBe(`${SITE_URL}/aba`);
   });
 
   it.each([401, 403, 400, 500])(
@@ -222,7 +222,7 @@ describe('POST /api/sessao/empresa', () => {
     const resposta = await postEmpresa({ empresa: 'roma' });
 
     expect(resposta.status).toBe(303);
-    expect(resposta.headers.get('location')).toBe(`${SITE_URL}/roma/artes`);
+    expect(resposta.headers.get('location')).toBe(`${SITE_URL}/roma`);
     expect(resposta.cookies.get('rpa_empresa')).toMatchObject({
       value: 'roma',
       httpOnly: true,
@@ -281,7 +281,7 @@ describe('POST /api/sessao/senha', () => {
     const resposta = await postSenha(campos);
 
     expect(resposta.status).toBe(303);
-    expect(resposta.headers.get('location')).toBe(`${SITE_URL}/roma/artes`);
+    expect(resposta.headers.get('location')).toBe(`${SITE_URL}/roma`);
     expect(corpoJson(chamadas[0])).toEqual({
       senhaAtual: campos.senhaAtual,
       novaSenha: campos.novaSenha,

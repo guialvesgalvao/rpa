@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 
 import { FormNovaArte } from '../../../../../../componentes/FormNovaArte';
 import { opcoesNovaArte, tarefaDaEmpresa } from '../../../../../../servidor/artes';
+import { exigirPermissaoNaPagina } from '../../../../../../servidor/eu';
 
 export const metadata: Metadata = {
   title: 'Concluir tarefa · Plataforma RPA',
@@ -15,6 +16,7 @@ export default async function ConcluirTarefa({
   params,
 }: PageProps<'/[empresa]/artes/tarefas/[id]/concluir'>) {
   const { empresa, id } = await params;
+  await exigirPermissaoNaPagina(empresa, 'artes.adicionar');
   const [tarefa, opcoes] = await Promise.all([
     tarefaDaEmpresa(empresa, id),
     opcoesNovaArte(empresa),

@@ -54,6 +54,8 @@ const MAPA: [Metodo, string, Permissao][] = [
   ['PATCH', `${E}/compras/pedidos/${ID}`, 'compras'],
   ['PATCH', `${E}/compras/pedidos/${ID}/status`, 'compras'],
   ['POST', `${E}/compras/pedidos/${ID}/assumir`, 'compras.acompanhar'],
+  ['POST', `${E}/compras/pedidos/${ID}/comentarios`, 'compras'],
+  ['GET', `${E}/compras/pedidos/${ID}/comentarios/${ID}/anexos/${ID}`, 'compras'],
 ];
 
 const { db, fechar } = criarBancoTeste();

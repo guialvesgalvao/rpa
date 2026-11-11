@@ -537,3 +537,41 @@ export const comprasHistorico = pgTable(
     index('compras_historico_pedido_idx').on(t.pedidoId, t.criadoEm),
   ],
 );
+
+// Comentários dos pedidos de compra, no molde dos comentários das tarefas de arte (mesmos limites).
+export const comprasComentarios = pgTable(
+  'compras_comentarios',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    pedidoId: uuid('pedido_id')
+      .notNull()
+      .references(() => comprasPedidos.id, { onDelete: 'cascade' }),
+    autorId: uuid('autor_id').references(() => usuarios.id, { onDelete: 'set null' }),
+    texto: text('texto').notNull(),
+    criadoEm: instante('criado_em').notNull().defaultNow(),
+  },
+  (t) => [
+    // Texto pode ficar vazio quando há anexo; a regra "texto ou anexo" é da API.
+    check('compras_comentarios_texto_valido', sql`char_length(${t.texto}) <= 2000`),
+    index('compras_comentarios_pedido_idx').on(t.pedidoId, t.criadoEm),
+  ],
+);
+
+// Anexos (PDF ou imagem) de um comentário de pedido, na ordem do envio. O arquivo é de um só anexo.
+export const comprasComentarioAnexos = pgTable(
+  'compras_comentario_anexos',
+  {
+    comentarioId: uuid('comentario_id')
+      .notNull()
+      .references(() => comprasComentarios.id, { onDelete: 'cascade' }),
+    arquivoId: uuid('arquivo_id')
+      .notNull()
+      .references(() => arquivos.id)
+      .unique(),
+    ordem: integer('ordem').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.comentarioId, t.ordem] }),
+    check('compras_comentario_anexos_ordem_valida', sql`${t.ordem} between 0 and 4`),
+  ],
+);

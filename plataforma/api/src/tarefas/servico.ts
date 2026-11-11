@@ -16,13 +16,13 @@ import { alias } from 'drizzle-orm/pg-core';
 import {
   type Armazenamento,
   duplicada,
-  gravarArquivo,
   inserirArte,
   NO_BANCO,
   type NovaArte,
   violouUnico,
 } from '../artes/servico.js';
 import { type ArquivoRecebido, comObjetosGravados } from '../arquivos/armazem.js';
+import { gravarArquivo } from '../arquivos/gravar.js';
 import type { Banco } from '../db/cliente.js';
 import {
   clientes,

@@ -1,5 +1,3 @@
-import { createHash } from 'node:crypto';
-
 import { type Arte, nomeOuPadrao } from '@plataforma/contratos';
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 
@@ -10,6 +8,7 @@ import {
   comObjetosGravados,
 } from '../arquivos/armazem.js';
 import { ARMAZEM_BANCO } from '../arquivos/banco.js';
+import { gravarArquivo } from '../arquivos/gravar.js';
 import type { Banco } from '../db/cliente.js';
 import { arquivos, arteMaquinas, artes, cores, maquinas, produtos } from '../db/esquema.js';
 import { ErroApi } from '../erros.js';
@@ -90,23 +89,6 @@ async function conferirReferencias(
       .where(inArray(maquinas.id, unicas));
     if (encontradas.length !== unicas.length) throw invalida('Máquina não encontrada.');
   }
-}
-
-// Com `chaveObjeto` (já gravado no bucket por `comObjetosGravados`), a linha guarda só a chave.
-export async function gravarArquivo(tx: Transacao, arquivo: ArquivoRecebido): Promise<string> {
-  const [linha] = await tx
-    .insert(arquivos)
-    .values({
-      nomeOriginal: arquivo.nomeOriginal,
-      tipoMime: arquivo.tipoMime,
-      tamanho: arquivo.conteudo.length,
-      sha256: createHash('sha256').update(arquivo.conteudo).digest('hex'),
-      conteudo: arquivo.chaveObjeto ? null : arquivo.conteudo,
-      chaveObjeto: arquivo.chaveObjeto ?? null,
-    })
-    .returning({ id: arquivos.id });
-  if (!linha) throw new Error('Arquivo não gravado.');
-  return linha.id;
 }
 
 // `null` quando a arte não existe na empresa.

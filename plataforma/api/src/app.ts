@@ -75,7 +75,7 @@ export function criarApp({
   rotasOp(app, { db });
   rotasTarefas(app, { db, armazem });
   rotasUsuarios(app, { db, limite });
-  rotasCompras(app, { db });
+  rotasCompras(app, { db, armazem });
   const servicosBling = bling && criarServicosBling(app, { db, jwtSegredo, relogio, bling });
   rotasBling(app, { db, bling: servicosBling });
   if (servicosBling) {

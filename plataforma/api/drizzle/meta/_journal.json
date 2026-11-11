@@ -134,6 +134,13 @@
       "when": 1794400278214,
       "tag": "0018_compras_pedidos",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1794401335154,
+      "tag": "0019_compras_comentarios",
+      "breakpoints": true
     }
   ]
 }

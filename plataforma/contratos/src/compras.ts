@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { EsquemaOpcao } from './artes.ts';
 import { EMPRESAS_SINCRONIZACAO_BLING } from './bling.ts';
 import { EsquemaArea } from './permissoes.ts';
+import { COMENTARIO_TAREFA_MAX, EsquemaComentarioTarefa } from './tarefas.ts';
 
 // Pedidos de compra de insumos (ADR 0012), tratados como tarefas: alguém pede, quem acompanha assume e leva até
 // concluir. Só nas empresas com sincronização do Bling, onde os insumos chegam como produtos. A lista de status
@@ -83,6 +84,19 @@ export const EsquemaPedidoCompra = z.object({
   atualizadoEm: z.iso.datetime(),
 });
 
+// Comentários com os mesmos limites e o mesmo formato dos das tarefas de arte (texto até 2000, até 5 anexos PDF ou
+// imagem).
+export const COMENTARIO_COMPRA_MAX = COMENTARIO_TAREFA_MAX;
+export const EsquemaComentarioCompra = EsquemaComentarioTarefa;
+export const EsquemaNovoComentarioCompra = z.object({
+  texto: z.string().trim().min(1).max(COMENTARIO_COMPRA_MAX),
+});
+
+// Resposta de `GET /pedidos/:id`: o pedido com os comentários, do mais antigo para o mais novo.
+export const EsquemaPedidoCompraDetalhe = EsquemaPedidoCompra.extend({
+  comentarios: z.array(EsquemaComentarioCompra),
+});
+
 export const EsquemaNovoPedidoCompra = z.object({
   insumoId: z.uuid(),
   quantidade: EsquemaQuantidadeCompra,
@@ -139,6 +153,9 @@ export type NovoPedidoCompra = z.infer<typeof EsquemaNovoPedidoCompra>;
 export type EdicaoPedidoCompra = z.infer<typeof EsquemaEdicaoPedidoCompra>;
 export type MudancaStatusCompra = z.infer<typeof EsquemaMudancaStatusCompra>;
 export type EventoCompra = z.infer<typeof EsquemaEventoCompra>;
+export type ComentarioCompra = z.infer<typeof EsquemaComentarioCompra>;
+export type NovoComentarioCompra = z.infer<typeof EsquemaNovoComentarioCompra>;
+export type PedidoCompraDetalhe = z.infer<typeof EsquemaPedidoCompraDetalhe>;
 
 // Ex.: "TPP001 — Tinta preta 1 L".
 export const rotuloInsumo = (insumo: Pick<Insumo, 'codigo' | 'nome'>): string =>

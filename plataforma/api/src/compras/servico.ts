@@ -1,5 +1,6 @@
 import {
   type Area,
+  type ComentarioCompra,
   type ConsultaCompras,
   type DadosEventoCompra,
   type EdicaoPedidoCompra,
@@ -7,6 +8,7 @@ import {
   type Insumo,
   PREFIXO_INSUMO,
   type PedidoCompra,
+  type PedidoCompraDetalhe,
   pedidoEditavel,
   rotuloInsumo,
   STATUS_COMPRA_EDITAVEIS,
@@ -15,8 +17,19 @@ import {
 import { and, asc, desc, eq, inArray, isNull, like, or, type SQL, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 
+import { type Armazenamento, NO_BANCO } from '../artes/servico.js';
+import { type ArquivoRecebido, comObjetosGravados } from '../arquivos/armazem.js';
+import { gravarArquivo } from '../arquivos/gravar.js';
 import type { Banco } from '../db/cliente.js';
-import { comprasHistorico, comprasPedidos, produtos, usuarios } from '../db/esquema.js';
+import {
+  arquivos,
+  comprasComentarioAnexos,
+  comprasComentarios,
+  comprasHistorico,
+  comprasPedidos,
+  produtos,
+  usuarios,
+} from '../db/esquema.js';
 import { ErroApi } from '../erros.js';
 
 // Quem pede: `acompanha` (`compras.acompanhar`) alcança todos os pedidos da empresa; os demais, só os que criaram.
@@ -398,4 +411,130 @@ export async function historicoDoPedido(
     autor: pessoa(linha.autorId, linha.autorNome),
     criadoEm: linha.criadoEm.toISOString(),
   }));
+}
+
+async function comentariosDo(db: Banco, pedidoId: string): Promise<ComentarioCompra[]> {
+  const linhas = await db
+    .select({
+      id: comprasComentarios.id,
+      autorId: autor.id,
+      autorNome: autor.nome,
+      texto: comprasComentarios.texto,
+      criadoEm: comprasComentarios.criadoEm,
+    })
+    .from(comprasComentarios)
+    .leftJoin(autor, eq(autor.id, comprasComentarios.autorId))
+    .where(eq(comprasComentarios.pedidoId, pedidoId))
+    .orderBy(asc(comprasComentarios.criadoEm), asc(comprasComentarios.id));
+  const anexos = linhas.length
+    ? await db
+        .select({
+          comentarioId: comprasComentarioAnexos.comentarioId,
+          id: arquivos.id,
+          nome: arquivos.nomeOriginal,
+          tipoMime: arquivos.tipoMime,
+          tamanho: arquivos.tamanho,
+        })
+        .from(comprasComentarioAnexos)
+        .innerJoin(arquivos, eq(arquivos.id, comprasComentarioAnexos.arquivoId))
+        .where(
+          inArray(
+            comprasComentarioAnexos.comentarioId,
+            linhas.map((l) => l.id),
+          ),
+        )
+        .orderBy(asc(comprasComentarioAnexos.ordem))
+    : [];
+  return linhas.map((l) => ({
+    id: l.id,
+    autor: pessoa(l.autorId, l.autorNome),
+    texto: l.texto,
+    anexos: anexos
+      .filter((a) => a.comentarioId === l.id)
+      .map(({ id, nome, tipoMime, tamanho }) => ({ id, nome, tipoMime, tamanho })),
+    criadoEm: l.criadoEm.toISOString(),
+  }));
+}
+
+// O pedido com os comentários. `null` fora do alcance.
+export async function detalharPedido(
+  db: Banco,
+  empresaId: string,
+  pedidoId: string,
+  acesso: AcessoCompras,
+): Promise<PedidoCompraDetalhe | null> {
+  const pedido = await obterPedido(db, empresaId, pedidoId, acesso);
+  return pedido ? { ...pedido, comentarios: await comentariosDo(db, pedido.id) } : null;
+}
+
+// Quem alcança o pedido comenta, em qualquer status. O texto já vem aparado e com o tamanho conferido; texto vazio
+// só com anexo. Os anexos (tipo e tamanho já conferidos pela rota) vão para o armazém antes da transação. `null`
+// fora do alcance.
+export async function comentarPedido(
+  db: Banco,
+  entrada: {
+    empresaId: string;
+    pedidoId: string;
+    acesso: AcessoCompras;
+    texto: string;
+    anexos?: ArquivoRecebido[];
+  },
+  { armazem, log }: Armazenamento = NO_BANCO,
+): Promise<ComentarioCompra | null> {
+  const anexos = entrada.anexos ?? [];
+  if (!entrada.texto && anexos.length === 0) {
+    throw new ErroApi(400, 'comentario_vazio', 'Escreva o comentário ou anexe um arquivo.');
+  }
+  const pedido = await obterPedido(db, entrada.empresaId, entrada.pedidoId, entrada.acesso);
+  if (!pedido) return null;
+  const comentarioId = await comObjetosGravados(
+    armazem,
+    anexos,
+    () =>
+      db.transaction(async (tx) => {
+        const [linha] = await tx
+          .insert(comprasComentarios)
+          .values({ pedidoId: pedido.id, autorId: entrada.acesso.usuarioId, texto: entrada.texto })
+          .returning({ id: comprasComentarios.id });
+        if (!linha) throw new Error('Comentário não gravado.');
+        for (const [ordem, anexo] of anexos.entries()) {
+          const arquivoId = await gravarArquivo(tx, anexo);
+          await tx
+            .insert(comprasComentarioAnexos)
+            .values({ comentarioId: linha.id, arquivoId, ordem });
+        }
+        return linha.id;
+      }),
+    log,
+  );
+  const comentario = (await comentariosDo(db, pedido.id)).find((c) => c.id === comentarioId);
+  if (!comentario) throw new Error('Comentário não gravado.');
+  return comentario;
+}
+
+// Arquivo de um anexo de comentário do pedido; `null` se o pedido está fora do alcance ou o anexo não é dele.
+export async function anexoDoComentarioDoPedido(
+  db: Banco,
+  entrada: {
+    empresaId: string;
+    pedidoId: string;
+    comentarioId: string;
+    anexoId: string;
+    acesso: AcessoCompras;
+  },
+): Promise<string | null> {
+  const pedido = await obterPedido(db, entrada.empresaId, entrada.pedidoId, entrada.acesso);
+  if (!pedido) return null;
+  const [linha] = await db
+    .select({ arquivoId: comprasComentarioAnexos.arquivoId })
+    .from(comprasComentarioAnexos)
+    .innerJoin(comprasComentarios, eq(comprasComentarios.id, comprasComentarioAnexos.comentarioId))
+    .where(
+      and(
+        eq(comprasComentarios.pedidoId, pedido.id),
+        eq(comprasComentarios.id, entrada.comentarioId),
+        eq(comprasComentarioAnexos.arquivoId, entrada.anexoId),
+      ),
+    );
+  return linha?.arquivoId ?? null;
 }

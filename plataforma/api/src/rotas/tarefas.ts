@@ -1,6 +1,5 @@
 import multipart from '@fastify/multipart';
 import {
-  ANEXOS_POR_COMENTARIO,
   COMENTARIO_TAREFA_MAX,
   type ComentarioTarefa,
   type ContagemTarefas,
@@ -12,14 +11,12 @@ import {
   type ResponsavelAutomatico,
   type Tarefa,
   type TarefaDetalhe,
-  detectarTipo,
-  LIMITES,
   temPermissao,
 } from '@plataforma/contratos';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 
 import { buscarCliente, buscarProduto, ehUuid, idDaEmpresa } from '../artes/repositorio.js';
-import type { ArmazemArquivos, ArquivoRecebido } from '../arquivos/armazem.js';
+import type { ArmazemArquivos } from '../arquivos/armazem.js';
 import { ARMAZEM_BANCO } from '../arquivos/banco.js';
 import { disposicaoAnexo, lerArquivo } from '../arquivos/repositorio.js';
 import type { Banco } from '../db/cliente.js';
@@ -43,79 +40,10 @@ import {
   obterResponsavelAutomatico,
 } from '../tarefas/responsavel.js';
 import { conferirNovaArte, exigirIds, LIMITES_MULTIPART, lerCampos } from './artes.js';
+import { lerComentarioMultipart } from './multipart-comentario.js';
 
 const tarefaNaoEncontrada = () =>
   new ErroApi(404, 'tarefa_nao_encontrada', 'Tarefa não encontrada.');
-
-const MB = 1024 * 1024;
-
-// Comentário em multipart: `texto` (opcional com anexo) e até 5 `anexos` (PDF ou imagem, com os limites e a
-// detecção de tipo das artes). Um arquivo a mais que o limite é lido só para responder 400.
-async function lerComentarioMultipart(
-  request: FastifyRequest,
-): Promise<{ texto: string; anexos: ArquivoRecebido[] }> {
-  let texto = '';
-  const anexos: ArquivoRecebido[] = [];
-  const partes = request.parts({
-    limits: { fileSize: LIMITES.pdfBytes, files: ANEXOS_POR_COMENTARIO + 1, fields: 2, parts: 10 },
-  });
-  for await (const parte of partes) {
-    if (parte.type === 'field') {
-      if (parte.fieldname !== 'texto') {
-        throw new ErroApi(400, 'requisicao_invalida', `Requisição inválida (${parte.fieldname}).`);
-      }
-      texto = String(parte.value).trim();
-      continue;
-    }
-    if (parte.fieldname !== 'anexos') {
-      parte.file.resume();
-      throw new ErroApi(400, 'requisicao_invalida', `Requisição inválida (${parte.fieldname}).`);
-    }
-    if (anexos.length >= ANEXOS_POR_COMENTARIO) {
-      parte.file.resume();
-      throw new ErroApi(
-        400,
-        'anexos_demais',
-        `Anexe no máximo ${ANEXOS_POR_COMENTARIO} arquivos por comentário.`,
-      );
-    }
-    let conteudo: Buffer;
-    try {
-      conteudo = await parte.toBuffer();
-    } catch (erro) {
-      if ((erro as { code?: string }).code === 'FST_REQ_FILE_TOO_LARGE') {
-        throw new ErroApi(413, 'arquivo_grande', `O PDF passa de ${LIMITES.pdfBytes / MB} MB.`);
-      }
-      throw erro;
-    }
-    // Campo de arquivo sem seleção (formulário HTML): vem sem nome e sem bytes.
-    if (!parte.filename && conteudo.length === 0) continue;
-    const detectado = detectarTipo(conteudo);
-    if (!detectado) {
-      throw new ErroApi(
-        415,
-        'tipo_nao_suportado',
-        'O anexo precisa ser PDF ou imagem PNG, JPEG ou WebP.',
-      );
-    }
-    if (detectado.tipo === 'imagem' && conteudo.length > LIMITES.imagemBytes) {
-      throw new ErroApi(
-        413,
-        'arquivo_grande',
-        `O arquivo de imagem passa de ${LIMITES.imagemBytes / MB} MB.`,
-      );
-    }
-    anexos.push({
-      nomeOriginal: parte.filename || `anexo-${anexos.length + 1}`,
-      tipoMime: detectado.mime,
-      conteudo,
-    });
-  }
-  if (texto.length > COMENTARIO_TAREFA_MAX) {
-    throw new ErroApi(400, 'requisicao_invalida', 'Requisição inválida (texto).');
-  }
-  return { texto, anexos };
-}
 
 // Tarefas de desenvolvimento de arte. Admin e arte finalista usam todas as rotas; o arte finalista só alcança
 // as tarefas de que é responsável (as outras respondem 404).
@@ -281,7 +209,7 @@ export function rotasTarefas(
         const tarefaId = tarefaIdDe(request);
         // JSON (só texto) ou multipart (texto e anexos).
         const { texto, anexos } = request.isMultipart()
-          ? await lerComentarioMultipart(request)
+          ? await lerComentarioMultipart(request, COMENTARIO_TAREFA_MAX)
           : { ...lerCorpo(EsquemaNovoComentario, request.body), anexos: [] };
         const comentario = await comentar(
           db,

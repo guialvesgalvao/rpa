@@ -4,6 +4,7 @@ export * from './auth.ts';
 export * from './bling.ts';
 export * from './empresas.ts';
 export * from './op.ts';
+export * from './permissoes.ts';
 export * from './saude.ts';
 export * from './tarefas.ts';
 export * from './usuarios.ts';

@@ -22,7 +22,9 @@ export function slugValido(slug: unknown): slug is string {
 }
 
 // Pelo nome, como o usuário lê (sem diferenciar acento nem caixa); o slug desempata.
-export function ordenarEmpresas<T extends Empresa>(empresas: readonly T[]): T[] {
+export function ordenarEmpresas<T extends Pick<Empresa, 'slug' | 'nome'>>(
+  empresas: readonly T[],
+): T[] {
   return [...empresas].sort(
     (a, b) => ordemAlfabetica.compare(a.nome, b.nome) || ordemAlfabetica.compare(a.slug, b.slug),
   );

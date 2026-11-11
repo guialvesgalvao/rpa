@@ -33,7 +33,8 @@ const paraEu = ({ id, nome, email, perfil, empresas, deveTrocarSenha }: PerfilUs
   nome,
   email,
   perfil,
-  empresas,
+  empresas: empresas.map((empresa) => ({ ...empresa, permissoes: [] })),
+  area: null,
   deveTrocarSenha,
 });
 

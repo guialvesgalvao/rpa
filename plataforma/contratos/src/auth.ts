@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { EsquemaArea } from './permissoes.ts';
+
 // Os mesmos valores dos CHECKs de `usuarios.perfil` e `sessoes.origem` no banco.
 export const EsquemaPerfil = z.enum(['admin', 'arte_finalista']);
 export const EsquemaOrigem = z.enum(['web', 'desktop']);
@@ -24,8 +26,18 @@ export const EsquemaEu = z.object({
   id: z.uuid(),
   nome: z.string(),
   email: z.email(),
+  // Só para o app antigo; quem decide acesso são as permissões de cada empresa (`perfilLegado`).
   perfil: EsquemaPerfil,
-  empresas: z.array(z.object({ slug: z.string(), nome: z.string() })),
+  empresas: z.array(
+    z.object({
+      slug: z.string(),
+      nome: z.string(),
+      // Chaves do catálogo de permissões valendo nesta empresa. Texto livre de propósito: uma chave que esta
+      // versão não conhece é ignorada por `temPermissao`, em vez de derrubar a sessão salva.
+      permissoes: z.array(z.string()).default([]),
+    }),
+  ),
+  area: EsquemaArea.nullable().catch(null).default(null),
   // Senha inicial definida pelo admin: a tela leva à troca. Ausente (API antiga ou sessão salva) = `false`.
   deveTrocarSenha: z.boolean().default(false),
 });

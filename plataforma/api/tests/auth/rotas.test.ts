@@ -94,9 +94,10 @@ describe('POST /v1/auth/entrar', () => {
       email: EMAIL,
       perfil: 'arte_finalista',
       empresas: [
-        { slug: 'aba', nome: 'ABA Embalagens' },
-        { slug: 'roma', nome: 'Roma Embalagens' },
+        { slug: 'aba', nome: 'ABA Embalagens', permissoes: [] },
+        { slug: 'roma', nome: 'Roma Embalagens', permissoes: [] },
       ],
+      area: null,
       deveTrocarSenha: false,
     });
     expect(new Date(corpo.expiraEm)).toEqual(

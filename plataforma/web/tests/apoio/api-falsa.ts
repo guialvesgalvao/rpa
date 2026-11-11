@@ -27,7 +27,8 @@ export function respostaEntrar(empresas: string[] = ['aba', 'roma']): RespostaEn
       nome: 'Pessoa Teste',
       email: 'pessoa@exemplo.com',
       perfil: 'arte_finalista',
-      empresas: empresas.map((slug) => ({ slug, nome: slug.toUpperCase() })),
+      empresas: empresas.map((slug) => ({ slug, nome: slug.toUpperCase(), permissoes: [] })),
+      area: null,
       deveTrocarSenha: false,
     },
   };

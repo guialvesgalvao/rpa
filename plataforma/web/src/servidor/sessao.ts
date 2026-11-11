@@ -1,4 +1,4 @@
-import type { Eu, Tokens } from '@plataforma/contratos';
+import type { Tokens } from '@plataforma/contratos';
 import { decodeJwt } from 'jose';
 
 import { ordenarEmpresas } from '../empresas';
@@ -107,7 +107,7 @@ export function destinoSeguro(destino: unknown): string | undefined {
 
 // A empresa do cookie, se o usuário ainda tiver acesso a ela; senão, a primeira da lista do seletor.
 export function empresaInicial(
-  eu: Pick<Eu, 'empresas'>,
+  eu: { empresas: readonly { slug: string; nome: string }[] },
   cookie: string | undefined,
 ): string | undefined {
   const slugs = ordenarEmpresas(eu.empresas).map((empresa) => empresa.slug);

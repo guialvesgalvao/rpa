@@ -22,8 +22,10 @@ export function mensagemTrocaSenha(codigo: unknown): string | undefined {
 }
 
 // Empresas que o admin pode dar ao usuário novo: as dele. Com uma só, ela vem fixa (marcada e travada).
-export function opcoesDeEmpresa(empresasAdmin: readonly Empresa[]): {
-  opcoes: Empresa[];
+export function opcoesDeEmpresa<T extends Pick<Empresa, 'slug' | 'nome'>>(
+  empresasAdmin: readonly T[],
+): {
+  opcoes: T[];
   fixa: boolean;
 } {
   const opcoes = ordenarEmpresas(empresasAdmin);

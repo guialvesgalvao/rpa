@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { EsquemaPerfil, type Perfil } from './auth.ts';
+import { EsquemaArea, EsquemaPermissao } from './permissoes.ts';
 
 export const ROTULOS_PERFIL: Record<Perfil, string> = {
   admin: 'Administrador',
@@ -46,6 +47,51 @@ export const EsquemaTrocaSenha = z.object({
   renovacao: z.string().min(1).max(256).optional(),
 });
 
+const EsquemaNome = z.string().trim().min(1, 'Nome obrigatório.').max(200);
+const EsquemaEmail = z.string().trim().toLowerCase().pipe(z.email('E-mail inválido.'));
+const EsquemaSlugs = z
+  .array(z.string().trim().toLowerCase().min(1))
+  .min(1, 'Escolha ao menos uma empresa.');
+
+// Criação pelo painel de usuários (ADR 0011). `permissoes`: por slug de empresa; só é aceito de quem tem
+// "Editar permissão de usuários" naquela empresa. Sem ele, o usuário nasce sem permissões.
+export const EsquemaCriacaoUsuario = z.object({
+  nome: EsquemaNome,
+  email: EsquemaEmail,
+  area: EsquemaArea.nullable().default(null),
+  empresas: EsquemaSlugs,
+  senha: EsquemaSenhaNova,
+  permissoes: z.record(z.string(), z.array(EsquemaPermissao)).default({}),
+});
+
+// Edição dos dados do usuário; só o que vier muda.
+export const EsquemaEdicaoUsuario = z
+  .object({
+    nome: EsquemaNome,
+    email: EsquemaEmail,
+    area: EsquemaArea.nullable(),
+    empresas: EsquemaSlugs,
+  })
+  .partial()
+  .refine((dados) => Object.keys(dados).length > 0, 'Nada para alterar.');
+
+// Permissões do usuário na empresa da rota.
+export const EsquemaPermissoesUsuario = z.object({ permissoes: z.array(EsquemaPermissao) });
+
+// Usuário como o painel o mostra, com as permissões em cada empresa dele.
+export const EsquemaUsuarioDetalhe = z.object({
+  id: z.uuid(),
+  nome: z.string(),
+  email: z.email(),
+  area: EsquemaArea.nullable(),
+  empresas: z.array(z.object({ slug: z.string(), permissoes: z.array(z.string()) })),
+  criadoEm: z.iso.datetime(),
+});
+
+export type CriacaoUsuario = z.infer<typeof EsquemaCriacaoUsuario>;
+export type EdicaoUsuario = z.infer<typeof EsquemaEdicaoUsuario>;
+export type PermissoesUsuario = z.infer<typeof EsquemaPermissoesUsuario>;
+export type UsuarioDetalhe = z.infer<typeof EsquemaUsuarioDetalhe>;
 export type NovoUsuario = z.infer<typeof EsquemaNovoUsuario>;
 export type TrocaSenha = z.infer<typeof EsquemaTrocaSenha>;
 export type UsuarioResumo = z.infer<typeof EsquemaUsuarioResumo>;

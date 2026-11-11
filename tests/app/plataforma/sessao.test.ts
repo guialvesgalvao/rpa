@@ -16,7 +16,8 @@ const EU: Eu = {
   nome: 'Usuário Teste',
   email: 'teste@example.com',
   perfil: 'admin',
-  empresas: [{ slug: 'aba', nome: 'ABA' }],
+  empresas: [{ slug: 'aba', nome: 'ABA', permissoes: [] }],
+  area: null,
   deveTrocarSenha: false,
 };
 

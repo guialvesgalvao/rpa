@@ -25,6 +25,9 @@ export const USUARIOS = {
   trocaSenha: 'troca.e2e@exemplo.com',
   soUsuarios: 'so-usuarios.e2e@exemplo.com',
   semAcesso: 'sem-acesso.e2e@exemplo.com',
+  pedeCompras: 'pede-compras.e2e@exemplo.com',
+  outraPedeCompras: 'outra-pede.e2e@exemplo.com',
+  acompanhaCompras: 'acompanha-compras.e2e@exemplo.com',
 } as const;
 export type Perfil = keyof typeof USUARIOS;
 

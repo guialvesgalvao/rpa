@@ -4,7 +4,7 @@ import postgres from 'postgres';
 
 import { criarBanco } from '../db/cliente.js';
 import { migrar } from '../db/migrar.js';
-import { criarUsuario, desativar } from '../usuarios/servico.js';
+import { criarUsuario, desativar, type NovoUsuario } from '../usuarios/servico.js';
 import { exigirBancoLocal, semear, SENHA_DEV } from './semear-dev.js';
 
 // Banco da suíte E2E local (`npm run e2e` na raiz): recriado do zero a cada execução, com dados fictícios.
@@ -13,17 +13,17 @@ import { exigirBancoLocal, semear, SENHA_DEV } from './semear-dev.js';
 const SUFIXO = '_e2e';
 
 /** Usuários extras da suíte, além de admin.dev e finalista.dev do `semear`. Dados fictícios. */
-export const USUARIOS_E2E = [
+export const USUARIOS_E2E: Omit<NovoUsuario, 'senha'>[] = [
   {
     email: 'desativavel.e2e@exemplo.com',
     nome: 'Usuária Desativável',
-    perfil: 'arte_finalista' as const,
+    perfil: 'arte_finalista',
     empresas: ['aba', 'roma'],
   },
   {
     email: 'troca.e2e@exemplo.com',
     nome: 'Usuário Troca Senha',
-    perfil: 'arte_finalista' as const,
+    perfil: 'arte_finalista',
     empresas: ['aba'],
     deveTrocarSenha: true,
   },
@@ -39,6 +39,28 @@ export const USUARIOS_E2E = [
     nome: 'Usuário Sem Acesso',
     empresas: ['aba'],
     permissoes: { aba: [] },
+  },
+  // Compras (ADR 0012), só na Roma: duas pessoas que só pedem e uma que acompanha todos os pedidos.
+  {
+    email: 'pede-compras.e2e@exemplo.com',
+    nome: 'Pedro Pedidos E2E',
+    area: 'producao',
+    empresas: ['roma'],
+    permissoes: { roma: ['compras', 'compras.pedir'] },
+  },
+  {
+    email: 'outra-pede.e2e@exemplo.com',
+    nome: 'Olívia Pedidos E2E',
+    area: 'producao',
+    empresas: ['roma'],
+    permissoes: { roma: ['compras', 'compras.pedir'] },
+  },
+  {
+    email: 'acompanha-compras.e2e@exemplo.com',
+    nome: 'Ana Compras E2E',
+    area: 'administracao',
+    empresas: ['roma'],
+    permissoes: { roma: ['compras', 'compras.pedir', 'compras.acompanhar'] },
   },
 ];
 

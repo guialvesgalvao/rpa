@@ -567,19 +567,22 @@ footer {
   margin-bottom: 8px;
 }
 .filtro label,
-.campo > label[for='status-tarefa'] {
+.campo > label[for='status-tarefa'],
+.campo > label[for='status-pedido'] {
   font-size: 13px;
   font-weight: 700;
 }
 .filtro select,
-#status-tarefa {
+#status-tarefa,
+#status-pedido {
   font: inherit;
   padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: 4px;
   background: #fff;
 }
-.selo-tarefa {
+.selo-tarefa,
+.selo-compra {
   flex: none;
   font-size: 12px;
   font-weight: 700;
@@ -601,8 +604,23 @@ footer {
   color: var(--ok);
   border-color: var(--ok);
 }
-.selo-tarefa[data-status='cancelada'] {
+.selo-tarefa[data-status='cancelada'],
+.selo-compra[data-status='cancelada'] {
   text-decoration: line-through;
+}
+.selo-compra[data-status='em_andamento'] {
+  color: var(--run);
+  border-color: var(--run);
+}
+.selo-compra[data-status='concluida'] {
+  color: var(--ok);
+  border-color: var(--ok);
+}
+/* Edição do pedido de compra, aberta abaixo das ações. */
+.edicao-pedido {
+  border-top: 1px solid var(--border);
+  margin-top: 12px;
+  padding-top: 8px;
 }
 .info-tarefa {
   display: grid;

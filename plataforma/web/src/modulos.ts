@@ -1,17 +1,23 @@
-import { type Eu, type Permissao, temPermissao } from '@plataforma/contratos';
+import { empresaTemCompras, type Eu, type Permissao, temPermissao } from '@plataforma/contratos';
 
 // As abas do site; Configurações e as automações do app desktop não entram aqui. Toda aba tem a permissão do
 // módulo dela (ADR 0011); a API confere de novo em cada rota.
 export const ITENS_MENU: readonly { segmento: string; rotulo: string; permissao: Permissao }[] = [
   { segmento: 'artes', rotulo: 'Artes', permissao: 'artes' },
+  { segmento: 'compras', rotulo: 'Compras', permissao: 'compras' },
   { segmento: 'usuarios', rotulo: 'Usuários', permissao: 'usuarios' },
 ];
 
 export type ItemMenu = (typeof ITENS_MENU)[number];
 
-/** As abas que o usuário pode abrir nesta empresa, na ordem do menu. */
-export function itensDoMenu(permissoes: readonly string[] | undefined): ItemMenu[] {
-  return ITENS_MENU.filter((item) => temPermissao(permissoes, item.permissao));
+/** As abas que o usuário pode abrir nesta empresa, na ordem do menu. Compras só existe nas empresas com
+ * sincronização do Bling. */
+export function itensDoMenu(permissoes: readonly string[] | undefined, slug: string): ItemMenu[] {
+  return ITENS_MENU.filter(
+    (item) =>
+      temPermissao(permissoes, item.permissao) &&
+      (item.segmento !== 'compras' || empresaTemCompras(slug)),
+  );
 }
 
 /** As permissões do usuário na empresa; vazio se ele não é dela. */
@@ -21,6 +27,6 @@ export function permissoesNaEmpresa(eu: Pick<Eu, 'empresas'>, slug: string): str
 
 /** Onde a empresa abre: a primeira aba permitida. Sem nenhuma, a própria raiz, que explica a falta de acesso. */
 export function inicioDaEmpresa(slug: string, permissoes: readonly string[] | undefined): string {
-  const [primeira] = itensDoMenu(permissoes);
+  const [primeira] = itensDoMenu(permissoes, slug);
   return primeira ? `/${slug}/${primeira.segmento}` : `/${slug}`;
 }

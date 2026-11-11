@@ -20,6 +20,7 @@ import {
   exigirBancoLocal,
   gerarCnpj,
   PDF_MINIMO,
+  INSUMOS_DEV,
   PRODUTOS_OP,
   semear,
 } from '../../src/cli/semear-dev.js';
@@ -320,9 +321,9 @@ describe('semear-dev', () => {
 
   it('popula clientes, produtos e artes, e pode ser repetido sem duplicar', async () => {
     const resumo = await semear(db);
-    // + o cliente e os 2 produtos da fixture da OP, só na Roma.
+    // + o cliente e os 2 produtos da fixture da OP e os insumos de Compras, só na Roma.
     expect(resumo.clientes).toBe(CLIENTES_POR_EMPRESA * 2 + 1);
-    expect(resumo.produtos).toBe(16 + PRODUTOS_OP.length);
+    expect(resumo.produtos).toBe(16 + PRODUTOS_OP.length + INSUMOS_DEV.length);
     expect(resumo.artes).toBeGreaterThan(0);
     expect(await db.$count(usuarios)).toBe(2);
 

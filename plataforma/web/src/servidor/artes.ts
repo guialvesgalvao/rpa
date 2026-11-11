@@ -40,7 +40,9 @@ export async function lerDaApi<T>(
   const api = criarApi({ url: lerConfig().apiUrl });
   let resposta: Response;
   try {
-    resposta = await api.repassar(api.endereco(caminho), {
+    // A consulta vai à parte: no `pathname`, o `?` seria codificado e a API responderia 404.
+    const [rota = caminho, busca] = caminho.split('?', 2);
+    resposta = await api.repassar(api.endereco(rota, busca ? `?${busca}` : ''), {
       headers: { authorization: `Bearer ${acesso}` },
       ...(cache ? { next: cache } : { cache: 'no-store' }),
     });

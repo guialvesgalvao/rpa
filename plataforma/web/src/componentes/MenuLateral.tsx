@@ -36,7 +36,7 @@ export function MenuLateral({
       </div>
 
       <nav className="menu-itens" aria-label="Abas">
-        {itensDoMenu(permissoes).map((item) => (
+        {itensDoMenu(permissoes, atual.slug).map((item) => (
           <Link
             key={item.segmento}
             href={`/${atual.slug}/${item.segmento}`}

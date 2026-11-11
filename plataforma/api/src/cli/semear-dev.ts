@@ -281,6 +281,8 @@ export async function semear(db: Banco): Promise<ResumoSemente> {
       resumo.clientes += op.clientes;
       resumo.produtos += op.produtos;
       resumo.artes += op.artes;
+      // Depois das artes: os insumos não entram na primeira carga de artes da empresa.
+      resumo.produtos += await semearInsumos(db, empresa.id);
     }
   }
   return resumo;
@@ -343,8 +345,33 @@ async function semearArtesIniciais(
   return criadas;
 }
 
-// Única empresa com a aba OP no app.
+// Única empresa com a aba OP no app (e com o módulo Compras).
 const EMPRESA_OP = 'roma';
+
+// Insumos fictícios do módulo Compras: produtos com código `TPP` (ADR 0012). Dados fictícios.
+export const INSUMOS_DEV = [
+  { nome: 'Tinta Preta Fictícia 1 L', codigo: 'TPP0001' },
+  { nome: 'Cola Branca Fictícia 5 kg', codigo: 'TPP0002' },
+  { nome: 'Fita Adesiva Fictícia 48 mm', codigo: 'TPP0003' },
+];
+
+// Idempotente: os insumos repetidos são ignorados; o de mesmo nome sem código recebe o código.
+async function semearInsumos(db: Banco, empresaId: string): Promise<number> {
+  for (const { nome, codigo } of INSUMOS_DEV) {
+    await db
+      .update(produtos)
+      .set({ codigo })
+      .where(
+        and(eq(produtos.empresaId, empresaId), eq(produtos.nome, nome), isNull(produtos.codigo)),
+      );
+  }
+  const novos = await db
+    .insert(produtos)
+    .values(INSUMOS_DEV.map((insumo) => ({ empresaId, ...insumo })))
+    .onConflictDoNothing()
+    .returning({ id: produtos.id });
+  return novos.length;
+}
 
 // Cliente e produtos da fixture sintética do app (`tests/fixtures/pedido-op.json`): com `RPA_OP_MOCK=1`, a
 // aba OP acha o cliente pelo CNPJ e as artes pelo código. Dados fictícios.

@@ -4,17 +4,32 @@ import { inicioDaEmpresa, itensDoMenu, permissoesNaEmpresa } from '../src/modulo
 
 describe('itensDoMenu', () => {
   it('mostra só as abas dos módulos permitidos, na ordem do menu', () => {
-    expect(itensDoMenu(['usuarios', 'artes']).map((item) => item.segmento)).toEqual([
+    expect(itensDoMenu(['usuarios', 'artes'], 'aba').map((item) => item.segmento)).toEqual([
       'artes',
       'usuarios',
     ]);
-    expect(itensDoMenu(['usuarios']).map((item) => item.rotulo)).toEqual(['Usuários']);
+    expect(itensDoMenu(['usuarios'], 'aba').map((item) => item.rotulo)).toEqual(['Usuários']);
+  });
+
+  it('Compras só aparece nas empresas com sincronização do Bling', () => {
+    const permissoes = ['artes', 'compras', 'usuarios'];
+    expect(itensDoMenu(permissoes, 'roma').map((item) => item.rotulo)).toEqual([
+      'Artes',
+      'Compras',
+      'Usuários',
+    ]);
+    expect(itensDoMenu(permissoes, 'aba').map((item) => item.rotulo)).toEqual([
+      'Artes',
+      'Usuários',
+    ]);
+    expect(inicioDaEmpresa('roma', ['compras'])).toBe('/roma/compras');
+    expect(inicioDaEmpresa('aba', ['compras'])).toBe('/aba');
   });
 
   it('sem permissões, ou só com subpermissão solta, não mostra nada', () => {
-    expect(itensDoMenu([])).toEqual([]);
-    expect(itensDoMenu(undefined)).toEqual([]);
-    expect(itensDoMenu(['artes.adicionar', 'compras'])).toEqual([]);
+    expect(itensDoMenu([], 'roma')).toEqual([]);
+    expect(itensDoMenu(undefined, 'roma')).toEqual([]);
+    expect(itensDoMenu(['artes.adicionar', 'compras.pedir'], 'roma')).toEqual([]);
   });
 });
 

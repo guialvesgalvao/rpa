@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { opcoesNovaArte } from '../src/servidor/artes';
+import { opcoesNovaArte, tarefasDaEmpresa } from '../src/servidor/artes';
+import { pedidosDaEmpresa } from '../src/servidor/compras';
 import { API_URL, apiFalsa } from './apoio/api-falsa';
 
 vi.mock('next/headers', () => ({
@@ -41,5 +42,22 @@ describe('opcoesNovaArte', () => {
     expect(new Headers(init('/v1/cores').headers).get('authorization')).toBe(
       'Bearer acesso-ficticio',
     );
+  });
+});
+
+describe('leitura com consulta', () => {
+  it('manda escopo e status na query string, não no caminho', async () => {
+    const { chamadas } = apiFalsa({
+      'GET /v1/empresas/aba/tarefas': () => Response.json([]),
+      'GET /v1/empresas/roma/compras/pedidos': () => Response.json([]),
+    });
+
+    await tarefasDaEmpresa('aba', { escopo: 'todas', status: 'concluida' });
+    await pedidosDaEmpresa('roma', { escopo: 'abertos' });
+
+    expect(chamadas.map((c) => `${c.url.pathname}${c.url.search}`)).toEqual([
+      '/v1/empresas/aba/tarefas?escopo=todas&status=concluida',
+      '/v1/empresas/roma/compras/pedidos?escopo=abertos',
+    ]);
   });
 });

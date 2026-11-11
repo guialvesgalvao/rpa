@@ -31,7 +31,12 @@ export class ErroUsuario extends Error {
   constructor(
     mensagem: string,
     // Para a API escolher o status; os demais são dado inválido.
-    readonly codigo?: 'email_em_uso' | 'senha_atual_incorreta' | 'senha_repetida',
+    readonly codigo?:
+      | 'email_em_uso'
+      | 'senha_atual_incorreta'
+      | 'senha_repetida'
+      | 'usuario_nao_encontrado'
+      | 'ultimo_administrador',
   ) {
     super(mensagem);
   }
@@ -197,7 +202,10 @@ export async function desativar(db: Banco, email: string): Promise<void> {
       .where(eq(usuarios.id, id));
     await tx
       .update(sessoes)
-      .set({ revogadaEm: sql`now()`, motivoRevogacao: 'usuario_desativado' })
+      .set({
+        revogadaEm: sql`now()`,
+        motivoRevogacao: 'usuario_desativado' satisfies MotivoRevogacao,
+      })
       .where(and(eq(sessoes.usuarioId, id), isNull(sessoes.revogadaEm)));
   });
 }
@@ -377,4 +385,162 @@ export async function listar(db: Banco, id?: string): Promise<UsuarioListado[]> 
     ...usuario,
     perfil: perfilLegado(Object.values(usuario.permissoes).map((lista) => ({ permissoes: lista }))),
   }));
+}
+
+// --- Painel de usuários (ADR 0011): editar, permissões por empresa e exclusão ---
+
+const naoEncontrado = () => new ErroUsuario('Usuário não encontrado.', 'usuario_nao_encontrado');
+
+// Empresas em que o usuário, se ativo, é quem edita permissões: as que não podem ficar sem ninguém assim.
+async function empresasQueAdministra(tx: Transacao, usuarioId: string): Promise<string[]> {
+  const linhas = await tx
+    .select({ empresaId: usuarioEmpresas.empresaId })
+    .from(usuarioEmpresas)
+    .innerJoin(usuarios, eq(usuarios.id, usuarioEmpresas.usuarioId))
+    .where(
+      and(
+        eq(usuarioEmpresas.usuarioId, usuarioId),
+        eq(usuarios.ativo, true),
+        isNull(usuarios.excluidoEm),
+        sql`${usuarioEmpresas.permissoes} @> array['usuarios', 'usuarios.permissoes']::text[]`,
+      ),
+    );
+  return linhas.map((linha) => linha.empresaId);
+}
+
+// Depois da mudança: cada empresa que o usuário administrava continua com alguém que edita permissões.
+async function exigirAdministradores(tx: Transacao, empresaIds: string[]): Promise<void> {
+  for (const empresaId of empresaIds) {
+    const [resta] = await tx
+      .select({ id: usuarios.id })
+      .from(usuarioEmpresas)
+      .innerJoin(usuarios, eq(usuarios.id, usuarioEmpresas.usuarioId))
+      .where(
+        and(
+          eq(usuarioEmpresas.empresaId, empresaId),
+          eq(usuarios.ativo, true),
+          isNull(usuarios.excluidoEm),
+          sql`${usuarioEmpresas.permissoes} @> array['usuarios', 'usuarios.permissoes']::text[]`,
+        ),
+      )
+      .limit(1);
+    if (!resta) {
+      throw new ErroUsuario(
+        'A empresa ficaria sem ninguém que possa editar permissões de usuários.',
+        'ultimo_administrador',
+      );
+    }
+  }
+}
+
+async function existente(tx: Transacao, usuarioId: string): Promise<void> {
+  const [usuario] = await tx
+    .select({ id: usuarios.id })
+    .from(usuarios)
+    .where(and(eq(usuarios.id, usuarioId), isNull(usuarios.excluidoEm)))
+    .for('update');
+  if (!usuario) throw naoEncontrado();
+}
+
+async function umListado(db: Banco, id: string): Promise<UsuarioListado> {
+  const [usuario] = await listar(db, id);
+  if (!usuario) throw naoEncontrado();
+  return usuario;
+}
+
+export type EdicaoUsuario = {
+  nome?: string;
+  email?: string;
+  area?: Area | null;
+  empresas?: string[];
+};
+
+// Muda só o que vier. Trocar as empresas mantém as permissões das que continuam.
+export async function editarUsuario(
+  db: Banco,
+  usuarioId: string,
+  dados: EdicaoUsuario,
+): Promise<UsuarioListado> {
+  const nome = dados.nome === undefined ? undefined : validar(EsquemaNome, dados.nome);
+  const email = dados.email === undefined ? undefined : validar(EsquemaEmail, dados.email);
+  const area = dados.area === undefined ? undefined : validar(EsquemaArea.nullable(), dados.area);
+  const slugs = dados.empresas === undefined ? undefined : validar(EsquemaEmpresas, dados.empresas);
+  try {
+    await db.transaction(async (tx) => {
+      await existente(tx, usuarioId);
+      const administrava = slugs ? await empresasQueAdministra(tx, usuarioId) : [];
+      await tx
+        .update(usuarios)
+        .set({
+          ...(nome === undefined ? {} : { nome }),
+          ...(email === undefined ? {} : { email }),
+          ...(area === undefined ? {} : { area }),
+          atualizadoEm: sql`now()`,
+        })
+        .where(eq(usuarios.id, usuarioId));
+      if (slugs) {
+        await vincularEmpresas(tx, usuarioId, slugs);
+        await exigirAdministradores(tx, administrava);
+      }
+    });
+  } catch (erro) {
+    if (violouUnico(erro))
+      throw new ErroUsuario(`Já existe um usuário com o e-mail ${email}.`, 'email_em_uso');
+    throw erro;
+  }
+  return umListado(db, usuarioId);
+}
+
+// Permissões do usuário numa empresa dele. Subpermissão sem o módulo é descartada.
+export async function definirPermissoes(
+  db: Banco,
+  usuarioId: string,
+  slug: string,
+  permissoes: readonly string[],
+): Promise<UsuarioListado> {
+  await db.transaction(async (tx) => {
+    await existente(tx, usuarioId);
+    const [empresa] = await tx
+      .select({ id: empresas.id })
+      .from(empresas)
+      .innerJoin(usuarioEmpresas, eq(usuarioEmpresas.empresaId, empresas.id))
+      .where(and(eq(empresas.slug, slug), eq(usuarioEmpresas.usuarioId, usuarioId)));
+    if (!empresa) throw naoEncontrado();
+    const administrava = (await empresasQueAdministra(tx, usuarioId)).filter(
+      (id) => id === empresa.id,
+    );
+    await tx
+      .update(usuarioEmpresas)
+      .set({ permissoes: normalizarPermissoes(permissoes) })
+      .where(
+        and(eq(usuarioEmpresas.usuarioId, usuarioId), eq(usuarioEmpresas.empresaId, empresa.id)),
+      );
+    await tx
+      .update(usuarios)
+      .set({ atualizadoEm: sql`now()` })
+      .where(eq(usuarios.id, usuarioId));
+    await exigirAdministradores(tx, administrava);
+  });
+  return umListado(db, usuarioId);
+}
+
+// Exclusão pela tela: a linha fica (o histórico continua mostrando o nome e o e-mail segue ocupado), o
+// usuário some das listas e perde o acesso na hora.
+export async function excluirUsuario(db: Banco, usuarioId: string): Promise<void> {
+  await db.transaction(async (tx) => {
+    await existente(tx, usuarioId);
+    const administrava = await empresasQueAdministra(tx, usuarioId);
+    await tx
+      .update(usuarios)
+      .set({ excluidoEm: sql`now()`, ativo: false, atualizadoEm: sql`now()` })
+      .where(eq(usuarios.id, usuarioId));
+    await tx
+      .update(sessoes)
+      .set({
+        revogadaEm: sql`now()`,
+        motivoRevogacao: 'usuario_excluido' satisfies MotivoRevogacao,
+      })
+      .where(and(eq(sessoes.usuarioId, usuarioId), isNull(sessoes.revogadaEm)));
+    await exigirAdministradores(tx, administrava);
+  });
 }

@@ -11,7 +11,8 @@ export const JANELA_CORRIDA_MS = 60 * 1000;
 
 const BYTES_RENOVACAO = 32;
 
-export type MotivoRevogacao = 'logout' | 'reuso_detectado' | 'troca_senha';
+export type MotivoRevogacao =
+  'logout' | 'reuso_detectado' | 'troca_senha' | 'usuario_desativado' | 'usuario_excluido';
 
 export type ResultadoRenovacao =
   | { ok: true; usuarioId: string; renovacao: string }

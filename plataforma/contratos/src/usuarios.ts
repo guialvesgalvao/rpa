@@ -84,6 +84,8 @@ export const EsquemaUsuarioDetalhe = z.object({
   nome: z.string(),
   email: z.email(),
   area: EsquemaArea.nullable(),
+  // Falso para quem foi desativado pela linha de comando; o excluído nem aparece.
+  ativo: z.boolean(),
   empresas: z.array(z.object({ slug: z.string(), permissoes: z.array(z.string()) })),
   criadoEm: z.iso.datetime(),
 });

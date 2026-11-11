@@ -17,7 +17,7 @@ import type {
   EventoTarefa,
   Opcao,
   PaginaClientes,
-  Perfil,
+  Area,
   ProdutoDoCliente,
   ResponsavelAutomatico,
   SincronizacaoAutomaticaBling,
@@ -26,12 +26,15 @@ import type {
   TarefaDetalhe,
   Tema,
   TipoArquivo,
-  UsuarioResumo,
+  UsuarioDetalhe,
 } from './plataforma/contratos.js';
 
 export type { DocResult, DocTipo, PedidoSelecao };
 
 export type EmpresaTela = { slug: string; nome: string };
+
+/** Empresa do usuário da sessão, com as permissões dele nela (catálogo do `contratos`). */
+export type EmpresaSessaoTela = EmpresaTela & { permissoes: string[] };
 
 /** Empresa em uso, com a identidade visual que a tela aplica. */
 export type EmpresaAtualTela = EmpresaTela & { tema: Tema; logo?: string };
@@ -48,25 +51,41 @@ export type SessaoTela =
       email: string;
       /** Permissões do usuário na empresa em uso (catálogo do `contratos`); decidem abas e blocos da tela. */
       permissoes: string[];
-      empresas: EmpresaTela[];
+      empresas: EmpresaSessaoTela[];
       empresa?: EmpresaAtualTela;
       /** Senha inicial definida pelo admin: a tela pede a troca antes de mostrar o app. */
       deveTrocarSenha: boolean;
     };
 
-/** Novo usuário pela aba Usuários (só admin); as empresas precisam ser do admin. */
+/** Novo usuário pela aba Usuários; `permissoes` por slug de empresa, só de quem pode editá-las. */
 export type NovoUsuarioTela = {
   nome: string;
   email: string;
-  perfil: Perfil;
+  area: Area | null;
   empresas: string[];
   senha: string;
+  permissoes: Record<string, string[]>;
 };
 
-/** Aba Usuários: lista e cria nas empresas do admin. Recusa da API vem como mensagem pronta. */
+/** Dados do usuário que a edição muda (as permissões ficam em `definirPermissoes`). */
+export type EdicaoUsuarioTela = {
+  nome: string;
+  email: string;
+  area: Area | null;
+  empresas: string[];
+};
+
+/**
+ * Aba Usuários, na empresa em uso: lista, cria, edita, define as permissões por empresa e exclui. A API confere
+ * as permissões de quem pede; a recusa vem como mensagem pronta.
+ */
 export type UsuariosApi = {
-  listar(): Promise<UsuarioResumo[]>;
-  criar(novo: NovoUsuarioTela): Promise<UsuarioResumo>;
+  listar(): Promise<UsuarioDetalhe[]>;
+  criar(novo: NovoUsuarioTela): Promise<UsuarioDetalhe>;
+  editar(id: string, dados: EdicaoUsuarioTela): Promise<UsuarioDetalhe>;
+  /** `empresa`: a empresa em que as permissões valem (uma das do usuário). */
+  definirPermissoes(id: string, empresa: string, permissoes: string[]): Promise<UsuarioDetalhe>;
+  excluir(id: string): Promise<void>;
 };
 
 /** Arquivo escolhido no diálogo: caminho e conteúdo ficam no main; `id` o identifica no cadastro. */
@@ -286,6 +305,9 @@ export const CHANNELS = {
   senhaTrocar: 'rpa:senha:trocar',
   usuariosListar: 'rpa:usuarios:listar',
   usuariosCriar: 'rpa:usuarios:criar',
+  usuariosEditar: 'rpa:usuarios:editar',
+  usuariosPermissoes: 'rpa:usuarios:permissoes',
+  usuariosExcluir: 'rpa:usuarios:excluir',
   artesListarClientes: 'rpa:artes:listar-clientes',
   artesObterCliente: 'rpa:artes:obter-cliente',
   artesProdutosDoCliente: 'rpa:artes:produtos-do-cliente',

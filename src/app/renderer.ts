@@ -634,8 +634,13 @@ function aplicarSessao(sessao: SessaoTela) {
   empresaMontada = chaveEmpresa;
   if (temPermissao(permissoes, 'artes')) artes.reiniciar(permissoes);
   else artes.encerrar();
-  if (temPermissao(permissoes, 'usuarios')) usuariosTela.reiniciar(sessao.empresas);
-  else usuariosTela.encerrar();
+  if (temPermissao(permissoes, 'usuarios') && sessao.empresa) {
+    usuariosTela.reiniciar({
+      empresas: sessao.empresas,
+      empresaAtual: sessao.empresa.slug,
+      email: sessao.email,
+    });
+  } else usuariosTela.encerrar();
   opTela.reiniciar();
   limparFatura();
   atualizarContagem();

@@ -58,30 +58,47 @@ describe('tarefas no cliente da API', () => {
     ]);
   });
 
-  it('usuários: lista e cria pelas rotas de /v1/usuarios', async () => {
-    const resumo = {
+  it('usuários: lista, cria, edita, define permissões e exclui pelas rotas da empresa', async () => {
+    const detalhe = {
       id: USUARIO,
       nome: 'Ana Ficticia',
       email: 'ana@exemplo.com',
-      perfil: 'arte_finalista',
+      area: 'producao',
       ativo: true,
-      empresas: ['aba'],
+      empresas: [{ slug: 'roma', permissoes: ['artes'] }],
       criadoEm: '2026-11-05T12:00:00.000Z',
     };
-    const { cliente, chamadas } = api((url) => (url.endsWith('/v1/usuarios') ? json([resumo]) : json({})));
-    expect(await cliente.listarUsuarios()).toEqual([resumo]);
-    const criar = api(() => json(resumo, 201));
+    const base = 'http://api.local/v1/empresas/roma/usuarios';
+    const { cliente, chamadas } = api((url) =>
+      url === base ? json([detalhe]) : new Response(null, { status: 204 }),
+    );
+    expect(await cliente.listarUsuarios('roma')).toEqual([detalhe]);
+    await cliente.excluirUsuario('roma', USUARIO);
+    expect(chamadas).toMatchObject([
+      { url: base, metodo: 'GET' },
+      { url: `${base}/${USUARIO}`, metodo: 'DELETE' },
+    ]);
+
+    const escrita = api(() => json(detalhe, 201));
     const novo = {
       nome: 'Ana Ficticia',
       email: 'ana@exemplo.com',
-      perfil: 'arte_finalista' as const,
-      empresas: ['aba'],
+      area: 'producao' as const,
+      empresas: ['roma'],
       senha: 'senha-inicial-123',
+      permissoes: { roma: ['artes' as const] },
     };
-    expect(await criar.cliente.criarUsuario(novo)).toEqual(resumo);
-    expect(chamadas[0]).toMatchObject({ url: 'http://api.local/v1/usuarios', metodo: 'GET' });
-    expect(criar.chamadas[0]).toMatchObject({ url: 'http://api.local/v1/usuarios', metodo: 'POST' });
-    expect(JSON.parse(String(criar.chamadas[0]?.corpo))).toEqual(novo);
+    expect(await escrita.cliente.criarUsuario('roma', novo)).toEqual(detalhe);
+    await escrita.cliente.editarUsuario('roma', USUARIO, { nome: 'Outro Nome' });
+    await escrita.cliente.definirPermissoesUsuario('roma', USUARIO, ['ops']);
+    expect(escrita.chamadas).toMatchObject([
+      { url: base, metodo: 'POST' },
+      { url: `${base}/${USUARIO}`, metodo: 'PATCH' },
+      { url: `${base}/${USUARIO}/permissoes`, metodo: 'PATCH' },
+    ]);
+    expect(JSON.parse(String(escrita.chamadas[0]?.corpo))).toEqual(novo);
+    expect(JSON.parse(String(escrita.chamadas[1]?.corpo))).toEqual({ nome: 'Outro Nome' });
+    expect(JSON.parse(String(escrita.chamadas[2]?.corpo))).toEqual({ permissoes: ['ops'] });
   });
 
   it('comentário com anexos (multipart) e download do anexo', async () => {

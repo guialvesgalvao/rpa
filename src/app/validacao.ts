@@ -12,10 +12,14 @@ import {
   ANEXOS_POR_COMENTARIO,
   COMENTARIO_TAREFA_MAX,
   ESCOPOS_TAREFAS,
-  EsquemaNovoUsuario,
+  EsquemaCriacaoUsuario,
+  EsquemaEdicaoUsuario,
+  EsquemaPermissoesUsuario,
   validarNovaCor,
   EsquemaStatusTarefa,
-  type NovoUsuario,
+  type CriacaoUsuario,
+  type EdicaoUsuario,
+  type Permissao,
   SENHA_MAXIMA,
   SENHA_MINIMA,
   type StatusTarefa,
@@ -284,11 +288,35 @@ export function validarNomeCor(input: unknown): string {
   return input.trim();
 }
 
+const primeiroProblema = (erro: z.ZodError, padrao: string) => erro.issues[0]?.message ?? padrao;
+
 /** Novo usuário da aba Usuários: a mensagem do primeiro problema, pronta para a tela. */
-export function validarNovoUsuario(input: unknown): NovoUsuario {
-  const parsed = EsquemaNovoUsuario.safeParse(input);
+export function validarNovoUsuario(input: unknown): CriacaoUsuario {
+  const parsed = EsquemaCriacaoUsuario.safeParse(input);
   if (!parsed.success)
-    throw new Error(parsed.error.issues[0]?.message ?? 'Dados do usuário inválidos.');
+    throw new Error(primeiroProblema(parsed.error, 'Dados do usuário inválidos.'));
+  return parsed.data;
+}
+
+/** Edição dos dados do usuário (nome, e-mail, área e empresas). */
+export function validarEdicaoUsuario(input: unknown): EdicaoUsuario {
+  const parsed = EsquemaEdicaoUsuario.safeParse(input);
+  if (!parsed.success)
+    throw new Error(primeiroProblema(parsed.error, 'Dados do usuário inválidos.'));
+  return parsed.data;
+}
+
+/** Permissões do usuário numa empresa: só chaves do catálogo. */
+export function validarPermissoesUsuario(input: unknown): Permissao[] {
+  const parsed = EsquemaPermissoesUsuario.safeParse({ permissoes: input });
+  if (!parsed.success) throw new Error('Permissões inválidas.');
+  return parsed.data.permissoes;
+}
+
+/** Id de usuário que chega da janela pelo IPC. */
+export function validarIdUsuario(input: unknown): string {
+  const parsed = z.uuid().safeParse(input);
+  if (!parsed.success) throw new Error('Usuário inválido.');
   return parsed.data;
 }
 

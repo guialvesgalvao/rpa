@@ -30,6 +30,10 @@ const api: RpaApi = {
   usuarios: {
     listar: () => ipcRenderer.invoke(CHANNELS.usuariosListar),
     criar: (novo) => ipcRenderer.invoke(CHANNELS.usuariosCriar, novo),
+    editar: (id, dados) => ipcRenderer.invoke(CHANNELS.usuariosEditar, id, dados),
+    definirPermissoes: (id, empresa, permissoes) =>
+      ipcRenderer.invoke(CHANNELS.usuariosPermissoes, id, empresa, permissoes),
+    excluir: (id) => ipcRenderer.invoke(CHANNELS.usuariosExcluir, id),
   },
   onSessaoMudou: (callback) =>
     void ipcRenderer.on(CHANNELS.sessaoMudou, (_event, sessao: SessaoTela) => callback(sessao)),

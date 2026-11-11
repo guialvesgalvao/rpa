@@ -15,7 +15,7 @@ import {
   EsquemaComentarioTarefa,
   EsquemaContagemTarefas,
   EsquemaResponsavelAutomatico,
-  EsquemaUsuarioResumo,
+  EsquemaUsuarioDetalhe,
   EsquemaEventoTarefa,
   EsquemaTarefa,
   EsquemaTarefaDetalhe,
@@ -36,9 +36,11 @@ import {
   type Tarefa,
   type TarefaDetalhe,
   type TipoDetectado,
-  type NovoUsuario,
+  type CriacaoUsuario,
+  type EdicaoUsuario,
+  type Permissao,
   type ResponsavelAutomatico,
-  type UsuarioResumo,
+  type UsuarioDetalhe,
   validarNovaArte,
 } from './contratos.js';
 
@@ -103,9 +105,17 @@ export type ClienteArtes = {
     empresa: string,
     responsavelId: string | null,
   ): Promise<ResponsavelAutomatico>;
-  /** Usuários nas empresas do admin (a API confere perfil e empresas). */
-  listarUsuarios(): Promise<UsuarioResumo[]>;
-  criarUsuario(novo: NovoUsuario): Promise<UsuarioResumo>;
+  /** Painel de usuários da empresa (a API confere as permissões de quem pede). */
+  listarUsuarios(empresa: string): Promise<UsuarioDetalhe[]>;
+  criarUsuario(empresa: string, novo: CriacaoUsuario): Promise<UsuarioDetalhe>;
+  editarUsuario(empresa: string, id: string, dados: EdicaoUsuario): Promise<UsuarioDetalhe>;
+  /** Permissões do usuário na `empresa` (a da rota). */
+  definirPermissoesUsuario(
+    empresa: string,
+    id: string,
+    permissoes: Permissao[],
+  ): Promise<UsuarioDetalhe>;
+  excluirUsuario(empresa: string, id: string): Promise<void>;
   obterTarefa(empresa: string, id: string): Promise<TarefaDetalhe>;
   mudarStatusTarefa(empresa: string, id: string, status: StatusTarefa): Promise<Tarefa>;
   /** Cadastra a arte (multipart, como `cadastrar`) e conclui a tarefa. */
@@ -150,7 +160,7 @@ export function criarClienteArtes({
   let cacheCores: { lista: Opcao[]; lidoEm: number } | undefined;
 
   async function chamar(
-    metodo: 'GET' | 'POST' | 'PATCH' | 'PUT',
+    metodo: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE',
     caminho: string,
     opcoes: { corpo?: FormData; json?: unknown; timeout?: number } = {},
   ): Promise<Response> {
@@ -291,11 +301,26 @@ export function criarClienteArtes({
       const resposta = await chamar('GET', rota(empresa, `/tarefas?${params}`));
       return lerJson(resposta, z.array(EsquemaTarefa));
     },
-    async listarUsuarios() {
-      return lerJson(await chamar('GET', '/v1/usuarios'), z.array(EsquemaUsuarioResumo));
+    async listarUsuarios(empresa) {
+      const resposta = await chamar('GET', rota(empresa, '/usuarios'));
+      return lerJson(resposta, z.array(EsquemaUsuarioDetalhe));
     },
-    async criarUsuario(novo) {
-      return lerJson(await chamar('POST', '/v1/usuarios', { json: novo }), EsquemaUsuarioResumo);
+    async criarUsuario(empresa, novo) {
+      const resposta = await chamar('POST', rota(empresa, '/usuarios'), { json: novo });
+      return lerJson(resposta, EsquemaUsuarioDetalhe);
+    },
+    async editarUsuario(empresa, id, dados) {
+      const resposta = await chamar('PATCH', rota(empresa, `/usuarios/${id}`), { json: dados });
+      return lerJson(resposta, EsquemaUsuarioDetalhe);
+    },
+    async definirPermissoesUsuario(empresa, id, permissoes) {
+      const resposta = await chamar('PATCH', rota(empresa, `/usuarios/${id}/permissoes`), {
+        json: { permissoes },
+      });
+      return lerJson(resposta, EsquemaUsuarioDetalhe);
+    },
+    async excluirUsuario(empresa, id) {
+      await chamar('DELETE', rota(empresa, `/usuarios/${id}`));
     },
     async obterResponsavelAutomatico(empresa) {
       const resposta = await chamar('GET', rota(empresa, '/tarefas/responsavel-automatico'));

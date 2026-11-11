@@ -13,7 +13,10 @@ import {
   validarMudancaStatus,
   validarNomeCor,
   validarNovaTarefa,
+  validarEdicaoUsuario,
+  validarIdUsuario,
   validarNovoUsuario,
+  validarPermissoesUsuario,
   validarResponsavelAutomatico,
   validarNumerosOp,
   validarSelecao,
@@ -301,7 +304,7 @@ describe('usuários e senha', () => {
   const novo = {
     nome: 'Ana Ficticia',
     email: 'Ana@Exemplo.com',
-    perfil: 'arte_finalista',
+    area: 'producao',
     empresas: ['aba'],
     senha: 'senha-inicial-123',
   };
@@ -315,6 +318,26 @@ describe('usuários e senha', () => {
       'A senha precisa de ao menos 10 caracteres.',
     );
     expect(() => validarNovoUsuario('x')).toThrow();
+    expect(validarNovoUsuario(novo)).toMatchObject({ area: 'producao', permissoes: {} });
+    expect(() => validarNovoUsuario({ ...novo, permissoes: { aba: ['inventada'] } })).toThrow();
+    expect(() => validarNovoUsuario({ ...novo, area: 'financeiro' })).toThrow();
+  });
+
+  it('edição, permissões e id do usuário', () => {
+    expect(validarEdicaoUsuario({ nome: ' Ana ', area: null })).toEqual({
+      nome: 'Ana',
+      area: null,
+    });
+    expect(() => validarEdicaoUsuario({})).toThrow('Nada para alterar.');
+    expect(() => validarEdicaoUsuario({ empresas: [] })).toThrow('Escolha ao menos uma empresa.');
+
+    expect(validarPermissoesUsuario(['artes', 'artes.editar'])).toEqual(['artes', 'artes.editar']);
+    expect(() => validarPermissoesUsuario(['inventada'])).toThrow('Permissões inválidas.');
+    expect(() => validarPermissoesUsuario('artes')).toThrow('Permissões inválidas.');
+
+    const id = '77777777-7777-4777-8777-777777777777';
+    expect(validarIdUsuario(id)).toBe(id);
+    expect(() => validarIdUsuario('../x')).toThrow('Usuário inválido.');
   });
 
   it('nome da cor nova: tira os espaços; recusa vazio, longo ou fora de texto', () => {

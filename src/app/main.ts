@@ -77,7 +77,7 @@ import {
   type Tarefa,
   type TarefaDetalhe,
   temaDaEmpresa,
-  type UsuarioResumo,
+  type UsuarioDetalhe,
 } from './plataforma/contratos.js';
 import { criarSessao, type EstadoSessao } from './plataforma/sessao.js';
 import { urlDaApi } from './plataforma/url.js';
@@ -104,7 +104,10 @@ import {
   validarMudancaStatus,
   validarNomeCor,
   validarNovaTarefa,
+  validarEdicaoUsuario,
+  validarIdUsuario,
   validarNovoUsuario,
+  validarPermissoesUsuario,
   validarResponsavelAutomatico,
   validarTrocaSenha,
   validarConsultaClientes,
@@ -493,18 +496,61 @@ ipcMain.handle(CHANNELS.senhaTrocar, async (_event, input: unknown): Promise<Ses
   }
 });
 
-// Usuários: a API confere as permissões e as empresas de novo (lidas do banco).
-ipcMain.handle(CHANNELS.usuariosListar, async (): Promise<UsuarioResumo[]> => {
+// Usuários, na empresa em uso: a API confere as permissões e as empresas de novo (lidas do banco).
+ipcMain.handle(CHANNELS.usuariosListar, async (): Promise<UsuarioDetalhe[]> => {
   await exigirPermissao('usuarios');
-  return artesApi.listarUsuarios();
+  const { empresa } = await contexto();
+  return artesApi.listarUsuarios(empresa);
 });
 
-ipcMain.handle(CHANNELS.usuariosCriar, async (_event, input: unknown): Promise<UsuarioResumo> => {
+ipcMain.handle(CHANNELS.usuariosCriar, async (_event, input: unknown): Promise<UsuarioDetalhe> => {
   await exigirPermissao('usuarios.editar');
   const novo = validarNovoUsuario(input);
-  const criado = await artesApi.criarUsuario(novo);
-  logger.info({ perfil: criado.perfil }, 'Usuário criado pelo app');
+  const { empresa } = await contexto();
+  const criado = await artesApi.criarUsuario(empresa, novo);
+  logger.info({ usuarioId: criado.id }, 'Usuário criado pelo app');
   return criado;
+});
+
+ipcMain.handle(
+  CHANNELS.usuariosEditar,
+  async (_event, id: unknown, input: unknown): Promise<UsuarioDetalhe> => {
+    await exigirPermissao('usuarios.editar');
+    const usuarioId = validarIdUsuario(id);
+    const dados = validarEdicaoUsuario(input);
+    const { empresa } = await contexto();
+    const editado = await artesApi.editarUsuario(empresa, usuarioId, dados);
+    logger.info({ usuarioId }, 'Usuário editado pelo app');
+    return editado;
+  },
+);
+
+// As permissões valem na empresa informada (uma das do usuário editado), não só na empresa em uso: quem pede
+// precisa de "Editar permissão de usuários" nela.
+ipcMain.handle(
+  CHANNELS.usuariosPermissoes,
+  async (_event, id: unknown, empresa: unknown, input: unknown): Promise<UsuarioDetalhe> => {
+    const usuarioId = validarIdUsuario(id);
+    const slug = validarSlug(empresa);
+    const permissoes = validarPermissoesUsuario(input);
+    const estado = sessao.estado();
+    const minhas =
+      estado.situacao === 'deslogado'
+        ? undefined
+        : estado.perfil.empresas.find((e) => e.slug === slug)?.permissoes;
+    if (!temPermissao(minhas, 'usuarios.permissoes')) throw new Error('Sem permissão.');
+    const editado = await artesApi.definirPermissoesUsuario(slug, usuarioId, permissoes);
+    logger.info({ usuarioId, empresa: slug }, 'Permissões alteradas pelo app');
+    return editado;
+  },
+);
+
+ipcMain.handle(CHANNELS.usuariosExcluir, async (_event, id: unknown): Promise<void> => {
+  await exigirPermissao('usuarios.editar');
+  const usuarioId = validarIdUsuario(id);
+  const { empresa } = await contexto();
+  await artesApi.excluirUsuario(empresa, usuarioId);
+  logger.info({ usuarioId }, 'Usuário excluído pelo app');
 });
 
 ipcMain.handle(CHANNELS.sessaoSair, async () => {

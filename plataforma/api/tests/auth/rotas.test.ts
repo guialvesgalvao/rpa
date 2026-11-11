@@ -94,8 +94,8 @@ describe('POST /v1/auth/entrar', () => {
       email: EMAIL,
       perfil: 'arte_finalista',
       empresas: [
-        { slug: 'aba', nome: 'ABA Embalagens', permissoes: [] },
-        { slug: 'roma', nome: 'Roma Embalagens', permissoes: [] },
+        { slug: 'aba', nome: 'ABA Embalagens', permissoes: ['artes', 'artes.adicionar'] },
+        { slug: 'roma', nome: 'Roma Embalagens', permissoes: ['artes', 'artes.adicionar'] },
       ],
       area: null,
       deveTrocarSenha: false,

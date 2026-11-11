@@ -28,15 +28,15 @@ const semEmpresa = () => new ErroApi(403, 'sem_empresa', 'Usuário sem empresa v
 let hashFicticio: Promise<string> | undefined;
 const obterHashFicticio = () => (hashFicticio ??= gerarHash('senha-ficticia-para-tempo-constante'));
 
-const paraEu = ({ id, nome, email, perfil, empresas, deveTrocarSenha }: PerfilUsuario): Eu => ({
+const paraEu = ({
   id,
   nome,
   email,
   perfil,
-  empresas: empresas.map((empresa) => ({ ...empresa, permissoes: [] })),
-  area: null,
+  empresas,
+  area,
   deveTrocarSenha,
-});
+}: PerfilUsuario): Eu => ({ id, nome, email, perfil, empresas, area, deveTrocarSenha });
 
 export function rotasAuth(app: FastifyInstance, { db, tokens, relogio, limite }: DepsAuth): void {
   async function emitirAcesso(usuario: PerfilUsuario, agora: Date) {

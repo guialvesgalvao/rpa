@@ -1,11 +1,13 @@
 import type { Opcao, ResponsavelAutomatico } from '@plataforma/contratos';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 
 import type { Banco } from '../db/cliente.js';
 import { tarefasConfig, usuarioEmpresas, usuarios } from '../db/esquema.js';
 import { ErroApi } from '../erros.js';
 
-// Arte finalistas ativos da empresa: quem pode receber as tarefas automáticas.
+// Quem pode receber as tarefas automáticas: usuários ativos que, nesta empresa, podem adicionar artes e não
+// acompanham as tarefas de todos (quem acompanha distribui o trabalho; não o recebe sozinho). É quem tinha o
+// perfil de arte finalista antes das permissões (ADR 0011).
 export function elegiveis(db: Banco, empresaId: string): Promise<Opcao[]> {
   return db
     .select({ id: usuarios.id, nome: usuarios.nome })
@@ -14,8 +16,10 @@ export function elegiveis(db: Banco, empresaId: string): Promise<Opcao[]> {
     .where(
       and(
         eq(usuarioEmpresas.empresaId, empresaId),
-        eq(usuarios.perfil, 'arte_finalista'),
+        sql`${usuarioEmpresas.permissoes} @> array['artes', 'artes.adicionar']::text[]`,
+        sql`not (${usuarioEmpresas.permissoes} @> array['artes.acompanhar']::text[])`,
         eq(usuarios.ativo, true),
+        isNull(usuarios.excluidoEm),
       ),
     )
     .orderBy(asc(usuarios.nome), asc(usuarios.id));

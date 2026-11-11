@@ -1,4 +1,12 @@
-import { SENHA_MINIMA } from '@plataforma/contratos';
+import {
+  type Area,
+  EsquemaArea,
+  normalizarPermissoes,
+  perfilLegado,
+  type Permissao,
+  PERMISSOES_DO_PERFIL,
+  SENHA_MINIMA,
+} from '@plataforma/contratos';
 import { and, asc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
@@ -29,10 +37,16 @@ export class ErroUsuario extends Error {
   }
 }
 
+// Permissões por slug de empresa. Empresa sem entrada fica sem permissões.
+export type PermissoesPorEmpresa = Record<string, readonly string[]>;
+
 export type NovoUsuario = {
   email: string;
   nome: string;
-  perfil: Perfil;
+  // Atalho da CLI e do app antigo: vira as permissões equivalentes em todas as empresas (`PERMISSOES_DO_PERFIL`).
+  perfil?: Perfil;
+  permissoes?: PermissoesPorEmpresa;
+  area?: Area | null;
   senha: string;
   empresas: string[];
   // Senha inicial definida pelo admin na tela: a tela pede a troca no login. A CLI cria com `false`.
@@ -43,9 +57,12 @@ export type UsuarioListado = {
   id: string;
   email: string;
   nome: string;
+  // Derivado das permissões, só para o app antigo e a CLI (`perfilLegado`).
   perfil: Perfil;
+  area: Area | null;
   ativo: boolean;
   empresas: string[];
+  permissoes: Record<string, Permissao[]>;
   criadoEm: Date;
 };
 
@@ -75,16 +92,6 @@ function violouUnico(erro: unknown): boolean {
   return (comCausa.cause?.code ?? comCausa.code) === '23505';
 }
 
-async function idsDasEmpresas(tx: Transacao, slugs: string[]): Promise<string[]> {
-  const encontradas = await tx
-    .select({ id: empresas.id, slug: empresas.slug })
-    .from(empresas)
-    .where(inArray(empresas.slug, slugs));
-  const faltando = slugs.filter((slug) => !encontradas.some((e) => e.slug === slug));
-  if (faltando.length > 0) throw new ErroUsuario(`Empresa inexistente: ${faltando.join(', ')}.`);
-  return encontradas.map((e) => e.id);
-}
-
 async function idDoUsuario(tx: Transacao, email: string): Promise<string> {
   const [usuario] = await tx
     .select({ id: usuarios.id })
@@ -94,27 +101,56 @@ async function idDoUsuario(tx: Transacao, email: string): Promise<string> {
   return usuario.id;
 }
 
-async function vincularEmpresas(tx: Transacao, usuarioId: string, slugs: string[]) {
-  const ids = await idsDasEmpresas(tx, slugs);
+// Troca as empresas do usuário. A empresa que continua mantém as permissões que já tinha, a não ser que
+// `permissoes` traga uma lista nova para ela; a empresa nova começa com a lista informada, ou sem nenhuma.
+async function vincularEmpresas(
+  tx: Transacao,
+  usuarioId: string,
+  slugs: string[],
+  permissoes: PermissoesPorEmpresa = {},
+) {
+  const encontradas = await tx
+    .select({ id: empresas.id, slug: empresas.slug })
+    .from(empresas)
+    .where(inArray(empresas.slug, slugs));
+  const faltando = slugs.filter((slug) => !encontradas.some((e) => e.slug === slug));
+  if (faltando.length > 0) throw new ErroUsuario(`Empresa inexistente: ${faltando.join(', ')}.`);
+
+  const atuais = await tx
+    .select({ empresaId: usuarioEmpresas.empresaId, permissoes: usuarioEmpresas.permissoes })
+    .from(usuarioEmpresas)
+    .where(eq(usuarioEmpresas.usuarioId, usuarioId));
   await tx.delete(usuarioEmpresas).where(eq(usuarioEmpresas.usuarioId, usuarioId));
-  await tx.insert(usuarioEmpresas).values(ids.map((empresaId) => ({ usuarioId, empresaId })));
+  await tx.insert(usuarioEmpresas).values(
+    encontradas.map(({ id: empresaId, slug }) => ({
+      usuarioId,
+      empresaId,
+      permissoes: normalizarPermissoes(
+        permissoes[slug] ?? atuais.find((atual) => atual.empresaId === empresaId)?.permissoes ?? [],
+      ),
+    })),
+  );
 }
 
 export async function criarUsuario(db: Banco, dados: NovoUsuario): Promise<UsuarioListado> {
   const email = validar(EsquemaEmail, dados.email);
   const nome = validar(EsquemaNome, dados.nome);
-  const perfil = validar(EsquemaPerfil, dados.perfil);
+  const perfil = dados.perfil === undefined ? undefined : validar(EsquemaPerfil, dados.perfil);
+  const area = validar(EsquemaArea.nullable(), dados.area ?? null);
   const slugs = validar(EsquemaEmpresas, dados.empresas);
+  const permissoes: PermissoesPorEmpresa =
+    dados.permissoes ??
+    (perfil ? Object.fromEntries(slugs.map((slug) => [slug, PERMISSOES_DO_PERFIL[perfil]])) : {});
   const senhaHash = await gerarHash(validar(EsquemaSenha, dados.senha));
 
   try {
     const id = await db.transaction(async (tx) => {
       const [usuario] = await tx
         .insert(usuarios)
-        .values({ email, nome, perfil, senhaHash, deveTrocarSenha: dados.deveTrocarSenha ?? false })
+        .values({ email, nome, area, senhaHash, deveTrocarSenha: dados.deveTrocarSenha ?? false })
         .returning({ id: usuarios.id });
       if (!usuario) throw new Error('Usuário não criado.');
-      await vincularEmpresas(tx, usuario.id, slugs);
+      await vincularEmpresas(tx, usuario.id, slugs, permissoes);
       return usuario.id;
     });
     const [criado] = await listar(db, id);
@@ -213,11 +249,19 @@ export type PerfilUsuario = {
   id: string;
   nome: string;
   email: string;
+  // Derivado das permissões, só para o app antigo (`perfilLegado`).
   perfil: Perfil;
+  area: Area | null;
+  // Falso para o desativado e para o excluído.
   ativo: boolean;
   deveTrocarSenha: boolean;
-  empresas: { slug: string; nome: string }[];
+  empresas: { slug: string; nome: string; permissoes: Permissao[] }[];
 };
+
+// O que `exigirUsuario` lê a cada requisição: tirar uma permissão (ou excluir o usuário) vale na hora.
+export type Acesso = { ativo: boolean; permissoes: Record<string, Permissao[]> };
+
+const podeEntrar = sql<boolean>`${usuarios.ativo} and ${usuarios.excluidoEm} is null`;
 
 // Para o login: o e-mail já chega normalizado pelo contrato.
 export async function buscarCredenciais(
@@ -225,18 +269,24 @@ export async function buscarCredenciais(
   email: string,
 ): Promise<Credenciais | undefined> {
   const [usuario] = await db
-    .select({ id: usuarios.id, senhaHash: usuarios.senhaHash, ativo: usuarios.ativo })
+    .select({ id: usuarios.id, senhaHash: usuarios.senhaHash, ativo: podeEntrar })
     .from(usuarios)
     .where(eq(usuarios.email, email));
   return usuario;
 }
 
-export async function usuarioAtivo(db: Banco, id: string): Promise<boolean> {
-  const [usuario] = await db
-    .select({ ativo: usuarios.ativo })
+export async function buscarAcesso(db: Banco, id: string): Promise<Acesso> {
+  const linhas = await db
+    .select({ ativo: podeEntrar, slug: empresas.slug, permissoes: usuarioEmpresas.permissoes })
     .from(usuarios)
+    .leftJoin(usuarioEmpresas, eq(usuarioEmpresas.usuarioId, usuarios.id))
+    .leftJoin(empresas, eq(empresas.id, usuarioEmpresas.empresaId))
     .where(eq(usuarios.id, id));
-  return usuario?.ativo ?? false;
+  const permissoes: Acesso['permissoes'] = {};
+  for (const linha of linhas) {
+    if (linha.slug) permissoes[linha.slug] = normalizarPermissoes(linha.permissoes ?? []);
+  }
+  return { ativo: linhas[0]?.ativo ?? false, permissoes };
 }
 
 // Dados e empresas atuais do usuário, lidos do banco (não do token).
@@ -246,12 +296,12 @@ export async function buscarPerfil(db: Banco, id: string): Promise<PerfilUsuario
       id: usuarios.id,
       nome: usuarios.nome,
       email: usuarios.email,
-      // Coluna legada, nula em usuário novo (ADR 0011).
-      perfil: sql<Perfil>`coalesce(${usuarios.perfil}, 'arte_finalista')`,
-      ativo: usuarios.ativo,
+      area: usuarios.area,
+      ativo: podeEntrar,
       deveTrocarSenha: usuarios.deveTrocarSenha,
       empresaSlug: empresas.slug,
       empresaNome: empresas.nome,
+      permissoes: usuarioEmpresas.permissoes,
     })
     .from(usuarios)
     .leftJoin(usuarioEmpresas, eq(usuarioEmpresas.usuarioId, usuarios.id))
@@ -261,11 +311,20 @@ export async function buscarPerfil(db: Banco, id: string): Promise<PerfilUsuario
 
   const [primeira] = linhas;
   if (!primeira) return undefined;
-  const { nome, email, perfil, ativo, deveTrocarSenha } = primeira;
-  const vinculadas = linhas.flatMap(({ empresaSlug, empresaNome }) =>
-    empresaSlug && empresaNome ? [{ slug: empresaSlug, nome: empresaNome }] : [],
+  const { nome, email, area, ativo, deveTrocarSenha } = primeira;
+  const vinculadas = linhas.flatMap(({ empresaSlug, empresaNome, permissoes }) =>
+    empresaSlug && empresaNome
+      ? [
+          {
+            slug: empresaSlug,
+            nome: empresaNome,
+            permissoes: normalizarPermissoes(permissoes ?? []),
+          },
+        ]
+      : [],
   );
-  return { id, nome, email, perfil, ativo, deveTrocarSenha, empresas: vinculadas };
+  const perfil = perfilLegado(vinculadas);
+  return { id, nome, email, perfil, area, ativo, deveTrocarSenha, empresas: vinculadas };
 }
 
 // Usuários (com ao menos uma empresa) cujas empresas estão todas entre as informadas: o que o admin dessas
@@ -281,30 +340,41 @@ export async function listarDoEscopo(
   );
 }
 
-// Nunca devolve o hash da senha.
+// Nunca devolve o hash da senha nem os usuários excluídos.
 export async function listar(db: Banco, id?: string): Promise<UsuarioListado[]> {
   const linhas = await db
     .select({
       id: usuarios.id,
       email: usuarios.email,
       nome: usuarios.nome,
-      // Coluna legada, nula em usuário novo (ADR 0011).
-      perfil: sql<Perfil>`coalesce(${usuarios.perfil}, 'arte_finalista')`,
+      area: usuarios.area,
       ativo: usuarios.ativo,
       criadoEm: usuarios.criadoEm,
       empresa: empresas.slug,
+      permissoes: usuarioEmpresas.permissoes,
     })
     .from(usuarios)
     .leftJoin(usuarioEmpresas, eq(usuarioEmpresas.usuarioId, usuarios.id))
     .leftJoin(empresas, eq(empresas.id, usuarioEmpresas.empresaId))
-    .where(id ? eq(usuarios.id, id) : undefined)
+    .where(and(isNull(usuarios.excluidoEm), id ? eq(usuarios.id, id) : undefined))
     .orderBy(asc(usuarios.email), asc(empresas.slug));
 
   const porId = new Map<string, UsuarioListado>();
-  for (const { empresa, ...usuario } of linhas) {
-    const listado = porId.get(usuario.id) ?? { ...usuario, empresas: [] };
-    if (empresa) listado.empresas.push(empresa);
+  for (const { empresa, permissoes, ...usuario } of linhas) {
+    const listado = porId.get(usuario.id) ?? {
+      ...usuario,
+      perfil: 'arte_finalista' as Perfil,
+      empresas: [],
+      permissoes: {},
+    };
+    if (empresa) {
+      listado.empresas.push(empresa);
+      listado.permissoes[empresa] = normalizarPermissoes(permissoes ?? []);
+    }
     porId.set(usuario.id, listado);
   }
-  return [...porId.values()];
+  return [...porId.values()].map((usuario) => ({
+    ...usuario,
+    perfil: perfilLegado(Object.values(usuario.permissoes).map((lista) => ({ permissoes: lista }))),
+  }));
 }

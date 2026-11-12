@@ -1,6 +1,6 @@
 # ADR 0011 — Permissões por módulo, definidas por empresa
 
-- **Status:** aceito
+- **Status:** aceito; item 7 complementado pela [ADR 0013](0013-redefinicao-e-troca-de-senha.md) (redefinir a senha também é de `usuarios.editar`)
 - **Data:** 2026-11-11
 - **Substitui em parte:** ADR 0003, itens 2 e 8 (perfil no token e `exigirPerfil`); ADR 0005, itens 1, 2 e 6 (rotas só de admin e editar/desativar só na CLI); ADR 0007, item 3 (alcance das tarefas por perfil)
 
@@ -25,10 +25,10 @@ O sistema estava em produção com dois perfis, `admin` e `arte_finalista`. Quem
 6. **Perfil derivado na transição:** a coluna `usuarios.perfil` fica no banco, sem uso, e não é gravada em usuário novo. O login, `GET /v1/eu` e o token continuam levando `perfil`, calculado por `perfilLegado`: `admin` para quem tem alguma permissão fora de Artes em alguma empresa, senão `arte_finalista`. Assim o app já instalado continua entrando. Nada decide acesso pelo perfil. As rotas antigas `GET`/`POST /v1/usuarios` continuam para esse app: o `POST` converte `perfil` em permissões (`PERMISSOES_DO_PERFIL`). A remoção fica para um plano futuro.
 7. **Gestão de usuários pela tela**, em `/v1/empresas/:empresa/usuarios`:
    - `usuarios`: ver a lista;
-   - `usuarios.editar`: criar, editar nome, e-mail, área e empresas, e excluir;
+   - `usuarios.editar`: criar, editar nome, e-mail, área e empresas, excluir e, pela ADR 0013, redefinir a senha;
    - `usuarios.permissoes`: marcar as permissões; sem ela, o usuário novo nasce sem permissões.
 
-   Para editar os dados ou excluir um usuário de mais de uma empresa, é preciso ter `usuarios.editar` em todas elas. Quem gerencia só uma empresa ajusta só as permissões daquela.
+   Para editar os dados, redefinir a senha ou excluir um usuário de mais de uma empresa, é preciso ter `usuarios.editar` em todas elas. Quem gerencia só uma empresa ajusta só as permissões daquela.
 
 8. **Exclusão é soft delete** (`usuarios.excluido_em`). Ela desliga o usuário, revoga as sessões (motivo `usuario_excluido`) e o tira da lista. O histórico mantém o nome, e o e-mail continua bloqueado para cadastro novo.
 9. **Travas:** ninguém exclui a si mesmo (409 `proprio_usuario`) nem tira a própria `usuarios.permissoes` (`propria_permissao`). Toda empresa mantém ao menos um usuário ativo com `usuarios.permissoes` (409 `ultimo_administrador`).

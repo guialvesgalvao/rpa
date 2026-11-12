@@ -35,7 +35,7 @@ A API é a única dona das regras (ADR 0002) e roda com 1 réplica.
 - A janela de 60 s enfraquece um pouco a detecção de roubo. Os clientes devem serializar a renovação: quem renova com um token já deslocado depois de 60 s perde a sessão.
 - O limite de tentativas zera a cada deploy e permite travar a conta de alguém por 15 min.
 - Renovação de usuário sem empresa responde 403 `sem_empresa`; os clientes deslogam só no 401.
-- Não há troca de senha pelo usuário; `usuarios senha` não revoga as sessões abertas.
+- Não havia troca de senha pelo usuário: ela veio com a [ADR 0005](0005-usuarios-pela-tela.md) (primeiro acesso) e a [ADR 0013](0013-redefinicao-e-troca-de-senha.md) (Minha conta). `usuarios senha` não revoga as sessões abertas.
 - A API não sobe sem `DATABASE_URL` e `JWT_SEGREDO`.
 
 ## Gatilho de revisão

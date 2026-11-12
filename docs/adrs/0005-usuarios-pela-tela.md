@@ -1,6 +1,6 @@
 # ADR 0005 — Usuários pela tela, com troca de senha pedida na tela
 
-- **Status:** aceito; itens 1, 2 e 6 (rotas só de admin e editar/desativar só na CLI) substituídos em parte pela [ADR 0011](0011-permissoes-por-modulo.md)
+- **Status:** aceito; itens 1, 2 e 6 (rotas só de admin e editar/desativar só na CLI) substituídos em parte pela [ADR 0011](0011-permissoes-por-modulo.md); item 6 (trocar a senha de outro usuário só na CLI) substituído em parte pela [ADR 0013](0013-redefinicao-e-troca-de-senha.md)
 - **Data:** 2026-11-08
 - **Substitui em parte:** ADR 0003, item 7 (usuários só por CLI)
 
@@ -15,7 +15,7 @@ Pela ADR 0003, usuários só eram criados pela CLI `usuarios`, executada por que
 3. O admin define a senha inicial (mínimo de 10 caracteres). O usuário criado pela tela nasce com `usuarios.deve_trocar_senha = true`; o login e `GET /v1/eu` devolvem `deveTrocarSenha`.
 4. A troca é pedida **só pela tela** (site e app levam à troca antes de qualquer outra tela). A API não bloqueia as outras rotas (decisão do usuário, 2026-11-07).
 5. `POST /v1/eu/senha` (qualquer perfil): confere a senha atual, exige nova diferente, desliga a flag e revoga as outras sessões; a sessão de quem troca continua quando o cliente envia o token de renovação dela. Tentativas limitadas pelo mesmo limite do login (5 em 15 min, por usuário).
-6. Editar, desativar e trocar a senha de outro usuário continuam só na CLI. Usuários criados pela CLI nascem sem pedido de troca.
+6. Editar, desativar e trocar a senha de outro usuário continuam só na CLI. Usuários criados pela CLI nascem sem pedido de troca. _(Editar e excluir pela tela: ADR 0011; redefinir a senha pelo painel: ADR 0013.)_
 
 ## Alternativas consideradas
 
@@ -34,5 +34,5 @@ Pela ADR 0003, usuários só eram criados pela CLI `usuarios`, executada por que
 
 ## Gatilho de revisão
 
-- Pedido de editar/desativar pela tela, ou de convite por e-mail.
+- Pedido de editar/desativar pela tela (atendido pela ADR 0011; a redefinição de senha, pela ADR 0013), ou de convite por e-mail.
 - Uso da API por integrações de terceiros: aí a troca obrigatória passa a ser bloqueio na API.

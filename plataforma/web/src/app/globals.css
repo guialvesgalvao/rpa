@@ -518,6 +518,95 @@ footer {
 .lista .hint {
   margin: 0;
 }
+/* Perfil do cliente: produto expansível com as artes e o modal da imagem. */
+.lista li.produto-com-artes {
+  display: block;
+}
+.produto-cabecalho {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 400;
+  text-align: left;
+  text-transform: none;
+  letter-spacing: normal;
+}
+.produto-cabecalho::before {
+  content: '▸';
+  color: var(--muted);
+}
+.produto-cabecalho[aria-expanded='true']::before {
+  content: '▾';
+}
+.produto-cabecalho > span:first-of-type {
+  flex: 1;
+}
+.produto-cabecalho:hover:not(:disabled) {
+  background: transparent;
+  color: var(--cor-primaria);
+}
+.artes-do-produto {
+  padding: 0 0 12px 20px;
+}
+.artes-do-produto ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.artes-do-produto li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 1px dashed var(--border);
+}
+.artes-do-produto li button {
+  padding: 6px 12px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.modal-imagem {
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 32px);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 25%);
+}
+.modal-imagem::backdrop {
+  background: rgb(0 0 0 / 60%);
+}
+.modal-imagem-conteudo {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+.modal-imagem-topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.modal-imagem img {
+  display: block;
+  max-width: calc(100vw - 64px);
+  max-height: calc(100vh - 120px);
+  margin: 0 auto;
+  object-fit: contain;
+  image-rendering: auto;
+  min-width: 64px;
+  background: var(--bg);
+}
+
 .sucesso {
   background: var(--ok-bg);
   color: var(--ok);

@@ -1,7 +1,8 @@
-import { rotuloArtes, temPermissao } from '@plataforma/contratos';
+import { temPermissao } from '@plataforma/contratos';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
+import { ArtesDoProduto } from '../../../../../componentes/ArtesDoProduto';
 import { NovoTrabalhoArte } from '../../../../../componentes/NovoTrabalhoArte';
 import { exigirPermissaoNaPagina } from '../../../../../servidor/eu';
 import {
@@ -55,10 +56,12 @@ export default async function PaginaCliente({
         ) : (
           <ul className="lista">
             {produtos.map((produto) => (
-              <li key={produto.id}>
-                <span>{produto.nome}</span>
-                <span className="status pendente">{rotuloArtes(produto.quantidadeArtes)}</span>
-              </li>
+              <ArtesDoProduto
+                key={produto.id}
+                empresa={empresa}
+                clienteId={cliente.id}
+                produto={produto}
+              />
             ))}
           </ul>
         )}

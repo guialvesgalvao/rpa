@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 import { ESTADO_SITE, USUARIOS } from '../apoio/ambiente.js';
-import { apiComo, clientePorNome } from '../apoio/api.js';
+import { apiComo, artesDoProduto, clientePorNome, produtosDoCliente } from '../apoio/api.js';
 import {
   CLIENTES_POR_EMPRESA,
   PRIMEIRO_SEM_ARTE,
@@ -118,6 +118,65 @@ for (const perfil of ['admin', 'finalista'] as const) {
       for (const texto of await contadores.allTextContents()) {
         expect(texto).toMatch(/^(1 arte|\d+ artes)$/);
       }
+    });
+
+    test('2.6 artes do produto: "Visualizar imagem" abre a imagem; só com PDF mostra "Sem imagem"', async ({
+      page,
+    }) => {
+      // O 12º cliente do seed tem 3 produtos: um com PDF e imagem, um só com PDF e um só com imagem.
+      const api = await apiComo(USUARIOS.admin);
+      const cliente = await clientePorNome(api, 'aba', nomeDoCliente(11));
+      const produtos = await Promise.all(
+        (await produtosDoCliente(api, 'aba', cliente.id)).map(async (produto) => ({
+          produto,
+          artes: await artesDoProduto(api, 'aba', cliente.id, produto.id),
+        })),
+      );
+      await api.fechar();
+      const comImagem = produtos.find(({ artes }) => artes.some((arte) => arte.temImagem));
+      const soPdf = produtos.find(({ artes }) => artes.every((arte) => !arte.temImagem));
+      if (!comImagem || !soPdf) throw new Error('seed sem as variantes de arte esperadas');
+
+      await page.goto(`/aba/artes/clientes/${cliente.id}`);
+      const produto = (nome: string) =>
+        page.locator('li.produto-com-artes').filter({ has: page.getByText(nome, { exact: true }) });
+
+      // Fechado, o produto não mostra as artes; abrir busca e lista.
+      const itemImagem = produto(comImagem.produto.nome);
+      const cabecalho = itemImagem.locator('button.produto-cabecalho');
+      await expect(cabecalho).toHaveAttribute('aria-expanded', 'false');
+      await cabecalho.click();
+      await expect(cabecalho).toHaveAttribute('aria-expanded', 'true');
+      const artes = itemImagem.getByRole('list', { name: `Artes de ${comImagem.produto.nome}` });
+      await expect(artes.getByRole('listitem')).toHaveCount(comImagem.artes.length);
+
+      const dialogo = page.getByRole('dialog');
+      const imagem = dialogo.getByRole('img');
+      const abrir = () => artes.getByRole('button', { name: 'Visualizar imagem' }).first().click();
+
+      await abrir();
+      await expect(dialogo).toBeVisible();
+      await expect(imagem).toHaveAttribute('alt', /^Arte /);
+      await expect
+        .poll(() => imagem.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth))
+        .toBeGreaterThan(0);
+      await page.keyboard.press('Escape');
+      await expect(dialogo).toHaveCount(0);
+
+      await abrir();
+      await dialogo.getByRole('button', { name: 'Fechar' }).click();
+      await expect(dialogo).toHaveCount(0);
+
+      // Clique fora da imagem (no fundo) também fecha.
+      await abrir();
+      await expect(dialogo).toBeVisible();
+      await page.mouse.click(5, 5);
+      await expect(dialogo).toHaveCount(0);
+
+      const itemPdf = produto(soPdf.produto.nome);
+      await itemPdf.locator('button.produto-cabecalho').click();
+      await expect(itemPdf.getByText('Sem imagem')).toHaveCount(soPdf.artes.length);
+      await expect(itemPdf.getByRole('button', { name: 'Visualizar imagem' })).toHaveCount(0);
     });
 
     test('2.5 cliente sem artes mostra o placeholder', async ({ page }) => {

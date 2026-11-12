@@ -280,6 +280,92 @@ describe('GET /clientes', () => {
   });
 });
 
+describe('GET /clientes?pagina', () => {
+  const nome = (i: number) => `Cliente ${String(i).padStart(2, '0')} Ltda`;
+
+  it('devolve cada página com o total, na mesma ordem do cursor', async () => {
+    for (let i = 1; i <= 60; i++) await criarCliente('aba', nome(i));
+
+    const [primeira, segunda, terceira] = await Promise.all(
+      [1, 2, 3].map((n) => pagina(`?pagina=${n}`)),
+    );
+    for (const atual of [primeira, segunda, terceira]) {
+      expect(atual?.itens).toHaveLength(20);
+      expect(atual?.total).toBe(60);
+      expect(atual?.proximoCursor).toBeNull();
+    }
+    const nomes = [primeira, segunda, terceira].flatMap((p) => p?.itens.map((c) => c.razaoSocial));
+    expect(nomes).toEqual(Array.from({ length: 60 }, (_, i) => nome(i + 1)));
+  });
+
+  it('respeita o limite e devolve vazio além do fim, com o total certo', async () => {
+    for (let i = 1; i <= 25; i++) await criarCliente('aba', nome(i));
+
+    const terceira = await pagina('?pagina=3&limite=10');
+    expect(terceira.itens.map((c) => c.razaoSocial)).toEqual(
+      Array.from({ length: 5 }, (_, i) => nome(i + 21)),
+    );
+    expect(terceira.total).toBe(25);
+
+    const alem = await pagina('?pagina=4&limite=10');
+    expect(alem.itens).toEqual([]);
+    expect(alem.total).toBe(25);
+  });
+
+  it('conta só os clientes da busca', async () => {
+    for (let i = 1; i <= 5; i++) await criarCliente('aba', `Padaria ${i} Ltda`);
+    await criarCliente('aba', 'Mercado Ltda');
+
+    const primeira = await pagina('?busca=padaria&pagina=1&limite=3');
+    const segunda = await pagina('?busca=padaria&pagina=2&limite=3');
+    expect(primeira.itens).toHaveLength(3);
+    expect(segunda.itens.map((c) => c.razaoSocial)).toEqual(['Padaria 4 Ltda', 'Padaria 5 Ltda']);
+    expect(primeira.total).toBe(5);
+    expect(segunda.total).toBe(5);
+    expect((await pagina('?pagina=1')).total).toBe(6);
+    expect(await pagina('?busca=inexistente&pagina=1')).toEqual({
+      itens: [],
+      proximoCursor: null,
+      total: 0,
+    });
+  });
+
+  it('não conta clientes inativos no Bling nem de outra empresa', async () => {
+    await criarCliente('aba', 'Padaria Ativa Ltda');
+    const inativo = await criarCliente('aba', 'Padaria Inativa Ltda');
+    await criarCliente('roma', 'Padaria da Roma Ltda');
+    await db
+      .update(clientes)
+      .set({ idBling: 101, inativoNoBlingEm: new Date() })
+      .where(eq(clientes.id, inativo.id));
+
+    const atual = await pagina('?pagina=1');
+    expect(atual.itens.map((c) => c.razaoSocial)).toEqual(['Padaria Ativa Ltda']);
+    expect(atual.total).toBe(1);
+  });
+
+  it('mantém a consulta por cursor sem total', async () => {
+    for (let i = 1; i <= 3; i++) await criarCliente('aba', nome(i));
+    const resposta = await get('/v1/empresas/aba/clientes?limite=2');
+    expect(resposta.statusCode).toBe(200);
+    expect(Object.keys(resposta.json() as object).sort()).toEqual(['itens', 'proximoCursor']);
+  });
+
+  it('rejeita página inválida e página junto com cursor', async () => {
+    for (let i = 1; i <= 2; i++) await criarCliente('aba', nome(i));
+    const primeira = await pagina('?limite=1');
+    expect(primeira.proximoCursor).not.toBeNull();
+    esperarErro(await get('/v1/empresas/aba/clientes?pagina=0'), 400, 'requisicao_invalida');
+    esperarErro(await get('/v1/empresas/aba/clientes?pagina=1.5'), 400, 'requisicao_invalida');
+    esperarErro(await get('/v1/empresas/aba/clientes?pagina=abc'), 400, 'requisicao_invalida');
+    esperarErro(
+      await get(`/v1/empresas/aba/clientes?pagina=1&cursor=${primeira.proximoCursor}`),
+      400,
+      'requisicao_invalida',
+    );
+  });
+});
+
 describe('GET /clientes/:id', () => {
   it('devolve o cliente da empresa', async () => {
     const criado = await criarCliente('aba', 'Padaria Exemplo Ltda', 'Padaria Exemplo');

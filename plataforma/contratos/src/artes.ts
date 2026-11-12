@@ -12,15 +12,19 @@ export const EsquemaCliente = z.object({
   cnpj: z.string().regex(/^\d{14}$/),
 });
 
-// `proximoCursor` é opaco para o cliente; `null` na última página.
+// `proximoCursor` é opaco para o cliente; `null` na última página. `total` (clientes que casam com a busca)
+// só vem na consulta por `pagina`; a consulta por cursor (app antigo) segue sem ele.
 export const EsquemaPaginaClientes = z.object({
   itens: z.array(EsquemaCliente),
   proximoCursor: z.string().nullable(),
+  total: z.number().int().min(0).optional(),
 });
 
 export const EsquemaConsultaClientes = z.object({
   busca: z.string().max(100).optional(),
   cursor: z.string().max(512).optional(),
+  // Página numerada (a partir de 1); não combina com `cursor`.
+  pagina: z.coerce.number().int().min(1).optional(),
   limite: z.coerce
     .number()
     .int()

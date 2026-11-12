@@ -50,12 +50,20 @@ export function rotasClientes(app: FastifyInstance, { db }: { db: Banco }): void
     '/v1/empresas/:empresa/clientes',
     { preHandler },
     async (request): Promise<PaginaClientes> => {
-      const { busca, cursor, limite } = lerCorpo(EsquemaConsultaClientes, request.query);
+      const { busca, cursor, pagina, limite } = lerCorpo(EsquemaConsultaClientes, request.query);
+      if (cursor !== undefined && pagina !== undefined) {
+        throw new ErroApi(400, 'requisicao_invalida', 'Requisição inválida (cursor e pagina).');
+      }
       const posicao = cursor ? decodificarCursor(cursor) : null;
       if (cursor && !posicao) {
         throw new ErroApi(400, 'requisicao_invalida', 'Requisição inválida (cursor).');
       }
-      return listarClientes(db, await empresaDe(request), { busca, cursor: posicao, limite });
+      return listarClientes(db, await empresaDe(request), {
+        busca,
+        cursor: posicao,
+        limite,
+        pagina,
+      });
     },
   );
 

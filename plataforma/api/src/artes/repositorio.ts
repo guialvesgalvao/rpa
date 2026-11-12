@@ -97,20 +97,47 @@ const paraCliente = (linha: {
   cnpj: string;
 }): Cliente => ({ ...linha, nomeExibicao: linha.nomeExibicao ?? linha.razaoSocial });
 
-export type FiltroClientes = { busca?: string; cursor: Cursor | null; limite: number };
+export type FiltroClientes = {
+  busca?: string;
+  cursor: Cursor | null;
+  limite: number;
+  // Página numerada (a partir de 1): usa OFFSET e devolve o `total`; ignora o cursor.
+  pagina?: number;
+};
 
-// Paginação por cursor (keyset) em (nome sem acento, id): estável com nomes iguais. Clientes inativos ou
-// excluídos no Bling ficam de fora; `buscarCliente` ainda os encontra, para as artes continuarem acessíveis.
+// Duas formas de paginar na mesma ordem (nome sem acento, id), estável com nomes iguais: cursor (keyset),
+// usado pelo app antigo e por `clientePorCnpj`, e página numerada (OFFSET + total), usada pelas listas com
+// páginas. Clientes inativos ou excluídos no Bling ficam de fora; `buscarCliente` ainda os encontra, para as
+// artes continuarem acessíveis.
 export async function listarClientes(
   db: Banco,
   empresaId: string,
-  { busca, cursor, limite }: FiltroClientes,
+  { busca, cursor, limite, pagina }: FiltroClientes,
 ): Promise<PaginaClientes> {
   const termo = busca ? normalizarTermo(busca) : '';
   const condicoes = [eq(clientes.empresaId, empresaId), isNull(clientes.inativoNoBlingEm)];
   if (termo) {
     condicoes.push(sql`${clientes.busca} like '%' || f_unaccent(${escaparLike(termo)}) || '%'`);
   }
+
+  if (pagina !== undefined) {
+    const filtro = and(...condicoes);
+    const [linhas, [contagem]] = await Promise.all([
+      db
+        .select(colunasCliente)
+        .from(clientes)
+        .where(filtro)
+        .orderBy(asc(chaveOrdem), asc(clientes.id))
+        .limit(limite)
+        .offset((pagina - 1) * limite),
+      db
+        .select({ total: sql<number>`count(*)::int` })
+        .from(clientes)
+        .where(filtro),
+    ]);
+    return { itens: linhas.map(paraCliente), proximoCursor: null, total: contagem?.total ?? 0 };
+  }
+
   if (cursor) {
     condicoes.push(sql`(${chaveOrdem}, ${clientes.id}) > (${cursor.chave}, ${cursor.id}::uuid)`);
   }
@@ -122,10 +149,10 @@ export async function listarClientes(
     .orderBy(asc(chaveOrdem), asc(clientes.id))
     .limit(limite + 1);
 
-  const pagina = linhas.slice(0, limite);
-  const ultimo = pagina.at(-1);
+  const itensDaPagina = linhas.slice(0, limite);
+  const ultimo = itensDaPagina.at(-1);
   return {
-    itens: pagina.map(({ chave: _chave, ...linha }) => paraCliente(linha)),
+    itens: itensDaPagina.map(({ chave: _chave, ...linha }) => paraCliente(linha)),
     proximoCursor:
       linhas.length > limite && ultimo
         ? codificarCursor({ chave: ultimo.chave, id: ultimo.id })

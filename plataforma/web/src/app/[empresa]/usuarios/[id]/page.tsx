@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { ExcluirUsuario } from '../../../../componentes/ExcluirUsuario';
+import { FormRedefinirSenha } from '../../../../componentes/FormRedefinirSenha';
 import { FormUsuario } from '../../../../componentes/FormUsuario';
 import { PainelPermissoes } from '../../../../componentes/PainelPermissoes';
 import { exigirPermissaoNaPagina } from '../../../../servidor/eu';
@@ -15,7 +16,7 @@ export const metadata: Metadata = {
 };
 
 // Um usuário da empresa: dados (quem pode editar usuários em todas as empresas dele), permissões (um bloco por
-// empresa em que quem abre pode editar permissões) e exclusão.
+// empresa em que quem abre pode editar permissões), redefinição de senha e exclusão.
 export default async function PaginaUsuario({ params }: PageProps<'/[empresa]/usuarios/[id]'>) {
   const { empresa, id } = await params;
   const { eu, permissoes } = await exigirPermissaoNaPagina(empresa, 'usuarios');
@@ -74,6 +75,13 @@ export default async function PaginaUsuario({ params }: PageProps<'/[empresa]/us
           />
         </div>
       ))}
+
+      {podeEditar && emTodas && !ehEuMesmo && (
+        <div className="card">
+          <h2>Redefinir senha</h2>
+          <FormRedefinirSenha empresa={empresa} usuarioId={usuario.id} />
+        </div>
+      )}
 
       {podeEditar && emTodas && !ehEuMesmo && (
         <div className="card">

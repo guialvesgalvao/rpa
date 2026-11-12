@@ -98,6 +98,7 @@ describe('caminhoPermitido', () => {
     '/v1/eu',
     '/v1/eu/senha',
     '/v1/empresas/aba/artes',
+    '/v1/empresas/aba/usuarios/7c9e6679-7425-40de-944b-e07fc1f90ae7/senha',
     '/v1/cores',
     '/v1/cores/1',
     '/v1/maquinas',

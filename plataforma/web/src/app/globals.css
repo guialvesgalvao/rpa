@@ -540,6 +540,36 @@ footer {
 .nova-cor-linha button {
   padding: 8px 14px;
 }
+/* Campo de senha com o botão "olhinho" dentro, à direita. */
+.campo-senha {
+  position: relative;
+}
+.campo-senha input {
+  padding-right: 44px;
+}
+.olho-senha {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+}
+.olho-senha:hover:not(:disabled),
+.olho-senha[aria-pressed='true'] {
+  background: transparent;
+  color: var(--cor-primaria);
+}
+.olho-senha:focus-visible {
+  outline: 2px solid var(--cor-destaque);
+  outline-offset: 1px;
+}
 .erro-campo {
   color: var(--cor-primaria);
   font-size: 13px;

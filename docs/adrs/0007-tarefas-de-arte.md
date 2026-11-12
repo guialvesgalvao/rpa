@@ -1,6 +1,6 @@
 # ADR 0007 — Tarefas de desenvolvimento de arte
 
-- **Status:** aceito
+- **Status:** aceito; item 3 (alcance por perfil) substituído em parte pela [ADR 0011](0011-permissoes-por-modulo.md)
 - **Data:** 2026-11-08
 
 ## Contexto

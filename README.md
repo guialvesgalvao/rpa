@@ -78,14 +78,13 @@ Como funciona a nota fiscal (**emite NF-e de verdade**, com efeito fiscal se a c
 
 ### Login, perfis e empresas
 
-O app abre na tela de **Entrar** (e-mail e senha da plataforma). A sessão fica salva até o **Sair** (rodapé do menu): fechar e reabrir não pede a senha de novo. Sem conexão com o servidor, o app abre com o perfil salvo: as automações seguem liberadas e Artes fica indisponível.
+O app abre na tela de **Entrar** (e-mail e senha da plataforma). A sessão fica salva até o **Sair** (rodapé do menu): fechar e reabrir não pede a senha de novo. Sem conexão com o servidor, o app abre com as permissões salvas: as automações seguem liberadas e Artes fica indisponível.
 
-- **admin:** vê Artes, Fatura, OP e Usuários e configura o Bling.
-- **arte finalista:** vê só Artes, sem Configurações do Bling.
+O que cada pessoa vê depende das **permissões**, marcadas por empresa no painel de usuários (ADR 0011). Cada aba tem a sua permissão: **Artes** (com "adicionar novas", "editar e excluir" e "acompanhar todas as tarefas"), **Fatura**, **OP** (só na Roma), **Compras** (só na Roma, com "fazer pedidos" e "acompanhar todos os pedidos") e **Usuários** (com "editar permissão" e "editar e excluir usuários"). As credenciais do Bling em Configurações são de quem tem Fatura ou OP; a sincronização, de quem tem OP na Roma. Sem nenhuma permissão na empresa, o app e o site avisam que falta acesso. Os antigos administradores ficaram com todas as permissões, e as antigas arte-finalistas com Artes + "adicionar novas".
 
-Quem foi criado pelo admin na tela entra com a senha inicial e cai direto na troca de senha (app e site); depois da troca, as outras sessões dessa pessoa são encerradas.
+Quem foi criado pela tela entra com a senha inicial e cai direto na troca de senha (app e site); depois da troca, as outras sessões dessa pessoa são encerradas.
 
-**Usuários** (só admin, app e site): lista os usuários das empresas do admin e cria novos com nome, e-mail, perfil, empresas (só as do admin; com uma só, ela vem fixa) e senha inicial. Editar, desativar e trocar a senha de outro usuário continuam na CLI (`plataforma/README.md`).
+**Usuários** (app e site): lista os usuários da empresa com a área (Arte Finalista, Produção, Administração ou Direção; "Sem área" nos antigos). Com "editar e excluir usuários", cria (nome, e-mail, área, empresas e senha inicial), edita os dados e exclui (o usuário perde o acesso na hora e o e-mail continua bloqueado). Com "editar permissão de usuários", marca as permissões, um bloco por empresa. Ninguém exclui a si mesmo nem tira a própria permissão de editar permissões, e cada empresa mantém ao menos uma pessoa com ela. Trocar a senha de outro usuário continua na CLI (`plataforma/README.md`).
 
 O topo do menu mostra a empresa em uso (ABA Embalagens, Roma…). Com mais de uma, clique nele para trocar; a troca fica bloqueada durante uma execução. Tema, logo e título da janela acompanham a empresa, e a última escolhida volta ao reabrir. Empresa sem logo cadastrada mostra só o nome.
 
@@ -104,13 +103,22 @@ Na página do cliente (app e site), o bloco **Novo trabalho de arte** escolhe um
 - **Inserir arte pronta:** abre o formulário de nova arte com o produto já escolhido (o cadastro de sempre).
 - **Iniciar desenvolvimento:** cria uma **tarefa** para esse produto e cliente, com status **Não iniciado** e quem a criou como responsável. Não pede nenhum outro campo: a tarefa serve para registrar quando a arte começou e terminou e para consultar quais estão em produção (ex.: "Arte de Caixa de pizza 35x35 para Pizzaria Ficticia").
 
-Status: **Não iniciado**, **Em desenvolvimento**, **Aguardando validação do cliente**, **Concluída** e **Cancelada**. Admin e arte-finalista podem mudar para qualquer um. **Concluída** exige a arte: escolher Concluída (ou "Concluir com a arte") abre o formulário de nova arte com o cliente e o produto da tarefa, e salvar cadastra a arte e conclui, de uma vez. Uma tarefa concluída pode voltar a outro status; a arte continua vinculada e não pode ser removida enquanto a tarefa existir.
+Status: **Não iniciado**, **Em desenvolvimento**, **Aguardando validação do cliente**, **Concluída** e **Cancelada**. Quem tem Artes pode mudar para qualquer um. **Concluída** exige a arte: escolher Concluída (ou "Concluir com a arte") abre o formulário de nova arte com o cliente e o produto da tarefa, e salvar cadastra a arte e conclui, de uma vez. Uma tarefa concluída pode voltar a outro status; a arte continua vinculada e não pode ser removida enquanto a tarefa existir.
 
 Cada tarefa tem **comentários** (autor e data/hora), com até 5 **anexos** por comentário (PDF ou imagem; texto opcional quando há anexo), e um **Histórico** com cada mudança de status (de → para, autor, data/hora), desde a criação. No app, **Anexar** escolhe os arquivos e **Baixar** pede onde salvar; no site, o campo de arquivos e os links de download.
 
-No topo da home de Artes ficam os atalhos **Pendentes**, **Em andamento**, **Aguardando validação** (com o contador entre parênteses) e **Todos**, que abrem a lista já filtrada. O arte-finalista conta e vê só as próprias; o admin, todas da empresa. O arte-finalista não vê nem altera tarefas de outros.
+No topo da home de Artes ficam os atalhos **Pendentes**, **Em andamento**, **Aguardando validação** (com o contador entre parênteses) e **Todos**, que abrem a lista já filtrada. Quem tem "acompanhar todas as tarefas" conta e vê todas as da empresa; os demais, só as de que são responsáveis, sem ver nem alterar as de outros.
 
-**Tarefas automáticas:** a sincronização com o Bling cria tarefas a partir dos pedidos de venda em aberto quando o cliente ainda não tem arte para o produto (detalhes em `plataforma/README.md`). Elas vão para o **responsável pelas tarefas automáticas**, escolhido pelo admin nas Configurações do app; sem escolha, para a única arte-finalista da empresa.
+**Tarefas automáticas:** a sincronização com o Bling cria tarefas a partir dos pedidos de venda em aberto quando o cliente ainda não tem arte para o produto (detalhes em `plataforma/README.md`). Elas vão para o **responsável pelas tarefas automáticas**, escolhido nas Configurações do app por quem acompanha todas as tarefas; sem escolha, para a única pessoa elegível da empresa (com "adicionar novas" e sem "acompanhar todas as tarefas").
+
+### Compras
+
+Pedidos de compra de insumos, no app e no site, só na Roma (ADR 0012). Insumo é o produto ativo do Bling com código começando por `TPP`, vindo da sincronização. O pedido tem insumo, quantidade (até 3 casas decimais) e observação opcional, e guarda quem pediu, a área dessa pessoa naquele momento, a data, o responsável e o status: **Aberta**, **Em andamento**, **Concluída** ou **Cancelada**.
+
+- **Fazer pedidos:** cria pedidos e vê os próprios. Edita insumo, quantidade e observação enquanto o pedido não terminou e cancela o próprio pedido enquanto está Aberta.
+- **Acompanhar todos os pedidos:** vê todos, **assume** (vira responsável e o pedido passa para Em andamento), muda para qualquer status, edita e comenta em qualquer um.
+
+A lista filtra por **Meus pedidos** (criados ou assumidos), **Em aberto** e, para quem acompanha, **Todos**, além do status. Cada pedido tem comentários com até 5 anexos (PDF ou imagem, como nas tarefas de arte) e um **Histórico** com a criação, as edições (antes → depois), o responsável e as mudanças de status.
 
 ### OP: pré-preencher dados
 
@@ -126,11 +134,11 @@ Salvo (ou quando o pedido já traz observação), o botão vira **Editar dados d
 
 ### Configurações do app
 
-O botão **Configurações** (no cabeçalho, só para o admin) guarda **por usuário e por empresa** o usuário e a senha do Bling e a pasta padrão dos documentos; o caminho do Chrome (opcional) vale para o usuário. Se a empresa em uso não tem usuário, senha ou pasta, a tela abre sozinha ao entrar ou ao trocar para ela (não bloqueia; a execução da Fatura valida de novo). Os valores ficam em `data/settings.json` (em dev, na raiz do projeto; no app instalado, em `%APPDATA%\RPA Bling\data`). A senha é cifrada pelo Windows (DPAPI, via `safeStorage` do Electron) e só pode ser lida pelo mesmo usuário na mesma máquina. Senha em branco mantém a atual, mas é obrigatória no primeiro salvamento de cada empresa.
+O botão **Configurações** (no cabeçalho) guarda, para quem tem Fatura ou OP, **por usuário e por empresa** o usuário e a senha do Bling e a pasta padrão dos documentos; o caminho do Chrome (opcional) vale para o usuário. Se a empresa em uso não tem usuário, senha ou pasta, a tela abre sozinha ao entrar ou ao trocar para ela (não bloqueia; a execução da Fatura valida de novo). Os valores ficam em `data/settings.json` (em dev, na raiz do projeto; no app instalado, em `%APPDATA%\RPA Bling\data`). A senha é cifrada pelo Windows (DPAPI, via `safeStorage` do Electron) e só pode ser lida pelo mesmo usuário na mesma máquina. Senha em branco mantém a atual, mas é obrigatória no primeiro salvamento de cada empresa.
 
-Cada usuário e empresa tem o seu perfil do Chrome (`data/chrome/<usuário>/<empresa>`), para a sessão do Bling de uma empresa nunca ser reaproveitada na outra. O arquivo de configurações do formato antigo (sem dono) não é lido nem apagado: cada admin preenche de novo, por empresa.
+Cada usuário e empresa tem o seu perfil do Chrome (`data/chrome/<usuário>/<empresa>`), para a sessão do Bling de uma empresa nunca ser reaproveitada na outra. O arquivo de configurações do formato antigo (sem dono) não é lido nem apagado: cada usuário preenche de novo, por empresa.
 
-**Sincronizar dados** (só o admin da Roma; o bloco não aparece para a ABA nem para a arte finalista) lê os produtos e os clientes ativos do Bling pela API da plataforma (API v3 do Bling, só leitura). Na primeira vez, ou quando a conexão vence, o app abre a autorização do Bling no navegador; depois de autorizar, clique de novo. O progresso aparece no bloco, e o botão fica desabilitado até o fim, mesmo fechando e reabrindo Configurações. Os dados vão para o banco da plataforma (os clientes e produtos usados nas artes e na OP), e o app mostra apenas as contagens. Uma segunda linha no bloco mostra a **sincronização automática** do servidor: "desligada no servidor", ou o intervalo, o último ciclo (hora, tipo completa/incremental, clientes e produtos atualizados, até três avisos), uma falha com a mensagem, "Bling não conectado" (clique em Sincronizar dados para autorizar) e a data da próxima completa. Ela é atualizada ao abrir Configurações e ao fim do clique. Sem a configuração do Bling no servidor, a mensagem é "Sincronização não configurada no servidor." (detalhes em `plataforma/README.md`).
+**Sincronizar dados** (só quem tem OP na Roma; o bloco não aparece na ABA nem para quem não tem OP) lê os produtos e os clientes ativos do Bling pela API da plataforma (API v3 do Bling, só leitura). Na primeira vez, ou quando a conexão vence, o app abre a autorização do Bling no navegador; depois de autorizar, clique de novo. O progresso aparece no bloco, e o botão fica desabilitado até o fim, mesmo fechando e reabrindo Configurações. Os dados vão para o banco da plataforma (os clientes e produtos usados nas artes e na OP), e o app mostra apenas as contagens. Uma segunda linha no bloco mostra a **sincronização automática** do servidor: "desligada no servidor", ou o intervalo, o último ciclo (hora, tipo completa/incremental, clientes e produtos atualizados, até três avisos), uma falha com a mensagem, "Bling não conectado" (clique em Sincronizar dados para autorizar) e a data da próxima completa. Ela é atualizada ao abrir Configurações e ao fim do clique. Sem a configuração do Bling no servidor, a mensagem é "Sincronização não configurada no servidor." (detalhes em `plataforma/README.md`).
 
 Só em dev (ignoradas no app instalado), duas variáveis isolam o app, como faz a suíte E2E: `RPA_DATA_DIR` troca a pasta de `data/` e `logs/` (e o perfil do Electron, então o app de dev pode estar aberto ao mesmo tempo) e `RPA_API_URL` troca, sem recompilar, a URL da API embutida no build.
 
@@ -142,7 +150,7 @@ Requisitos: Windows 10/11 e Google Chrome instalado. Não precisa de Node nem de
 
 1. Baixe `RPA-Bling-Setup-<versão>.exe` do [último Release](https://github.com/guialvesgalvao/rpa/releases/latest) e execute. A instalação é por usuário (`%LOCALAPPDATA%\Programs\RPA Bling`) e não pede administrador.
 2. O instalador não é assinado, então o Windows mostra "O Windows protegeu o computador": clique em **Mais informações → Executar assim mesmo** (só na primeira instalação).
-3. Abra **RPA Bling** pelo Menu Iniciar, entre com a sua conta e, se for admin, preencha as **Configurações** de cada empresa.
+3. Abra **RPA Bling** pelo Menu Iniciar, entre com a sua conta e, se tiver Fatura ou OP, preencha as **Configurações** de cada empresa.
 
 No app instalado, perfil do Chrome, logs (`logs/`) e falhas (`artifacts/`) ficam em `%APPDATA%\RPA Bling`, e a pasta padrão dos documentos é `Documentos\RPA Bling`.
 

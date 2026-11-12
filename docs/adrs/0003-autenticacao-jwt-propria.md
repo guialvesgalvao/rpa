@@ -1,6 +1,6 @@
 # ADR 0003 — Autenticação JWT própria
 
-- **Status:** aceito; item 7 substituído em parte pela [ADR 0005](0005-usuarios-pela-tela.md)
+- **Status:** aceito; item 7 substituído em parte pela [ADR 0005](0005-usuarios-pela-tela.md); itens 2 e 8 (perfil no token e `exigirPerfil`) substituídos em parte pela [ADR 0011](0011-permissoes-por-modulo.md)
 - **Data:** 2026-10-28
 
 ## Contexto

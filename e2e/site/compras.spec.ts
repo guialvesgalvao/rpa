@@ -24,11 +24,11 @@ test('pedido de compra: criar, assumir, comentar com anexo, concluir e ver o his
   const olivia = await entrar(browser, USUARIOS.outraPedeCompras);
   const ana = await entrar(browser, USUARIOS.acompanhaCompras);
   try {
-    // Quem só pede: o menu mostra Compras e a lista começa vazia; sem o filtro "Todos".
+    // Quem só pede: o menu mostra Compras; sem o filtro "Todos". Não se assume lista vazia: o spec do app
+    // (mesmo banco, mesmo usuário) pode ter deixado pedidos antes deste.
     await expect(
       pedro.getByRole('navigation', { name: 'Abas' }).getByRole('link', { name: 'Compras' }),
     ).toBeVisible();
-    await expect(pedro.getByText('Nenhum pedido encontrado.')).toBeVisible();
     await expect(pedro.getByLabel('Pedidos').locator('option')).toHaveText([
       'Meus pedidos',
       'Em aberto',

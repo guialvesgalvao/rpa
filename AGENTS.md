@@ -37,6 +37,7 @@ Decisões de arquitetura em `docs/adrs/` (índice no `README.md` da pasta).
 - Nunca ler arquivos `.env*` (exceto `.env.example`) nem pedir credenciais no chat.
 - Credenciais do Railway ficam só no painel; scripts locais as recebem via `railway run`, executado pelo usuário.
 - A plataforma não usa as tags `v*` (são do app).
+- Todo módulo novo da aba lateral (site e app) nasce com uma permissão no catálogo de `plataforma/contratos/src/permissoes.ts` e no painel de usuários (ADR 0011).
 
 ## Testes com credenciais reais (OBRIGATÓRIO)
 

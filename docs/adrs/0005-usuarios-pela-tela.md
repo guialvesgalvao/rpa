@@ -1,6 +1,6 @@
 # ADR 0005 — Usuários pela tela, com troca de senha pedida na tela
 
-- **Status:** aceito
+- **Status:** aceito; itens 1, 2 e 6 (rotas só de admin e editar/desativar só na CLI) substituídos em parte pela [ADR 0011](0011-permissoes-por-modulo.md)
 - **Data:** 2026-11-08
 - **Substitui em parte:** ADR 0003, item 7 (usuários só por CLI)
 

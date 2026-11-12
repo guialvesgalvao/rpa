@@ -169,6 +169,8 @@ VALUES ('<empresa_id>', 'Caixa de Pizza');
 
 Cores e máquinas são globais (iguais nas duas empresas). Máquinas (`Favorit`, `Rekord`, `Ultra`) vêm de migração. Cores começam com `4x0` e `4x4` (migração) e as novas são criadas no cadastro da arte (`POST /v1/cores`, com `artes.adicionar` em alguma empresa; nome único sem diferenciar maiúsculas nem acentos). A lista de cores fica 1 h em cache no site e no app (ADR 0009). A arte nunca fica sem arquivo (PDF ou imagem), e o produto precisa ser da mesma empresa do cliente.
 
+**Lista de clientes** (`GET /v1/empresas/:empresa/clientes`, exige `artes`): `busca` (nome, razão social ou CNPJ, sem acento; até 100 caracteres) e `limite` (1–50, padrão 20). Com `pagina` (a partir de 1), responde a página numerada com o `total` da busca e `proximoCursor: null` (site e app atuais). Sem `pagina`, segue o cursor opaco (`cursor`, `proximoCursor`; sem `total`), usado pelo app em versão antiga e pela busca por CNPJ da OP. `pagina` e `cursor` juntos: 400. Clientes inativos no Bling ficam fora da lista e do total (ADR 0014).
+
 Dados fictícios para desenvolvimento (recusa qualquer banco que não seja `localhost` ou `127.0.0.1`; lê só `DATABASE_URL`; é idempotente):
 
 ```bash

@@ -4,6 +4,7 @@ import {
   validarCadastro,
   validarConsultaClientes,
   validarId,
+  validarProdutoDoCliente,
   validarTipoArquivo,
 } from '../../../src/app/validacao.js';
 
@@ -39,6 +40,24 @@ describe('validarConsultaClientes', () => {
   it('exige página inteira a partir de 1', () => {
     for (const pagina of [undefined, 0, -1, 1.5, '2', Number.NaN, Infinity]) {
       expect(() => validarConsultaClientes({ pagina })).toThrow('Busca inválida.');
+    }
+  });
+});
+
+describe('validarProdutoDoCliente', () => {
+  it('aceita cliente e produto por uuid e recusa o resto', () => {
+    expect(validarProdutoDoCliente({ clienteId: ID, produtoId: ID })).toEqual({
+      clienteId: ID,
+      produtoId: ID,
+    });
+    for (const entrada of [
+      { clienteId: ID, produtoId: '../etc' },
+      { clienteId: 'x', produtoId: ID },
+      { clienteId: ID },
+      ID,
+      undefined,
+    ]) {
+      expect(() => validarProdutoDoCliente(entrada)).toThrow('Cliente ou produto inválido.');
     }
   });
 });

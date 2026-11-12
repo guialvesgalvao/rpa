@@ -123,7 +123,7 @@ for (const perfil of ['admin', 'finalista'] as const) {
     test('2.6 artes do produto: "Visualizar imagem" abre a imagem; só com PDF mostra "Sem imagem"', async ({
       page,
     }) => {
-      // O 12º cliente do seed tem 3 produtos: um com PDF e imagem, um só com PDF e um só com imagem.
+      // O 12º cliente do seed tem 3 produtos com artes de PDF, de imagem e das duas.
       const api = await apiComo(USUARIOS.admin);
       const cliente = await clientePorNome(api, 'aba', nomeDoCliente(11));
       const produtos = await Promise.all(
@@ -134,8 +134,8 @@ for (const perfil of ['admin', 'finalista'] as const) {
       );
       await api.fechar();
       const comImagem = produtos.find(({ artes }) => artes.some((arte) => arte.temImagem));
-      const soPdf = produtos.find(({ artes }) => artes.every((arte) => !arte.temImagem));
-      if (!comImagem || !soPdf) throw new Error('seed sem as variantes de arte esperadas');
+      const semImagem = produtos.find(({ artes }) => artes.some((arte) => !arte.temImagem));
+      if (!comImagem || !semImagem) throw new Error('seed sem as variantes de arte esperadas');
 
       await page.goto(`/aba/artes/clientes/${cliente.id}`);
       const produto = (nome: string) =>
@@ -173,10 +173,15 @@ for (const perfil of ['admin', 'finalista'] as const) {
       await page.mouse.click(5, 5);
       await expect(dialogo).toHaveCount(0);
 
-      const itemPdf = produto(soPdf.produto.nome);
-      await itemPdf.locator('button.produto-cabecalho').click();
-      await expect(itemPdf.getByText('Sem imagem')).toHaveCount(soPdf.artes.length);
-      await expect(itemPdf.getByRole('button', { name: 'Visualizar imagem' })).toHaveCount(0);
+      // Cada arte sem imagem mostra "Sem imagem" no lugar do botão.
+      const itemSem = produto(semImagem.produto.nome);
+      if (semImagem !== comImagem) await itemSem.locator('button.produto-cabecalho').click();
+      const contar = (com: boolean) =>
+        semImagem.artes.filter((arte) => arte.temImagem === com).length;
+      await expect(itemSem.getByText('Sem imagem', { exact: true })).toHaveCount(contar(false));
+      await expect(itemSem.getByRole('button', { name: 'Visualizar imagem' })).toHaveCount(
+        contar(true),
+      );
     });
 
     test('2.5 cliente sem artes mostra o placeholder', async ({ page }) => {

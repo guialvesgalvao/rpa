@@ -51,6 +51,7 @@ import {
   ErroRequisicao,
   type ErrosCadastro,
   errosDaRejeicao,
+  type ImagemArte,
   inspecionarArquivo,
   montarEnvio,
   montarEnvioComentario,
@@ -116,6 +117,7 @@ import {
   validarMudancaStatus,
   validarNomeCor,
   validarNovaTarefa,
+  validarProdutoDoCliente,
   validarEdicaoUsuario,
   validarIdUsuario,
   validarNovoUsuario,
@@ -651,6 +653,22 @@ ipcMain.handle(
     return artesApi.produtosDoCliente(empresa, id);
   },
 );
+
+ipcMain.handle(
+  CHANNELS.artesArtesDoProduto,
+  async (_event, input: unknown): Promise<ArteDoProduto[]> => {
+    const { clienteId, produtoId } = validarProdutoDoCliente(input);
+    const { empresa } = await contexto();
+    return artesApi.artesDoProduto(empresa, clienteId, produtoId);
+  },
+);
+
+// Só os bytes de uma imagem conferida pela assinatura (`imagemDaArte`); a janela monta o `blob:`.
+ipcMain.handle(CHANNELS.artesImagem, async (_event, input: unknown): Promise<ImagemArte> => {
+  const arteId = validarId(input);
+  const { empresa } = await contexto();
+  return artesApi.imagemDaArte(empresa, arteId);
+});
 
 ipcMain.handle(CHANNELS.artesOpcoes, async (): Promise<OpcoesArte> => {
   const { empresa } = await contexto();

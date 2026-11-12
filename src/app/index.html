@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob:"
     />
     <title>Automações</title>
     <style>
@@ -622,11 +622,92 @@
       .artes-item-cnpj {
         color: var(--muted);
       }
-      .artes-produtos li {
-        display: flex;
-        justify-content: space-between;
-        padding: 8px 0;
+      .artes-produtos > li {
         border-bottom: 1px solid var(--border);
+      }
+      /* Perfil do cliente: produto expansível com as artes e o modal da imagem (igual ao site). */
+      .produto-cabecalho {
+        display: flex;
+        width: 100%;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 8px 0;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        color: var(--text);
+        font-size: 14px;
+        font-weight: 400;
+        text-align: left;
+        text-transform: none;
+        letter-spacing: normal;
+      }
+      .produto-cabecalho::before {
+        content: '▸';
+        color: var(--muted);
+      }
+      .produto-cabecalho[aria-expanded='true']::before {
+        content: '▾';
+      }
+      .produto-cabecalho > span:first-of-type {
+        flex: 1;
+      }
+      .produto-cabecalho:hover:not(:disabled) {
+        background: transparent;
+        color: var(--aba-red);
+      }
+      .artes-do-produto {
+        padding: 0 0 12px 20px;
+      }
+      .artes-do-produto ul {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      .artes-do-produto li {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 8px 0;
+        border-top: 1px dashed var(--border);
+      }
+      .artes-do-produto li button {
+        padding: 6px 12px;
+        font-size: 12px;
+        white-space: nowrap;
+      }
+      .modal-imagem {
+        padding: 0;
+        border: 0;
+        border-radius: 4px;
+        max-width: calc(100vw - 32px);
+        max-height: calc(100vh - 32px);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+      }
+      .modal-imagem::backdrop {
+        background: rgba(0, 0, 0, 0.6);
+      }
+      .modal-imagem-conteudo {
+        display: grid;
+        gap: 12px;
+        padding: 16px;
+      }
+      .modal-imagem-topo {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+      .modal-imagem img {
+        display: block;
+        max-width: calc(100vw - 64px);
+        max-height: calc(100vh - 120px);
+        min-width: 64px;
+        margin: 0 auto;
+        object-fit: contain;
+        background: var(--bg);
       }
       .artes-contador {
         color: var(--muted);

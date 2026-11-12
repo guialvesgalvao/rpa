@@ -228,13 +228,16 @@ export function validarConclusao(input: unknown): ConclusaoEntrada {
   return parsed.data;
 }
 
-const novaTarefaSchema = z.object({ clienteId: z.uuid(), produtoId: z.uuid() });
+const produtoDoClienteSchema = z.object({ clienteId: z.uuid(), produtoId: z.uuid() });
 
-export function validarNovaTarefa(input: unknown): { clienteId: string; produtoId: string } {
-  const parsed = novaTarefaSchema.safeParse(input);
+/** Valida o par cliente e produto (uuids) que chega da janela: artes do produto e tarefa nova. */
+export function validarProdutoDoCliente(input: unknown): { clienteId: string; produtoId: string } {
+  const parsed = produtoDoClienteSchema.safeParse(input);
   if (!parsed.success) throw new Error('Cliente ou produto inválido.');
   return parsed.data;
 }
+
+export const validarNovaTarefa = validarProdutoDoCliente;
 
 const consultaTarefasSchema = z.object({
   escopo: z.enum(ESCOPOS_TAREFAS),

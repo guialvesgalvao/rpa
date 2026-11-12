@@ -44,6 +44,9 @@ const api: RpaApi = {
       ipcRenderer.invoke(CHANNELS.artesListarClientes, { busca, pagina }),
     obterCliente: (id) => ipcRenderer.invoke(CHANNELS.artesObterCliente, id),
     produtosDoCliente: (id) => ipcRenderer.invoke(CHANNELS.artesProdutosDoCliente, id),
+    artesDoProduto: (clienteId, produtoId) =>
+      ipcRenderer.invoke(CHANNELS.artesArtesDoProduto, { clienteId, produtoId }),
+    imagemDaArte: (arteId) => ipcRenderer.invoke(CHANNELS.artesImagem, arteId),
     opcoes: () => ipcRenderer.invoke(CHANNELS.artesOpcoes),
     criarCor: (nome) => ipcRenderer.invoke(CHANNELS.artesCriarCor, nome),
     escolherArquivo: (tipo) => ipcRenderer.invoke(CHANNELS.artesEscolherArquivo, tipo),

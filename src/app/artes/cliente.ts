@@ -1,9 +1,13 @@
 import type { ArtesApi } from '../api.js';
-import { type Cliente, type Opcao, rotuloArtes } from '../plataforma/contratos.js';
+import { type Cliente, type Opcao } from '../plataforma/contratos.js';
+import { itemDoProduto } from './artes-do-produto.js';
 import { blocoErro, botao, criar, formatarCnpj, mensagemErro } from './dom.js';
 
 export type DepsCliente = {
-  api: Pick<ArtesApi, 'obterCliente' | 'produtosDoCliente' | 'opcoes'>;
+  api: Pick<
+    ArtesApi,
+    'obterCliente' | 'produtosDoCliente' | 'opcoes' | 'artesDoProduto' | 'imagemDaArte'
+  >;
   clienteId: string;
   /** Mensagem de sucesso mostrada no topo (ex.: "Arte cadastrada"). */
   sucesso?: string;
@@ -71,7 +75,10 @@ function blocoNovoTrabalho(
   return bloco;
 }
 
-/** Página do cliente: os produtos que têm arte, com o contador, e o novo trabalho de arte. */
+/**
+ * Página do cliente: os produtos que têm arte, com o contador (cada um abre a lista das artes e a imagem
+ * delas), e o novo trabalho de arte.
+ */
 export function montarCliente(
   raiz: HTMLElement,
   { api, clienteId, sucesso, voltar, cadastrar, iniciarTarefa }: DepsCliente,
@@ -97,14 +104,7 @@ export function montarCliente(
       const itens = produtos.length
         ? criar('ul', 'artes-produtos')
         : criar('div', 'hint', 'Nenhuma arte cadastrada para este cliente.');
-      for (const produto of produtos) {
-        const li = criar('li');
-        li.append(
-          criar('span', undefined, produto.nome),
-          criar('span', 'artes-contador', rotuloArtes(produto.quantidadeArtes)),
-        );
-        itens.append(li);
-      }
+      for (const produto of produtos) itens.append(itemDoProduto(produto, { api, clienteId }));
       card.replaceChildren(
         topo,
         criar('h2', undefined, cliente.nomeExibicao),

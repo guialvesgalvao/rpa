@@ -7,12 +7,14 @@ import type {
   ArtesDoItem,
   ConsultaTarefasApp,
   ErrosCadastro,
+  ImagemArte,
   OpcoesArte,
 } from './plataforma/artes.js';
 import type { ConsultaComprasApp } from './plataforma/compras.js';
 import type { ItemOpTela, PedidoOpTela } from './plataforma/op.js';
 import type {
   AcoesPermitidas,
+  ArteDoProduto,
   Cliente,
   ComentarioCompra,
   ComentarioTarefa,
@@ -200,6 +202,10 @@ export type ArtesApi = {
   listarClientes(busca: string, pagina: number): Promise<PaginaClientes>;
   obterCliente(id: string): Promise<Cliente>;
   produtosDoCliente(id: string): Promise<ProdutoDoCliente[]>;
+  /** Artes de um produto do cliente, da mais nova para a mais antiga. */
+  artesDoProduto(clienteId: string, produtoId: string): Promise<ArteDoProduto[]>;
+  /** Imagem da arte (o tipo é conferido pelos bytes no main); a janela a mostra por um `blob:`. */
+  imagemDaArte(arteId: string): Promise<ImagemArte>;
   opcoes(): Promise<OpcoesArte>;
   /** Cria a cor (só o nome) e a devolve; a mensagem do erro vai pronta para a tela. */
   criarCor(nome: string): Promise<Opcao>;
@@ -360,6 +366,8 @@ export const CHANNELS = {
   artesListarClientes: 'rpa:artes:listar-clientes',
   artesObterCliente: 'rpa:artes:obter-cliente',
   artesProdutosDoCliente: 'rpa:artes:produtos-do-cliente',
+  artesArtesDoProduto: 'rpa:artes:artes-do-produto',
+  artesImagem: 'rpa:artes:imagem',
   artesOpcoes: 'rpa:artes:opcoes',
   artesCriarCor: 'rpa:artes:criar-cor',
   artesEscolherArquivo: 'rpa:artes:escolher-arquivo',

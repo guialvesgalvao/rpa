@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 import { USUARIOS } from '../apoio/ambiente.js';
+import { apiComo, artesDoProduto, clientePorNome, produtosDoCliente } from '../apoio/api.js';
 import { abrirAppLogado, escolherArquivoNoDialogo } from '../apoio/app.js';
 import {
   abrirClienteNoApp,
@@ -101,6 +102,76 @@ test('lista de clientes pagina de 20 em 20, volta pelo cache e a busca volta à 
     await expect(paginacao).toHaveCount(0);
     await raiz.getByLabel('Buscar cliente').fill('');
     await expect(resumo).toHaveText(`Página 1 de 3 · ${CLIENTES_POR_EMPRESA} clientes`);
+  } finally {
+    await app.close();
+  }
+});
+
+test('artes do produto: "Visualizar imagem" abre a imagem; só com PDF mostra "Sem imagem"', async () => {
+  // O 8º cliente do seed tem 3 produtos com artes de PDF, de imagem e das duas.
+  const nome = nomeDoCliente(7);
+  const api = await apiComo(USUARIOS.admin);
+  const cliente = await clientePorNome(api, 'aba', nome);
+  const produtos = await Promise.all(
+    (await produtosDoCliente(api, 'aba', cliente.id)).map(async (produto) => ({
+      produto,
+      artes: await artesDoProduto(api, 'aba', cliente.id, produto.id),
+    })),
+  );
+  await api.fechar();
+  const comImagem = produtos.find(({ artes }) => artes.some((arte) => arte.temImagem));
+  const semImagem = produtos.find(({ artes }) => artes.some((arte) => !arte.temImagem));
+  if (!comImagem || !semImagem) throw new Error('seed sem as variantes de arte esperadas');
+
+  const { app, janela } = await abrirAppLogado(USUARIOS.finalista);
+  try {
+    const raiz = raizArtes(janela);
+    await abrirClienteNoApp(janela, nome);
+    const produto = (nomeProduto: string) =>
+      raiz
+        .locator('li.produto-com-artes')
+        .filter({ has: janela.getByText(nomeProduto, { exact: true }) });
+
+    const itemImagem = produto(comImagem.produto.nome);
+    const cabecalho = itemImagem.locator('button.produto-cabecalho');
+    await expect(cabecalho).toHaveAttribute('aria-expanded', 'false');
+    await cabecalho.click();
+    await expect(cabecalho).toHaveAttribute('aria-expanded', 'true');
+    const artes = itemImagem.getByRole('list', { name: `Artes de ${comImagem.produto.nome}` });
+    await expect(artes.getByRole('listitem')).toHaveCount(comImagem.artes.length);
+
+    const dialogo = janela.getByRole('dialog');
+    const imagem = dialogo.getByRole('img');
+    const abrir = () => artes.getByRole('button', { name: 'Visualizar imagem' }).first().click();
+
+    await abrir();
+    await expect(dialogo).toBeVisible();
+    await expect(imagem).toHaveAttribute('src', /^blob:/);
+    await expect
+      .poll(() => imagem.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth))
+      .toBeGreaterThan(0);
+    await janela.keyboard.press('Escape');
+    await expect(dialogo).toHaveCount(0);
+
+    await abrir();
+    await dialogo.getByRole('button', { name: 'Fechar' }).click();
+    await expect(dialogo).toHaveCount(0);
+
+    // Clique fora da imagem (no fundo) também fecha.
+    await abrir();
+    await expect(dialogo).toBeVisible();
+    await janela.mouse.click(5, 5);
+    await expect(dialogo).toHaveCount(0);
+
+    // Cada arte sem imagem mostra "Sem imagem" no lugar do botão.
+    const itemSem = produto(semImagem.produto.nome);
+    if (semImagem !== comImagem) await itemSem.locator('button.produto-cabecalho').click();
+    const contar = (com: boolean) =>
+      semImagem.artes.filter((arte) => arte.temImagem === com).length;
+    await expect(itemSem.getByText('Sem imagem', { exact: true })).toHaveCount(contar(false));
+    await expect(itemSem.getByRole('button', { name: 'Visualizar imagem' })).toHaveCount(
+      contar(true),
+    );
   } finally {
     await app.close();
   }

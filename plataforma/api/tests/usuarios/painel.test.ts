@@ -416,6 +416,89 @@ describe('DELETE /v1/empresas/:empresa/usuarios/:id', () => {
   });
 });
 
+describe('POST /v1/empresas/:empresa/usuarios/:id/senha', () => {
+  const entrar = (email: string, senha: string) =>
+    app.inject({
+      method: 'POST',
+      url: '/v1/auth/entrar',
+      payload: { email, senha, origem: 'web' },
+    });
+
+  it('define uma senha temporária: a antiga deixa de valer, a nova pede troca e as sessões seguem', async () => {
+    const admin = await pessoa('admin@exemplo.com', { aba: TODAS });
+    const alvo = await pessoa('alvo@exemplo.com', { aba: ['artes'] });
+
+    const resposta = await chamar('POST', `aba/usuarios/${alvo.id}/senha`, admin.token, {
+      novaSenha: '1234567890',
+    });
+    expect(resposta.statusCode).toBe(204);
+
+    esperarErro(await entrar('alvo@exemplo.com', SENHA), 401, 'credenciais_invalidas');
+    const login = await entrar('alvo@exemplo.com', '1234567890');
+    expect(login.statusCode).toBe(200);
+    expect(EsquemaRespostaEntrar.parse(login.json()).eu.deveTrocarSenha).toBe(true);
+    // A sessão que já estava aberta continua valendo.
+    expect((await chamar('GET', 'aba/clientes', alvo.token)).statusCode).toBe(200);
+  });
+
+  it('exige "Editar usuários", senha com o mínimo e alvo da empresa da rota', async () => {
+    const admin = await pessoa('admin@exemplo.com', { aba: TODAS });
+    const leitor = await pessoa('leitor@exemplo.com', { aba: ['usuarios'] });
+    const alvo = await pessoa('alvo@exemplo.com', { aba: ['artes'] });
+    const deOutra = await pessoa('roma@exemplo.com', { roma: ['artes'] });
+    const corpo = { novaSenha: '1234567890' };
+
+    esperarErro(
+      await chamar('POST', `aba/usuarios/${alvo.id}/senha`, leitor.token, corpo),
+      403,
+      'permissao_proibida',
+    );
+    esperarErro(
+      await chamar('POST', `aba/usuarios/${alvo.id}/senha`, admin.token, {
+        novaSenha: '123456789',
+      }),
+      400,
+      'requisicao_invalida',
+    );
+    esperarErro(
+      await chamar('POST', `aba/usuarios/${deOutra.id}/senha`, admin.token, corpo),
+      404,
+      'usuario_nao_encontrado',
+    );
+    esperarErro(
+      await chamar('POST', 'aba/usuarios/nao-e-uuid/senha', admin.token, corpo),
+      404,
+      'usuario_nao_encontrado',
+    );
+    expect((await chamar('DELETE', `aba/usuarios/${alvo.id}`, admin.token)).statusCode).toBe(204);
+    esperarErro(
+      await chamar('POST', `aba/usuarios/${alvo.id}/senha`, admin.token, corpo),
+      404,
+      'usuario_nao_encontrado',
+    );
+  });
+
+  it('não redefine quem também está numa empresa em que falta "Editar usuários", nem a si mesmo', async () => {
+    const admin = await pessoa('admin@exemplo.com', { aba: TODAS, roma: TODAS });
+    const soAba = await pessoa('editor@exemplo.com', { aba: ['usuarios', 'usuarios.editar'] });
+    const nasDuas = await pessoa('duas@exemplo.com', { aba: ['artes'], roma: ['artes'] });
+    const corpo = { novaSenha: '1234567890' };
+
+    esperarErro(
+      await chamar('POST', `aba/usuarios/${nasDuas.id}/senha`, soAba.token, corpo),
+      403,
+      'empresa_proibida',
+    );
+    esperarErro(
+      await chamar('POST', `aba/usuarios/${admin.id}/senha`, admin.token, corpo),
+      409,
+      'proprio_usuario',
+    );
+    expect((await entrar('duas@exemplo.com', SENHA)).statusCode).toBe(200);
+    expect((await entrar('admin@exemplo.com', SENHA)).statusCode).toBe(200);
+  });
+});
+
 describe('rotas antigas /v1/usuarios (app anterior às permissões)', () => {
   it('continuam listando e criando com `perfil`, que vira permissões', async () => {
     const admin = await pessoa('admin@exemplo.com', { aba: TODAS });

@@ -47,6 +47,9 @@ export const EsquemaTrocaSenha = z.object({
   renovacao: z.string().min(1).max(256).optional(),
 });
 
+// Senha nova definida pelo painel para outro usuário (ADR 0013): é temporária, o usuário troca no próximo login.
+export const EsquemaRedefinicaoSenha = z.object({ novaSenha: EsquemaSenhaNova });
+
 const EsquemaNome = z.string().trim().min(1, 'Nome obrigatório.').max(200);
 const EsquemaEmail = z.string().trim().toLowerCase().pipe(z.email('E-mail inválido.'));
 const EsquemaSlugs = z
@@ -92,6 +95,7 @@ export const EsquemaUsuarioDetalhe = z.object({
 
 export type CriacaoUsuario = z.infer<typeof EsquemaCriacaoUsuario>;
 export type EdicaoUsuario = z.infer<typeof EsquemaEdicaoUsuario>;
+export type RedefinicaoSenha = z.infer<typeof EsquemaRedefinicaoSenha>;
 export type PermissoesUsuario = z.infer<typeof EsquemaPermissoesUsuario>;
 export type UsuarioDetalhe = z.infer<typeof EsquemaUsuarioDetalhe>;
 export type NovoUsuario = z.infer<typeof EsquemaNovoUsuario>;

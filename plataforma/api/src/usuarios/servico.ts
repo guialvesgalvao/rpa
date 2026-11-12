@@ -524,6 +524,22 @@ export async function definirPermissoes(
   return umListado(db, usuarioId);
 }
 
+// Senha nova definida pelo painel: é temporária (o usuário troca no próximo login). Não revoga as sessões abertas.
+export async function redefinirSenhaDoUsuario(
+  db: Banco,
+  usuarioId: string,
+  senha: string,
+): Promise<void> {
+  const senhaHash = await gerarHash(validar(EsquemaSenha, senha));
+  await db.transaction(async (tx) => {
+    await existente(tx, usuarioId);
+    await tx
+      .update(usuarios)
+      .set({ senhaHash, deveTrocarSenha: true, atualizadoEm: sql`now()` })
+      .where(eq(usuarios.id, usuarioId));
+  });
+}
+
 // Exclusão pela tela: a linha fica (o histórico continua mostrando o nome e o e-mail segue ocupado), o
 // usuário some das listas e perde o acesso na hora.
 export async function excluirUsuario(db: Banco, usuarioId: string): Promise<void> {

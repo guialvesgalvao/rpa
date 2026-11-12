@@ -3,6 +3,7 @@ import {
   EsquemaEdicaoUsuario,
   EsquemaNovoUsuario,
   EsquemaPermissoesUsuario,
+  EsquemaRedefinicaoSenha,
   EsquemaTrocaSenha,
   type Permissao,
   podeAtribuirEmpresas,
@@ -25,6 +26,7 @@ import {
   excluirUsuario,
   listar,
   listarDoEscopo,
+  redefinirSenhaDoUsuario,
   trocarSenha,
   type UsuarioListado,
 } from '../usuarios/servico.js';
@@ -191,6 +193,32 @@ export function rotasUsuarios(
       } catch (erro) {
         throw paraErroApi(erro);
       }
+    },
+  );
+
+  // Senha temporária definida por quem edita usuários (ADR 0013). Para si, a pessoa usa a Minha conta.
+  app.post(
+    `${BASE}/:id/senha`,
+    { preHandler: [...daEmpresa, exigirPermissao('usuarios.editar')] },
+    async (request, reply) => {
+      const { novaSenha } = lerCorpo(EsquemaRedefinicaoSenha, request.body);
+      const alvo = await alvoDe(request);
+      const { usuarioId } = usuarioDe(request);
+      if (alvo.id === usuarioId) {
+        throw new ErroApi(
+          409,
+          'proprio_usuario',
+          'Para trocar a sua própria senha, use a tela Minha conta.',
+        );
+      }
+      exigirTodasAsEmpresas(request, alvo);
+      try {
+        await redefinirSenhaDoUsuario(db, alvo.id, novaSenha);
+      } catch (erro) {
+        throw paraErroApi(erro);
+      }
+      request.log.info({ usuarioId, alvoId: alvo.id }, 'Senha redefinida pelo painel');
+      return reply.code(204).send();
     },
   );
 

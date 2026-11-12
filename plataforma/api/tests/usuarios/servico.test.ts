@@ -11,6 +11,7 @@ import {
   listar,
   type NovoUsuario,
   redefinirSenha,
+  redefinirSenhaDoUsuario,
 } from '../../src/usuarios/servico.js';
 import { criarBancoTeste, limparTabelas } from '../helpers/banco.js';
 
@@ -108,6 +109,34 @@ describe('redefinirSenha', () => {
     );
     await criarUsuario(db, dados());
     await expect(redefinirSenha(db, 'ana@exemplo.com', 'curta')).rejects.toThrow(ErroUsuario);
+  });
+});
+
+describe('redefinirSenhaDoUsuario', () => {
+  it('troca o hash, pede a troca no próximo login e não mexe nas sessões', async () => {
+    const ana = await criarUsuario(db, dados());
+    await db
+      .insert(sessoes)
+      .values({ usuarioId: ana.id, origem: 'desktop', hashAtual: 'h-aberta' });
+
+    await redefinirSenhaDoUsuario(db, ana.id, '1234567890');
+
+    const hash = await hashGravado('ana@exemplo.com');
+    expect(await conferirSenha('1234567890', hash)).toBe(true);
+    expect(await conferirSenha(SENHA, hash)).toBe(false);
+    const [linha] = await db.select().from(usuarios).where(eq(usuarios.id, ana.id));
+    expect(linha?.deveTrocarSenha).toBe(true);
+    const [sessao] = await db.select().from(sessoes).where(eq(sessoes.usuarioId, ana.id));
+    expect(sessao).toMatchObject({ revogadaEm: null, motivoRevogacao: null });
+  });
+
+  it('recusa senha curta sem mudar nada e usuário inexistente', async () => {
+    const ana = await criarUsuario(db, dados());
+    await expect(redefinirSenhaDoUsuario(db, ana.id, '123456789')).rejects.toThrow(ErroUsuario);
+    expect(await conferirSenha(SENHA, await hashGravado('ana@exemplo.com'))).toBe(true);
+    await expect(
+      redefinirSenhaDoUsuario(db, '00000000-0000-4000-8000-000000000000', SENHA),
+    ).rejects.toMatchObject({ codigo: 'usuario_nao_encontrado' });
   });
 });
 

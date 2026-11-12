@@ -68,3 +68,37 @@ export async function criarCor({ ctx }: Api, nome: string): Promise<{ id: string
   expect(resposta.status(), `criar a cor ${nome}`).toBe(201);
   return (await resposta.json()) as { id: string; nome: string };
 }
+
+/**
+ * Usuário fictício só do cenário, criado pelo painel na ABA (como `admin`) com as permissões informadas. A senha
+ * inicial já sai trocada por `senha`, para ele entrar direto. Devolve o id.
+ */
+export async function criarUsuarioPronto(
+  { ctx }: Api,
+  dados: { email: string; nome: string; permissoes: string[] },
+  senha: string,
+): Promise<string> {
+  const criado = await ctx.post('/v1/empresas/aba/usuarios', {
+    data: {
+      nome: dados.nome,
+      email: dados.email,
+      area: 'producao',
+      empresas: ['aba'],
+      senha: SENHA,
+      permissoes: { aba: dados.permissoes },
+    },
+  });
+  expect(criado.status(), `criar ${dados.email}`).toBe(201);
+  const { id } = (await criado.json()) as { id: string };
+
+  const usuario = await apiComo(dados.email);
+  try {
+    const troca = await usuario.ctx.post('/v1/eu/senha', {
+      data: { senhaAtual: SENHA, novaSenha: senha },
+    });
+    expect(troca.status(), `senha inicial de ${dados.email}`).toBe(204);
+  } finally {
+    await usuario.fechar();
+  }
+  return id;
+}

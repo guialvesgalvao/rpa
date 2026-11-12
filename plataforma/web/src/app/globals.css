@@ -222,6 +222,7 @@ main {
 }
 textarea,
 input[type='text'],
+input[type='search'],
 input[type='email'],
 input[type='password'],
 input[type='number'] {
@@ -235,6 +236,7 @@ input[type='number'] {
 }
 textarea:focus,
 input[type='text']:focus,
+input[type='search']:focus,
 input[type='email']:focus,
 input[type='password']:focus,
 input[type='number']:focus {
@@ -509,7 +511,14 @@ footer {
   margin-top: 6px;
 }
 .permissoes-sub {
-  margin-left: 26px;
+  margin-left: 12px;
+}
+.permissoes-sub .opcao {
+  font-size: 13px;
+}
+.permissoes-sub .opcao::before {
+  content: '•';
+  color: var(--muted);
 }
 .nova-cor-abrir {
   margin-top: 6px;

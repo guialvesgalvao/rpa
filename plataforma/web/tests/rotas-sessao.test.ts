@@ -341,6 +341,62 @@ describe('POST /api/sessao/senha', () => {
     expect(resposta.cookies.get('rpa_acesso')?.value).toBe('');
   });
 
+  describe('Minha conta (retorno=conta)', () => {
+    const daConta = { ...campos, retorno: 'conta' };
+
+    it('volta para a Minha conta com ok=1, mantendo a sessão deste navegador', async () => {
+      const { chamadas } = apiFalsa({
+        'POST /v1/eu/senha': () => new Response(null, { status: 204 }),
+      });
+
+      const resposta = await postSenha(daConta);
+
+      expect(resposta.status).toBe(303);
+      expect(resposta.headers.get('location')).toBe(`${SITE_URL}/roma/conta?ok=1`);
+      expect(corpoJson(chamadas[0])).toMatchObject({ renovacao: 'renovacao-atual' });
+    });
+
+    it.each<[Record<string, string>, string]>([
+      [{ ...daConta, novaSenha: 'curta', confirmacao: 'curta' }, 'senha_curta'],
+      [{ ...daConta, confirmacao: 'outra-senha-123' }, 'confirmacao'],
+    ])('recusa local volta para a conta: %j → %s', async (valores, codigo) => {
+      apiFalsa({});
+
+      const resposta = await postSenha(valores);
+
+      expect(resposta.headers.get('location')).toBe(`${SITE_URL}/roma/conta?erro=${codigo}`);
+    });
+
+    it('recusa da API volta para a conta com o código dela', async () => {
+      apiFalsa({
+        'POST /v1/eu/senha': () =>
+          Response.json(
+            { erro: { codigo: 'senha_atual_incorreta', mensagem: 'Senha atual incorreta.' } },
+            { status: 400 },
+          ),
+      });
+
+      const resposta = await postSenha(daConta);
+
+      expect(resposta.headers.get('location')).toBe(
+        `${SITE_URL}/roma/conta?erro=senha_atual_incorreta`,
+      );
+    });
+
+    it.each<Record<string, string>>([
+      { ...campos, retorno: 'https://mal.exemplo' },
+      { ...campos, retorno: '//mal.exemplo' },
+      { ...daConta, empresa: '../mal' },
+      { ...daConta, empresa: '' },
+    ])('retorno ou empresa fora da lista seguem o primeiro acesso: %j', async (valores) => {
+      apiFalsa({});
+
+      const resposta = await postSenha({ ...valores, confirmacao: 'diferente-123' });
+
+      expect(resposta.headers.get('location')).toBe(`${SITE_URL}/trocar-senha?erro=confirmacao`);
+    });
+  });
+
   it('recusa com 403 o POST de outra origem', async () => {
     const { chamadas } = apiFalsa({});
 

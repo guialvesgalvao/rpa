@@ -124,10 +124,26 @@ aside.menu a[aria-current='page'] {
   display: grid;
   gap: 8px;
 }
-.menu-rodape .usuario {
+aside.menu .menu-rodape a.usuario {
   font-size: 13px;
   color: var(--muted);
   overflow-wrap: anywhere;
+  padding: 4px 0;
+  border: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+aside.menu .menu-rodape a.usuario:hover,
+aside.menu .menu-rodape a.usuario[aria-current='page'] {
+  background: transparent;
+  color: var(--cor-primaria);
+}
+aside.menu .menu-rodape a.usuario[aria-current='page'] {
+  font-weight: 700;
+}
+aside.menu .menu-rodape a.usuario:focus-visible {
+  outline: 2px solid var(--cor-destaque);
+  outline-offset: 2px;
 }
 
 /* Seletor de empresa: `<details>` com a lista sobreposta ao conteúdo. */
@@ -539,6 +555,11 @@ footer {
 }
 .nova-cor-linha button {
   padding: 8px 14px;
+}
+/* Minha conta. */
+.conta-nome {
+  margin: 0;
+  font-weight: 700;
 }
 /* Campo de senha com o botão "olhinho" dentro, à direita. */
 .campo-senha {

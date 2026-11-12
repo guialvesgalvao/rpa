@@ -7,7 +7,8 @@ import { logoDaEmpresa, type Empresa } from '../empresas';
 import { itensDoMenu } from '../modulos';
 import { SeletorEmpresa } from './SeletorEmpresa';
 
-// Topo com a empresa atual (seletor só para quem tem mais de uma), as abas e, no rodapé, o usuário e Sair.
+// Topo com a empresa atual (seletor só para quem tem mais de uma), as abas e, no rodapé, o usuário (abre a
+// Minha conta) e Sair.
 // Em telas estreitas vira uma barra no topo (`globals.css`).
 export function MenuLateral({
   atual,
@@ -48,7 +49,14 @@ export function MenuLateral({
       </nav>
 
       <div className="menu-rodape">
-        <span className="usuario">{usuario}</span>
+        <Link
+          className="usuario"
+          href={`/${atual.slug}/conta`}
+          title="Minha conta"
+          aria-current={segmento === 'conta' ? 'page' : undefined}
+        >
+          {usuario}
+        </Link>
         <form method="post" action="/api/sessao/sair">
           <button type="submit">Sair</button>
         </form>

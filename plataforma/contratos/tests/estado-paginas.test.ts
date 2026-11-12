@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   estadoInicialPaginas,
   itensDaPagina,
+  limitarPagina,
   paginasVisiveis,
   redutorPaginas,
   totalDePaginas,
@@ -195,6 +196,18 @@ describe('totalDePaginas', () => {
     expect(totalDePaginas(20, 20)).toBe(1);
     expect(totalDePaginas(21, 20)).toBe(2);
     expect(totalDePaginas(60, 20)).toBe(3);
+  });
+});
+
+describe('limitarPagina', () => {
+  it('mantém a página no intervalo e trata valor inválido como 1', () => {
+    expect(limitarPagina(2, 3)).toBe(2);
+    expect(limitarPagina(0, 3)).toBe(1);
+    expect(limitarPagina(-4, 3)).toBe(1);
+    expect(limitarPagina(9, 3)).toBe(3);
+    expect(limitarPagina(2.7, 3)).toBe(2);
+    expect(limitarPagina(Number.NaN, 3)).toBe(1);
+    expect(limitarPagina(5, 0)).toBe(1);
   });
 });
 

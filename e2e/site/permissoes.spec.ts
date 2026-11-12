@@ -32,6 +32,14 @@ test('2.13 arte-finalista não edita nem remove arte pela API; admin remove', as
 test.describe('Usuários (admin)', () => {
   test.use({ storageState: ESTADO_SITE.admin });
 
+  test('lista de usuários aceita página inválida ou além do fim sem quebrar', async ({ page }) => {
+    // A suíte tem até 12 usuários na ABA: uma página só, sem controles.
+    for (const pagina of ['abc', '0', '99']) {
+      await page.goto(`/aba/usuarios?pagina=${pagina}`);
+      await expect(page.getByRole('link', { name: 'Editar Admin Fictício' })).toBeVisible();
+    }
+  });
+
   test('troca de empresa ABA → Roma pelo seletor', async ({ page }) => {
     await page.goto('/aba/artes');
     await page.getByLabel(/^Empresa: .*Trocar de empresa$/).click();

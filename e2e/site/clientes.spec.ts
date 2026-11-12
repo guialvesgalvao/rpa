@@ -33,23 +33,78 @@ for (const perfil of ['admin', 'finalista'] as const) {
       await expect(page.getByRole('link', { name: nome })).toBeVisible();
     });
 
-    test('2.3 rolar até o fim carrega de 20 em 20, sem repetição', async ({ page }) => {
+    test('2.3 pagina de 20 em 20 com o total, sem repetição, e volta usa o cache', async ({
+      page,
+    }) => {
+      // Só as requisições concluídas: em dev, o Strict Mode do React roda o efeito duas vezes e aborta a
+      // primeira carga.
+      const requisicoes: string[] = [];
+      page.on('requestfinished', (requisicao) => {
+        if (/\/api\/v1\/empresas\/aba\/clientes\?/.test(requisicao.url())) {
+          requisicoes.push(requisicao.url());
+        }
+      });
       await page.goto('/aba/artes');
       const itens = page.locator('ul.lista li');
+      const links = page.locator('ul.lista li a');
+      const paginacao = page.getByRole('navigation', { name: 'Páginas de clientes' });
+      const carregando = page.getByText('Carregando…');
+      const hrefs = () => links.evaluateAll((todos) => todos.map((l) => l.getAttribute('href')));
+
       await expect(itens).toHaveCount(20);
-      for (const esperado of [40, CLIENTES_POR_EMPRESA]) {
-        await itens.last().scrollIntoViewIfNeeded();
-        await page.mouse.wheel(0, 5_000);
-        await expect(itens).toHaveCount(esperado);
-      }
-      // Fim da lista: rolar de novo não traz mais nada nem mostra erro.
-      await page.mouse.wheel(0, 5_000);
+      await expect(paginacao.getByRole('status')).toHaveText(
+        `Página 1 de 3 · ${CLIENTES_POR_EMPRESA} clientes`,
+      );
+      await expect(paginacao.getByRole('button', { name: 'Página 1' })).toHaveAttribute(
+        'aria-current',
+        'page',
+      );
+      await expect(paginacao.getByRole('button', { name: '‹ Anterior' })).toBeDisabled();
+      const vistos = await hrefs();
+
+      await paginacao.getByRole('button', { name: 'Página 3' }).click();
+      await expect(paginacao.getByRole('status')).toHaveText(/^Página 3 de 3/);
+      await expect(carregando).toHaveCount(0);
+      await expect(itens).toHaveCount(20);
+      await expect(paginacao.getByRole('button', { name: 'Próxima ›' })).toBeDisabled();
+      vistos.push(...(await hrefs()));
+
+      await paginacao.getByRole('button', { name: '‹ Anterior' }).click();
+      await expect(paginacao.getByRole('status')).toHaveText(/^Página 2 de 3/);
+      await expect(carregando).toHaveCount(0);
+      await expect(itens).toHaveCount(20);
+      vistos.push(...(await hrefs()));
+      expect(new Set(vistos).size).toBe(CLIENTES_POR_EMPRESA);
+      expect(requisicoes).toHaveLength(3);
+      expect(requisicoes.every((url) => /[?&]pagina=\d/.test(url))).toBe(true);
+
+      // Página já vista: volta sem nova requisição.
+      await paginacao.getByRole('button', { name: 'Página 1' }).click();
+      await expect(paginacao.getByRole('status')).toHaveText(/^Página 1 de 3/);
+      await expect(itens).toHaveCount(20);
+      expect(await hrefs()).toEqual(vistos.slice(0, 20));
+      expect(requisicoes).toHaveLength(3);
       await expect(page.locator('main').getByRole('alert')).toHaveCount(0);
-      await expect(itens).toHaveCount(CLIENTES_POR_EMPRESA);
-      const nomes = await page
-        .locator('ul.lista li a')
-        .evaluateAll((links) => links.map((link) => link.getAttribute('href')));
-      expect(new Set(nomes).size).toBe(CLIENTES_POR_EMPRESA);
+    });
+
+    test('2.3b busca nova volta à página 1', async ({ page }) => {
+      await page.goto('/aba/artes');
+      const itens = page.locator('ul.lista li');
+      const paginacao = page.getByRole('navigation', { name: 'Páginas de clientes' });
+      await expect(itens).toHaveCount(20);
+      await paginacao.getByRole('button', { name: 'Página 3' }).click();
+      await expect(paginacao.getByRole('status')).toHaveText(/^Página 3 de 3/);
+
+      // 10 padarias no seed: uma página só, sem controles.
+      await page.getByLabel('Buscar cliente').fill('padaria');
+      await expect(itens).toHaveCount(10);
+      await expect(paginacao).toHaveCount(0);
+
+      await page.getByLabel('Buscar cliente').fill('');
+      await expect(paginacao.getByRole('status')).toHaveText(
+        `Página 1 de 3 · ${CLIENTES_POR_EMPRESA} clientes`,
+      );
+      await expect(itens).toHaveCount(20);
     });
 
     test('2.4 cliente com artes mostra o contador por produto', async ({ page }) => {

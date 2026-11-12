@@ -3,22 +3,28 @@
 import {
   EsquemaPaginaClientes,
   LIMITE_PADRAO_CLIENTES,
-  estadoInicial,
-  redutorLista,
+  estadoInicialPaginas,
+  itensDaPagina,
+  redutorPaginas,
+  totalDePaginas,
   type Cliente,
 } from '@plataforma/contratos';
 import Link from 'next/link';
 import { useEffect, useReducer, useRef, useState } from 'react';
 
+import { Paginacao } from './Paginacao';
+
 const ESPERA_BUSCA_MS = 300;
 
-// Clientes da empresa com busca (300 ms de espera) e scroll infinito. Uma busca nova cancela a anterior.
+// Clientes da empresa com busca (300 ms de espera) e páginas numeradas de 20, uma requisição por página.
+// Páginas já vistas ficam em cache; uma busca nova volta à página 1 e cancela a carga anterior.
 export function ListaClientes({ empresa }: { empresa: string }) {
-  const [estado, despachar] = useReducer(redutorLista<Cliente>, undefined, () =>
-    estadoInicial<Cliente>(),
+  const [estado, despachar] = useReducer(redutorPaginas<Cliente>, undefined, () =>
+    estadoInicialPaginas<Cliente>(LIMITE_PADRAO_CLIENTES),
   );
   const [termo, setTermo] = useState('');
-  const sentinela = useRef<HTMLDivElement>(null);
+  const topo = useRef<HTMLDivElement>(null);
+  const paginaAnterior = useRef(estado.pagina);
   // A carga lê o estado mais recente sem entrar nas dependências do efeito.
   const atual = useRef(estado);
   atual.current = estado;
@@ -34,13 +40,12 @@ export function ListaClientes({ empresa }: { empresa: string }) {
 
   // Uma carga por `requisicao`; trocar de requisição (busca nova, desmontar) aborta a anterior.
   useEffect(() => {
-    const { requisicao, busca, proximoCursor, status } = atual.current;
+    const { requisicao, busca, pagina, porPagina, status } = atual.current;
     if (status !== 'carregando') return;
     const controle = new AbortController();
 
-    const parametros = new URLSearchParams({ limite: String(LIMITE_PADRAO_CLIENTES) });
+    const parametros = new URLSearchParams({ pagina: String(pagina), limite: String(porPagina) });
     if (busca) parametros.set('busca', busca);
-    if (proximoCursor) parametros.set('cursor', proximoCursor);
 
     void (async () => {
       try {
@@ -53,12 +58,12 @@ export function ListaClientes({ empresa }: { empresa: string }) {
           return;
         }
         if (!resposta.ok) throw new Error(`HTTP ${resposta.status}`);
-        const pagina = EsquemaPaginaClientes.parse(await resposta.json());
+        const resultado = EsquemaPaginaClientes.parse(await resposta.json());
         despachar({
           tipo: 'pagina_carregada',
           requisicao,
-          itens: pagina.itens,
-          proximoCursor: pagina.proximoCursor,
+          itens: resultado.itens,
+          total: resultado.total ?? resultado.itens.length,
         });
       } catch {
         if (!controle.signal.aborted) despachar({ tipo: 'falhou', requisicao });
@@ -67,21 +72,19 @@ export function ListaClientes({ empresa }: { empresa: string }) {
     return () => controle.abort();
   }, [estado.requisicao, empresa]);
 
-  // Pede a próxima página quando o fim da lista aparece na tela.
+  // Ao trocar de página, traz o começo da lista de volta para a tela se ele tiver saído dela.
   useEffect(() => {
-    const alvo = sentinela.current;
-    if (!alvo || estado.status !== 'ocioso' || estado.fim) return;
-    const observador = new IntersectionObserver((entradas) => {
-      if (entradas.some((entrada) => entrada.isIntersecting)) despachar({ tipo: 'carregar_mais' });
-    });
-    observador.observe(alvo);
-    return () => observador.disconnect();
-  }, [estado.status, estado.fim, estado.requisicao]);
+    if (paginaAnterior.current === estado.pagina) return;
+    paginaAnterior.current = estado.pagina;
+    const alvo = topo.current;
+    if (alvo && alvo.getBoundingClientRect().top < 0) alvo.scrollIntoView({ block: 'start' });
+  }, [estado.pagina]);
 
-  const vazio = estado.status === 'ocioso' && estado.itens.length === 0;
+  const itens = itensDaPagina(estado);
+  const vazio = estado.status === 'ocioso' && itens.length === 0;
 
   return (
-    <div>
+    <div ref={topo}>
       <div className="campo">
         <label htmlFor="busca-clientes">Buscar cliente</label>
         <input
@@ -95,7 +98,7 @@ export function ListaClientes({ empresa }: { empresa: string }) {
       </div>
 
       <ul className="lista">
-        {estado.itens.map((cliente) => (
+        {itens.map((cliente) => (
           <li key={cliente.id}>
             <Link href={`/${empresa}/artes/clientes/${cliente.id}`}>
               <strong>{cliente.nomeExibicao}</strong>
@@ -125,7 +128,15 @@ export function ListaClientes({ empresa }: { empresa: string }) {
           </button>
         </div>
       )}
-      <div ref={sentinela} aria-hidden="true" />
+      {estado.total !== null && (
+        <Paginacao
+          paginaAtual={estado.pagina}
+          totalPaginas={totalDePaginas(estado.total, estado.porPagina)}
+          total={estado.total}
+          rotulo="clientes"
+          aoEscolher={(pagina) => despachar({ tipo: 'pagina_escolhida', pagina })}
+        />
+      )}
     </div>
   );
 }

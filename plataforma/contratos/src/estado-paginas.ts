@@ -31,6 +31,12 @@ export function totalDePaginas(total: number, porPagina: number): number {
   return Math.max(1, Math.ceil(total / porPagina));
 }
 
+// Página dentro de 1..totalPaginas; valor que não é número (parâmetro de URL inválido) vira 1.
+export function limitarPagina(pagina: number, totalPaginas: number): number {
+  if (!Number.isFinite(pagina)) return 1;
+  return Math.min(Math.max(1, Math.trunc(pagina)), Math.max(1, totalPaginas));
+}
+
 // A primeira carga (página 1) já nasce em andamento (`requisicao` 0).
 export function estadoInicialPaginas<T>(porPagina: number, busca = ''): EstadoPaginas<T> {
   return {
@@ -68,8 +74,7 @@ export function redutorPaginas<T>(
       };
     case 'pagina_escolhida': {
       const limite = estado.total === null ? 1 : totalDePaginas(estado.total, estado.porPagina);
-      const pagina = Math.min(Math.max(1, Math.trunc(acao.pagina)), limite);
-      if (!Number.isFinite(pagina)) return estado;
+      const pagina = limitarPagina(acao.pagina, limite);
       if (pagina === estado.pagina && estado.status !== 'erro') return estado;
       // Página em cache: troca na hora e descarta a carga em andamento (se houver).
       if (estado.cache[String(pagina)]) {

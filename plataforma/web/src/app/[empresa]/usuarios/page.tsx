@@ -1,8 +1,15 @@
-import { rotuloArea, temPermissao } from '@plataforma/contratos';
+import {
+  USUARIOS_POR_PAGINA,
+  limitarPagina,
+  rotuloArea,
+  temPermissao,
+  totalDePaginas,
+} from '@plataforma/contratos';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { FormUsuario } from '../../../componentes/FormUsuario';
+import { Paginacao } from '../../../componentes/Paginacao';
 import { exigirPermissaoNaPagina } from '../../../servidor/eu';
 import { usuariosDaEmpresa } from '../../../servidor/usuarios';
 import { empresasCom } from '../../../usuarios';
@@ -13,11 +20,15 @@ export const metadata: Metadata = {
 
 // Painel de usuários da empresa (ADR 0011): quem tem o módulo vê a lista; criar, editar e excluir exigem
 // "Editar e excluir usuários"; marcar permissões exige "Editar permissão de usuários". A API confere de novo.
+// A API devolve todos; a tela mostra 12 por página (`?pagina=N`; inválida vira 1, além do fim vira a última).
 export default async function Usuarios({ params, searchParams }: PageProps<'/[empresa]/usuarios'>) {
   const { empresa } = await params;
-  const { excluido } = await searchParams;
+  const { excluido, pagina: paginaPedida } = await searchParams;
   const { eu, permissoes } = await exigirPermissaoNaPagina(empresa, 'usuarios');
   const usuarios = await usuariosDaEmpresa(empresa);
+  const totalPaginas = totalDePaginas(usuarios.length, USUARIOS_POR_PAGINA);
+  const pagina = limitarPagina(Number(paginaPedida ?? 1), totalPaginas);
+  const daPagina = usuarios.slice((pagina - 1) * USUARIOS_POR_PAGINA, pagina * USUARIOS_POR_PAGINA);
   const nomes = new Map(eu.empresas.map((e) => [e.slug, e.nome]));
   const podeEditar = temPermissao(permissoes, 'usuarios.editar');
   const podeAbrir = podeEditar || temPermissao(permissoes, 'usuarios.permissoes');
@@ -46,7 +57,7 @@ export default async function Usuarios({ params, searchParams }: PageProps<'/[em
                 </tr>
               </thead>
               <tbody>
-                {usuarios.map((usuario) => (
+                {daPagina.map((usuario) => (
                   <tr key={usuario.id}>
                     <td>
                       {usuario.nome}
@@ -71,6 +82,13 @@ export default async function Usuarios({ params, searchParams }: PageProps<'/[em
             </table>
           </div>
         )}
+        <Paginacao
+          paginaAtual={pagina}
+          totalPaginas={totalPaginas}
+          total={usuarios.length}
+          rotulo="usuários"
+          hrefDaPagina={(numero) => `/${empresa}/usuarios?pagina=${numero}`}
+        />
       </div>
       {podeEditar && (
         <div className="card">

@@ -332,6 +332,56 @@ button:disabled {
   margin-bottom: 8px;
 }
 
+/* Paginação numerada (lista de clientes e de usuários). */
+.paginacao {
+  margin-top: 12px;
+}
+.paginacao ul {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  list-style: none;
+  margin: 0 0 6px;
+  padding: 0;
+}
+.paginacao button,
+.paginacao a,
+.paginacao span[aria-current],
+.paginacao span[aria-disabled] {
+  display: inline-block;
+  min-width: 34px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: #fff;
+  color: var(--cor-primaria);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+  text-decoration: none;
+  text-transform: none;
+  letter-spacing: normal;
+}
+.paginacao a:hover,
+.paginacao button:hover:not(:disabled) {
+  border-color: var(--cor-primaria);
+  background: var(--bg);
+  color: var(--cor-primaria);
+}
+.paginacao [aria-current='page'],
+.paginacao button[aria-current='page']:hover {
+  border-color: var(--cor-primaria);
+  background: var(--cor-primaria);
+  color: #fff;
+}
+.paginacao span[aria-disabled] {
+  opacity: 0.5;
+}
+.paginacao .hint {
+  margin: 0;
+}
+
 .campo > label {
   display: block;
   font-size: 13px;

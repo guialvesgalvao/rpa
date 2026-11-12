@@ -8,6 +8,9 @@ export const ROTULOS_PERFIL: Record<Perfil, string> = {
   arte_finalista: 'Arte finalista',
 };
 
+// Usuários por página nas listas do site e do app (a API devolve todos; a página é cortada na tela).
+export const USUARIOS_POR_PAGINA = 12;
+
 // Senha mínima de qualquer cadastro ou troca (a API confere de novo).
 export const SENHA_MINIMA = 10;
 // Teto só para não passar textos enormes pelo scrypt.

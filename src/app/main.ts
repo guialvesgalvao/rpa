@@ -120,6 +120,7 @@ import {
   validarIdUsuario,
   validarNovoUsuario,
   validarPermissoesUsuario,
+  validarRedefinicaoSenha,
   validarResponsavelAutomatico,
   validarTrocaSenha,
   validarConsultaClientes,
@@ -585,6 +586,19 @@ ipcMain.handle(CHANNELS.usuariosExcluir, async (_event, id: unknown): Promise<vo
   await artesApi.excluirUsuario(empresa, usuarioId);
   logger.info({ usuarioId }, 'Usuário excluído pelo app');
 });
+
+// Senha temporária para outro usuário; a API recusa a própria e confere as empresas dele. Nunca loga a senha.
+ipcMain.handle(
+  CHANNELS.usuariosRedefinirSenha,
+  async (_event, id: unknown, novaSenha: unknown): Promise<void> => {
+    await exigirPermissao('usuarios.editar');
+    const usuarioId = validarIdUsuario(id);
+    const senha = validarRedefinicaoSenha(novaSenha);
+    const { empresa } = await contexto();
+    await artesApi.redefinirSenhaUsuario(empresa, usuarioId, senha);
+    logger.info({ usuarioId }, 'Senha redefinida pelo app');
+  },
+);
 
 ipcMain.handle(CHANNELS.sessaoSair, async () => {
   if (running) throw new Error('Aguarde a execução terminar para sair.');

@@ -96,6 +96,8 @@ export type UsuariosApi = {
   /** `empresa`: a empresa em que as permissões valem (uma das do usuário). */
   definirPermissoes(id: string, empresa: string, permissoes: string[]): Promise<UsuarioDetalhe>;
   excluir(id: string): Promise<void>;
+  /** Senha temporária: o usuário troca no próximo acesso (ADR 0013). Ninguém redefine a própria por aqui. */
+  redefinirSenha(id: string, novaSenha: string): Promise<void>;
 };
 
 /** Arquivo escolhido no diálogo: caminho e conteúdo ficam no main; `id` o identifica no cadastro. */
@@ -353,6 +355,7 @@ export const CHANNELS = {
   usuariosEditar: 'rpa:usuarios:editar',
   usuariosPermissoes: 'rpa:usuarios:permissoes',
   usuariosExcluir: 'rpa:usuarios:excluir',
+  usuariosRedefinirSenha: 'rpa:usuarios:redefinir-senha',
   artesListarClientes: 'rpa:artes:listar-clientes',
   artesObterCliente: 'rpa:artes:obter-cliente',
   artesProdutosDoCliente: 'rpa:artes:produtos-do-cliente',

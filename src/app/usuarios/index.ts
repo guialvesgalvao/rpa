@@ -12,6 +12,7 @@ import {
   temPermissao,
   type UsuarioDetalhe,
 } from '../plataforma/contratos.js';
+import { comOlho } from '../senha-olho.js';
 import { descreverUsuario, empresasCom, empresasDoFormulario, podeEditarDados } from './dados.js';
 
 /** Quem usa o app: as empresas dele com as permissões em cada uma, a empresa em uso e o e-mail. */
@@ -327,6 +328,10 @@ export function criarUsuarios(
     }
 
     if (podeEditar && emTodas && usuario.email !== contexto.email) {
+      raiz.append(cardRedefinirSenha(usuario, minha));
+    }
+
+    if (podeEditar && emTodas && usuario.email !== contexto.email) {
       const card = criar('div', 'card');
       const mensagem = criar('div', 'hint warn');
       mensagem.setAttribute('role', 'alert');
@@ -360,6 +365,68 @@ export function criarUsuarios(
       );
       raiz.append(card);
     }
+  }
+
+  /** Senha temporária para o usuário (ADR 0013): ele é obrigado a trocá-la no próximo acesso. */
+  function cardRedefinirSenha(usuario: UsuarioDetalhe, minha: number): HTMLElement {
+    const form = criar('form', 'artes-form');
+    form.noValidate = true;
+    const senhaCampo = () => {
+      const input = criar('input');
+      input.type = 'password';
+      input.autocomplete = 'new-password';
+      input.maxLength = 200;
+      return input;
+    };
+    const nova = senhaCampo();
+    const confirmacao = senhaCampo();
+    const blocoNova = campo('Nova senha', nova, 'redefinir-nova');
+    const blocoConfirmacao = campo('Confirmar nova senha', confirmacao, 'redefinir-confirmacao');
+    const olhos = [comOlho(nova), comOlho(confirmacao)];
+    blocoNova.append(
+      criar(
+        'div',
+        'hint',
+        `Ao menos ${SENHA_MINIMA} caracteres. O usuário será obrigado a trocar a senha no próximo acesso.`,
+      ),
+    );
+    const mensagem = status();
+    const enviar = criar('button', 'primary', 'Redefinir senha');
+    enviar.type = 'submit';
+    const acoes = criar('div', 'actions');
+    acoes.append(enviar);
+    form.append(blocoNova, blocoConfirmacao, mensagem, acoes);
+    form.addEventListener('submit', async (evento) => {
+      evento.preventDefault();
+      mensagem.className = 'hint warn';
+      mensagem.textContent = '';
+      if (nova.value.length < SENHA_MINIMA) {
+        mensagem.textContent = `A senha precisa de ao menos ${SENHA_MINIMA} caracteres.`;
+        return;
+      }
+      if (confirmacao.value !== nova.value) {
+        mensagem.textContent = 'A confirmação não confere com a nova senha.';
+        return;
+      }
+      enviar.disabled = true;
+      try {
+        await api.redefinirSenha(usuario.id, nova.value);
+        if (minha !== geracao) return;
+        nova.value = '';
+        confirmacao.value = '';
+        for (const olho of olhos) olho.ocultar();
+        mensagem.className = 'hint';
+        mensagem.textContent = 'Senha redefinida. O usuário vai trocá-la no próximo acesso.';
+      } catch (erro) {
+        if (minha !== geracao) return;
+        mensagem.textContent = mensagemErro(erro);
+      } finally {
+        enviar.disabled = false;
+      }
+    });
+    const card = criar('div', 'card');
+    card.append(criar('h2', undefined, 'Redefinir senha'), form);
+    return card;
   }
 
   function formDados(

@@ -38,6 +38,7 @@ import {
   textoResultadoBling,
 } from './sincronizacao.js';
 import { preencherResultado } from './resultados.js';
+import { comOlho } from './senha-olho.js';
 
 declare global {
   interface Window {
@@ -110,8 +111,21 @@ const trocaSenhaErro = $('troca-senha-erro');
 const trocaSenhaEnviar = $<HTMLButtonElement>('troca-senha-enviar');
 const trocaSenhaSair = $<HTMLButtonElement>('troca-senha-sair');
 $('troca-senha-dica').textContent = `Ao menos ${SENHA_MINIMA} caracteres.`;
+$('conta-senha-dica').textContent =
+  `Ao menos ${SENHA_MINIMA} caracteres. As sessões abertas em outros computadores serão encerradas.`;
 const usuarioEl = $('usuario');
 const usuarioNome = $('usuario-nome');
+const abrirConta = $<HTMLButtonElement>('abrir-conta');
+const contaNome = $('conta-nome');
+const contaEmail = $('conta-email');
+const contaVoltar = $<HTMLButtonElement>('conta-voltar');
+const formConta = $<HTMLFormElement>('conta-senha-form');
+const contaAtual = $<HTMLInputElement>('conta-senha-atual');
+const contaNova = $<HTMLInputElement>('conta-senha-nova');
+const contaConfirmacao = $<HTMLInputElement>('conta-senha-confirmacao');
+const contaStatus = $('conta-senha-status');
+const contaEnviar = $<HTMLButtonElement>('conta-senha-enviar');
+const olhosConta = [contaAtual, contaNova, contaConfirmacao].map(comOlho);
 const sair = $<HTMLButtonElement>('sair');
 const semAcesso = $('sem-acesso');
 const cfgCampos = $('cfg-campos');
@@ -307,9 +321,8 @@ function setRunning(value: boolean) {
 /** Aba aberta; some ao sair, para o próximo login abrir na aba inicial. */
 let abaAtual: Automacao['id'] | undefined;
 
-/** Mostra só a seção da aba `id`. As outras ficam escondidas, sem perder o estado. */
-function selecionarAba(id: Automacao['id']) {
-  abaAtual = id;
+/** Mostra só a seção da aba `id` (ou a Minha conta). As outras ficam escondidas, sem perder o estado. */
+function mostrarSecao(id: Automacao['id'] | 'conta') {
   for (const secao of document.querySelectorAll<HTMLElement>('section[data-aba]')) {
     secao.hidden = secao.dataset.aba !== id;
   }
@@ -317,6 +330,40 @@ function selecionarAba(id: Automacao['id']) {
     if (botao.dataset.aba === id) botao.setAttribute('aria-current', 'page');
     else botao.removeAttribute('aria-current');
   }
+}
+
+function selecionarAba(id: Automacao['id']) {
+  abaAtual = id;
+  mostrarSecao(id);
+}
+
+/** Minha conta: de qualquer usuário logado, mesmo sem abas. A aba aberta continua guardada em `abaAtual`. */
+function abrirMinhaConta() {
+  limparConta();
+  semAcesso.hidden = true;
+  mostrarSecao('conta');
+  abrirConta.setAttribute('aria-current', 'page');
+  contaAtual.focus();
+}
+
+/** Volta para a aba que estava aberta; sem abas, para o aviso de sem acesso. */
+function fecharMinhaConta() {
+  limparConta();
+  if (abaAtual) {
+    selecionarAba(abaAtual);
+    return;
+  }
+  for (const secao of document.querySelectorAll<HTMLElement>('section[data-aba]'))
+    secao.hidden = true;
+  abrirConta.removeAttribute('aria-current');
+  semAcesso.hidden = false;
+}
+
+function limparConta() {
+  for (const campo of [contaAtual, contaNova, contaConfirmacao]) campo.value = '';
+  for (const olho of olhosConta) olho.ocultar();
+  contaStatus.className = 'hint';
+  contaStatus.textContent = '';
 }
 
 /**
@@ -342,6 +389,7 @@ function montarMenu(permissoes: readonly string[], empresaSlug: string | undefin
     return;
   }
   abaAtual = undefined;
+  abrirConta.removeAttribute('aria-current');
   for (const secao of document.querySelectorAll<HTMLElement>('section[data-aba]'))
     secao.hidden = true;
 }
@@ -607,6 +655,7 @@ function aplicarSessao(sessao: SessaoTela) {
     limparFatura();
     atualizarContagem();
     dialogConfig.close();
+    limparConta();
     loginSenha.value = '';
     if (trocarSenha) trocaSenhaAtual.focus();
     else loginEmail.focus();
@@ -626,6 +675,8 @@ function aplicarSessao(sessao: SessaoTela) {
   cfgSincronizacao.hidden = !podeSincronizarBling(permissoes, sessao.empresa?.slug);
   cfgResponsavel.hidden = !temPermissao(permissoes, 'artes.acompanhar');
   usuarioNome.textContent = sessao.nome;
+  contaNome.textContent = sessao.nome;
+  contaEmail.textContent = sessao.email;
 
   aplicarEmpresa(sessao.empresa, sessao.empresas.length);
   atualizarControles();
@@ -685,6 +736,39 @@ formTrocaSenha.addEventListener('submit', async (event) => {
     trocaSenhaErro.textContent = mensagemErro(error);
   } finally {
     trocaSenhaEnviar.disabled = false;
+  }
+});
+
+abrirConta.addEventListener('click', abrirMinhaConta);
+contaVoltar.addEventListener('click', fecharMinhaConta);
+
+formConta.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  contaStatus.className = 'hint warn';
+  contaStatus.textContent = '';
+  if (!contaAtual.value) {
+    contaStatus.textContent = 'Informe a senha atual.';
+    return;
+  }
+  if (contaNova.value.length < SENHA_MINIMA) {
+    contaStatus.textContent = `A nova senha precisa de ao menos ${SENHA_MINIMA} caracteres.`;
+    return;
+  }
+  if (contaNova.value !== contaConfirmacao.value) {
+    contaStatus.textContent = 'A confirmação não confere com a nova senha.';
+    return;
+  }
+  contaEnviar.disabled = true;
+  try {
+    const sessao = await window.rpa.trocarSenha(contaAtual.value, contaNova.value);
+    limparConta();
+    contaStatus.textContent = 'Senha alterada.';
+    aplicarSessao(sessao);
+  } catch (error) {
+    contaStatus.className = 'hint warn';
+    contaStatus.textContent = mensagemErro(error);
+  } finally {
+    contaEnviar.disabled = false;
   }
 });
 

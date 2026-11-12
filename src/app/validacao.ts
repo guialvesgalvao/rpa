@@ -25,6 +25,7 @@ import {
   EsquemaCriacaoUsuario,
   EsquemaEdicaoUsuario,
   EsquemaPermissoesUsuario,
+  EsquemaRedefinicaoSenha,
   validarNovaCor,
   EsquemaStatusTarefa,
   type CriacaoUsuario,
@@ -323,6 +324,13 @@ export function validarPermissoesUsuario(input: unknown): Permissao[] {
   const parsed = EsquemaPermissoesUsuario.safeParse({ permissoes: input });
   if (!parsed.success) throw new Error('Permissões inválidas.');
   return parsed.data.permissoes;
+}
+
+/** Senha temporária definida para outro usuário: as regras do cadastro (ao menos `SENHA_MINIMA`). */
+export function validarRedefinicaoSenha(input: unknown): string {
+  const parsed = EsquemaRedefinicaoSenha.safeParse({ novaSenha: input });
+  if (!parsed.success) throw new Error(primeiroProblema(parsed.error, 'Senha inválida.'));
+  return parsed.data.novaSenha;
 }
 
 /** Id de usuário que chega da janela pelo IPC. */

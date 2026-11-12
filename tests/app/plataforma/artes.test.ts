@@ -205,6 +205,36 @@ describe('artesDoItem', () => {
   });
 });
 
+describe('redefinirSenhaUsuario', () => {
+  it('envia a senha nova em JSON por POST na rota do usuário', async () => {
+    const chamadas: RequestInit[] = [];
+    const urls: string[] = [];
+    const c = criarClienteArtes({
+      baseUrl: 'http://api.local',
+      fetch: (async (url: string | URL | Request, init?: RequestInit) => {
+        urls.push(String(url));
+        chamadas.push(init ?? {});
+        return new Response(null, { status: 204 });
+      }) as typeof fetch,
+      obterAcesso: async () => 'acesso-1',
+    });
+
+    await c.redefinirSenhaUsuario('aba', ARTE, '1234567890');
+    expect(urls).toEqual([`http://api.local/v1/empresas/aba/usuarios/${ARTE}/senha`]);
+    expect(chamadas[0]?.method).toBe('POST');
+    expect(JSON.parse(String(chamadas[0]?.body))).toEqual({ novaSenha: '1234567890' });
+  });
+
+  it('recusa da API (a própria senha, sem permissão) sobe com a mensagem dela', async () => {
+    await expect(
+      api(() => erroApi(409, 'proprio_usuario')).cliente.redefinirSenhaUsuario('aba', ARTE, 'x'),
+    ).rejects.toMatchObject({ codigo: 'proprio_usuario', message: 'mensagem da API' });
+    await expect(
+      api(() => erroApi(403)).cliente.redefinirSenhaUsuario('aba', ARTE, 'x'),
+    ).rejects.toBeInstanceOf(ErroRecusado);
+  });
+});
+
 describe('reservarNumerosOp', () => {
   it('envia a quantidade em JSON por POST e devolve os números', async () => {
     const chamadas: RequestInit[] = [];

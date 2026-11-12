@@ -116,6 +116,7 @@ export type ClienteArtes = {
     permissoes: Permissao[],
   ): Promise<UsuarioDetalhe>;
   excluirUsuario(empresa: string, id: string): Promise<void>;
+  redefinirSenhaUsuario(empresa: string, id: string, novaSenha: string): Promise<void>;
   obterTarefa(empresa: string, id: string): Promise<TarefaDetalhe>;
   mudarStatusTarefa(empresa: string, id: string, status: StatusTarefa): Promise<Tarefa>;
   /** Cadastra a arte (multipart, como `cadastrar`) e conclui a tarefa. */
@@ -342,6 +343,9 @@ export function criarClienteArtes({
     },
     async excluirUsuario(empresa, id) {
       await chamar('DELETE', rota(empresa, `/usuarios/${id}`));
+    },
+    async redefinirSenhaUsuario(empresa, id, novaSenha) {
+      await chamar('POST', rota(empresa, `/usuarios/${id}/senha`), { json: { novaSenha } });
     },
     async obterResponsavelAutomatico(empresa) {
       const resposta = await chamar('GET', rota(empresa, '/tarefas/responsavel-automatico'));

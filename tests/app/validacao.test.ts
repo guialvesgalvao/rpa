@@ -17,6 +17,7 @@ import {
   validarIdUsuario,
   validarNovoUsuario,
   validarPermissoesUsuario,
+  validarRedefinicaoSenha,
   validarResponsavelAutomatico,
   validarNumerosOp,
   validarSelecao,
@@ -343,6 +344,15 @@ describe('usuários e senha', () => {
     const id = '77777777-7777-4777-8777-777777777777';
     expect(validarIdUsuario(id)).toBe(id);
     expect(() => validarIdUsuario('../x')).toThrow('Usuário inválido.');
+  });
+
+  it('senha redefinida pelo painel: ao menos 10 caracteres, só texto', () => {
+    expect(validarRedefinicaoSenha('1234567890')).toBe('1234567890');
+    expect(() => validarRedefinicaoSenha('123456789')).toThrow(
+      'A senha precisa de ao menos 10 caracteres.',
+    );
+    expect(() => validarRedefinicaoSenha(1234567890)).toThrow();
+    expect(() => validarRedefinicaoSenha('a'.repeat(1025))).toThrow();
   });
 
   it('nome da cor nova: tira os espaços; recusa vazio, longo ou fora de texto', () => {

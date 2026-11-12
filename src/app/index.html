@@ -134,6 +134,64 @@
         text-align: center;
         width: auto;
       }
+      /* O nome abre a Minha conta. */
+      aside.menu .usuario button.nome {
+        display: block;
+        width: 100%;
+        margin: 0;
+        padding: 2px 0;
+        border: 0;
+        text-align: left;
+        text-transform: none;
+        letter-spacing: normal;
+        font-size: 13px;
+        text-decoration: underline;
+        text-underline-offset: 2px;
+      }
+      aside.menu .usuario button.nome:hover:not(:disabled),
+      aside.menu .usuario button.nome[aria-current='page'] {
+        background: transparent;
+        color: var(--aba-red);
+      }
+      aside.menu .usuario button.nome:focus-visible {
+        outline: 2px solid var(--aba-green);
+        outline-offset: 2px;
+      }
+
+      /* Campo de senha com o botão "olhinho" dentro, à direita. */
+      .campo-senha {
+        position: relative;
+      }
+      .campo-senha input {
+        padding-right: 44px;
+      }
+      button.olho-senha {
+        position: absolute;
+        top: 50%;
+        right: 4px;
+        transform: translateY(-50%);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 6px;
+        border: 0;
+        border-radius: 4px;
+        background: transparent;
+        color: var(--muted);
+      }
+      button.olho-senha:hover:not(:disabled),
+      button.olho-senha[aria-pressed='true'] {
+        background: transparent;
+        color: var(--aba-red);
+      }
+      button.olho-senha:focus-visible {
+        outline: 2px solid var(--aba-green);
+        outline-offset: 1px;
+      }
+      .conta-nome {
+        margin: 0;
+        font-weight: 700;
+      }
 
       /* Seletor de empresa, no topo do menu. */
       aside.menu button.empresa-atual {
@@ -1037,7 +1095,9 @@
           <span id="empresa-seta" aria-hidden="true">▾</span>
         </button>
         <div class="usuario" id="usuario">
-          <div class="nome" id="usuario-nome"></div>
+          <button id="abrir-conta" class="nome" type="button" title="Minha conta">
+            <span id="usuario-nome"></span>
+          </button>
           <button id="sair" type="button">Sair</button>
         </div>
       </aside>
@@ -1057,6 +1117,58 @@
           <div class="pagina">
             <div id="compras-offline" class="hint warn" hidden>Sem conexão com o servidor.</div>
             <div id="compras-raiz"></div>
+          </div>
+        </section>
+
+        <section data-aba="conta" hidden>
+          <div class="pagina">
+            <p>
+              <button id="conta-voltar" type="button">← Voltar</button>
+            </p>
+            <div class="card">
+              <h2>Minha conta</h2>
+              <p id="conta-nome" class="conta-nome"></p>
+              <div id="conta-email" class="hint"></div>
+            </div>
+            <div class="card">
+              <h2>Trocar senha</h2>
+              <form id="conta-senha-form" novalidate>
+                <div class="campo">
+                  <label for="conta-senha-atual">Senha atual</label>
+                  <input
+                    id="conta-senha-atual"
+                    type="password"
+                    autocomplete="current-password"
+                    maxlength="200"
+                  />
+                </div>
+                <div class="campo">
+                  <label for="conta-senha-nova">Nova senha</label>
+                  <input
+                    id="conta-senha-nova"
+                    type="password"
+                    autocomplete="new-password"
+                    maxlength="200"
+                  />
+                  <div id="conta-senha-dica" class="hint"></div>
+                </div>
+                <div class="campo">
+                  <label for="conta-senha-confirmacao">Confirmar nova senha</label>
+                  <input
+                    id="conta-senha-confirmacao"
+                    type="password"
+                    autocomplete="new-password"
+                    maxlength="200"
+                  />
+                </div>
+                <div id="conta-senha-status" class="hint" role="status"></div>
+                <div class="actions">
+                  <button id="conta-senha-enviar" class="primary" type="submit">
+                    Trocar senha
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         </section>
 

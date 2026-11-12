@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   estadoInicialPaginas,
+  fatiarPagina,
   itensDaPagina,
   limitarPagina,
   paginasVisiveis,
@@ -208,6 +209,30 @@ describe('limitarPagina', () => {
     expect(limitarPagina(2.7, 3)).toBe(2);
     expect(limitarPagina(Number.NaN, 3)).toBe(1);
     expect(limitarPagina(5, 0)).toBe(1);
+  });
+});
+
+describe('fatiarPagina', () => {
+  const lista = Array.from({ length: 25 }, (_, i) => i + 1);
+
+  it('corta a página pedida', () => {
+    expect(fatiarPagina(lista, 1, 12)).toEqual({
+      itens: lista.slice(0, 12),
+      pagina: 1,
+      totalPaginas: 3,
+    });
+    expect(fatiarPagina(lista, 3, 12)).toEqual({ itens: [25], pagina: 3, totalPaginas: 3 });
+  });
+
+  it('página fora do intervalo vira a primeira ou a última', () => {
+    expect(fatiarPagina(lista, 9, 12).pagina).toBe(3);
+    expect(fatiarPagina(lista, Number.NaN, 12).pagina).toBe(1);
+    // Depois de excluir o único item da última página, volta para a anterior.
+    expect(fatiarPagina(lista.slice(0, 24), 3, 12)).toMatchObject({ pagina: 2, totalPaginas: 2 });
+  });
+
+  it('lista vazia: página 1, sem itens', () => {
+    expect(fatiarPagina([], 2, 12)).toEqual({ itens: [], pagina: 1, totalPaginas: 1 });
   });
 });
 

@@ -1,10 +1,4 @@
-import {
-  USUARIOS_POR_PAGINA,
-  limitarPagina,
-  rotuloArea,
-  temPermissao,
-  totalDePaginas,
-} from '@plataforma/contratos';
+import { USUARIOS_POR_PAGINA, fatiarPagina, rotuloArea, temPermissao } from '@plataforma/contratos';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
@@ -26,9 +20,11 @@ export default async function Usuarios({ params, searchParams }: PageProps<'/[em
   const { excluido, pagina: paginaPedida } = await searchParams;
   const { eu, permissoes } = await exigirPermissaoNaPagina(empresa, 'usuarios');
   const usuarios = await usuariosDaEmpresa(empresa);
-  const totalPaginas = totalDePaginas(usuarios.length, USUARIOS_POR_PAGINA);
-  const pagina = limitarPagina(Number(paginaPedida ?? 1), totalPaginas);
-  const daPagina = usuarios.slice((pagina - 1) * USUARIOS_POR_PAGINA, pagina * USUARIOS_POR_PAGINA);
+  const {
+    itens: daPagina,
+    pagina,
+    totalPaginas,
+  } = fatiarPagina(usuarios, Number(paginaPedida ?? 1), USUARIOS_POR_PAGINA);
   const nomes = new Map(eu.empresas.map((e) => [e.slug, e.nome]));
   const podeEditar = temPermissao(permissoes, 'usuarios.editar');
   const podeAbrir = podeEditar || temPermissao(permissoes, 'usuarios.permissoes');

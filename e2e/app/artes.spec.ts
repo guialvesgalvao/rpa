@@ -10,7 +10,7 @@ import {
   raizArtes,
 } from '../apoio/app-artes.js';
 import { arquivoTemporario, PDF_MINIMO, pdfDeTamanho, PNG_1X1 } from '../apoio/arquivos.js';
-import { nomeDoCliente } from '../apoio/dados.js';
+import { CLIENTES_POR_EMPRESA, nomeDoCliente } from '../apoio/dados.js';
 
 // Artes no app: busca, cadastro com o diálogo de arquivo simulado, Ultra, "Nova cor" e 2.11.
 
@@ -55,6 +55,52 @@ test('admin: busca, cadastra com Ultra e "Nova cor"; "4X4" só seleciona a exist
     await raiz.getByRole('radio', { name: 'Laranja App E2E' }).check();
     await raiz.getByRole('button', { name: 'Salvar' }).click();
     await conferirArteCadastrada(janela, 'Rótulo Adesivo', '1 arte');
+  } finally {
+    await app.close();
+  }
+});
+
+test('lista de clientes pagina de 20 em 20, volta pelo cache e a busca volta à página 1', async () => {
+  const { app, janela } = await abrirAppLogado(USUARIOS.finalista);
+  try {
+    const raiz = raizArtes(janela);
+    const itens = raiz.locator('button.artes-item');
+    const paginacao = raiz.getByRole('navigation', { name: 'Páginas de clientes' });
+    const resumo = paginacao.getByRole('status');
+    const carregando = raiz.getByText('Carregando…');
+
+    await expect(itens).toHaveCount(20);
+    await expect(resumo).toHaveText(`Página 1 de 3 · ${CLIENTES_POR_EMPRESA} clientes`);
+    await expect(paginacao.getByRole('button', { name: '‹ Anterior' })).toBeDisabled();
+    const vistos = await itens.allTextContents();
+
+    await paginacao.getByRole('button', { name: 'Página 3' }).click();
+    await expect(resumo).toHaveText(/^Página 3 de 3/);
+    await expect(carregando).toHaveCount(0);
+    await expect(itens).toHaveCount(20);
+    await expect(paginacao.getByRole('button', { name: 'Próxima ›' })).toBeDisabled();
+    vistos.push(...(await itens.allTextContents()));
+
+    await paginacao.getByRole('button', { name: '‹ Anterior' }).click();
+    await expect(resumo).toHaveText(/^Página 2 de 3/);
+    await expect(carregando).toHaveCount(0);
+    await expect(itens).toHaveCount(20);
+    vistos.push(...(await itens.allTextContents()));
+    expect(new Set(vistos).size).toBe(CLIENTES_POR_EMPRESA);
+
+    // Página já vista: volta na hora, sem "Carregando…".
+    await paginacao.getByRole('button', { name: 'Página 1' }).click();
+    await expect(resumo).toHaveText(/^Página 1 de 3/);
+    await expect(itens).toHaveText(vistos.slice(0, 20));
+
+    await paginacao.getByRole('button', { name: 'Página 3' }).click();
+    await expect(resumo).toHaveText(/^Página 3 de 3/);
+    // 10 padarias no seed: uma página só, sem controles.
+    await raiz.getByLabel('Buscar cliente').fill('padaria');
+    await expect(itens).toHaveCount(10);
+    await expect(paginacao).toHaveCount(0);
+    await raiz.getByLabel('Buscar cliente').fill('');
+    await expect(resumo).toHaveText(`Página 1 de 3 · ${CLIENTES_POR_EMPRESA} clientes`);
   } finally {
     await app.close();
   }

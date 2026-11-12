@@ -1,4 +1,3 @@
-export * from './estado-lista.ts';
 export * from './estado-paginas.ts';
 export * from './artes.ts';
 export * from './auth.ts';

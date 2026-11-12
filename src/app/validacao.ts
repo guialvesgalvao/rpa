@@ -93,15 +93,15 @@ export function validarId(input: unknown): string {
 
 const consultaClientesSchema = z.object({
   busca: z.string().max(100).optional(),
-  cursor: z.string().max(512).nullish(),
+  pagina: z.number().int().min(1).max(1_000_000),
 });
 
-/** Valida a busca e o cursor (opaco) da lista de clientes; a API valida o cursor em si. */
-export function validarConsultaClientes(input: unknown): { busca?: string; cursor?: string } {
+/** Valida a busca e a página (inteiro a partir de 1) da lista de clientes. */
+export function validarConsultaClientes(input: unknown): { busca?: string; pagina: number } {
   const parsed = consultaClientesSchema.safeParse(input);
   if (!parsed.success) throw new Error('Busca inválida.');
-  const { busca, cursor } = parsed.data;
-  return { busca: busca?.trim() || undefined, cursor: cursor || undefined };
+  const { busca, pagina } = parsed.data;
+  return { busca: busca?.trim() || undefined, pagina };
 }
 
 /** Valida o tipo de arquivo que a janela pede para escolher. */

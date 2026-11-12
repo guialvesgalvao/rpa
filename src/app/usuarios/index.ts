@@ -1,9 +1,11 @@
 import type { EmpresaSessaoTela, UsuariosApi } from '../api.js';
 import { blocoErro, botao, criar, mensagemErro } from '../artes/dom.js';
+import { montarPaginacao } from '../paginacao.js';
 import {
   alternarPermissao,
   type Area,
   AREAS,
+  fatiarPagina,
   modulosDaEmpresa,
   normalizarPermissoes,
   type Permissao,
@@ -11,6 +13,7 @@ import {
   SENHA_MINIMA,
   temPermissao,
   type UsuarioDetalhe,
+  USUARIOS_POR_PAGINA,
 } from '../plataforma/contratos.js';
 import { comOlho } from '../senha-olho.js';
 import { descreverUsuario, empresasCom, empresasDoFormulario, podeEditarDados } from './dados.js';
@@ -89,12 +92,15 @@ function camposDePermissoes(
 /**
  * Aba Usuários (ADR 0011): quem tem o módulo vê a lista da empresa em uso; criar, editar e excluir exigem
  * "Editar e excluir usuários"; marcar permissões exige "Editar permissão de usuários". A API confere de novo.
+ * A API devolve todos; a tela mostra 12 por página e volta à mesma página depois de editar (ou à última
+ * válida, se a exclusão esvaziou a página).
  */
 export function criarUsuarios(
   raiz: HTMLElement,
   api: UsuariosApi,
 ): { reiniciar(contexto: ContextoUsuarios): void; encerrar(): void } {
   let geracao = 0;
+  let pagina = 1;
 
   function gruposDeEmpresas(
     opcoes: readonly EmpresaSessaoTela[],
@@ -133,32 +139,54 @@ export function criarUsuarios(
     const cardLista = criar('div', 'card');
     const lista = criar('ul', 'artes-lista');
     const situacao = criar('div', 'artes-situacao');
+    const controles = criar('div');
     const avisoLista = status();
     avisoLista.textContent = aviso ?? '';
-    cardLista.append(criar('h2', undefined, 'Usuários'), avisoLista, lista, situacao);
+    cardLista.append(criar('h2', undefined, 'Usuários'), avisoLista, lista, situacao, controles);
+    let usuarios: UsuarioDetalhe[] = [];
+
+    function linha(usuario: UsuarioDetalhe): HTMLElement {
+      const item = criar('li', 'artes-item');
+      const texto = criar('span', 'tarefa-item-texto');
+      texto.append(
+        criar('span', 'artes-item-nome', `${usuario.nome} — ${usuario.email}`),
+        criar('span', 'artes-item-cnpj', descreverUsuario(usuario, contexto.empresas)),
+      );
+      item.append(texto);
+      if (podeAbrir) {
+        const editar = botao('Editar', () => montarEdicao(contexto, usuario));
+        editar.setAttribute('aria-label', `Editar ${usuario.nome}`);
+        item.append(editar);
+      }
+      return item;
+    }
+
+    function desenharPagina() {
+      const fatia = fatiarPagina(usuarios, pagina, USUARIOS_POR_PAGINA);
+      pagina = fatia.pagina;
+      lista.replaceChildren(...fatia.itens.map(linha));
+      const paginacao = montarPaginacao({
+        paginaAtual: fatia.pagina,
+        totalPaginas: fatia.totalPaginas,
+        total: usuarios.length,
+        rotulo: 'usuários',
+        aoEscolher: (escolhida) => {
+          pagina = escolhida;
+          desenharPagina();
+          if (cardLista.getBoundingClientRect().top < 0)
+            cardLista.scrollIntoView({ block: 'start' });
+        },
+      });
+      controles.replaceChildren(...(paginacao ? [paginacao] : []));
+    }
 
     async function carregar() {
       situacao.replaceChildren(criar('div', 'hint', 'Carregando…'));
       try {
-        const usuarios = await api.listar();
+        const lidos = await api.listar();
         if (minha !== geracao) return;
-        lista.replaceChildren(
-          ...usuarios.map((usuario) => {
-            const item = criar('li', 'artes-item');
-            const texto = criar('span', 'tarefa-item-texto');
-            texto.append(
-              criar('span', 'artes-item-nome', `${usuario.nome} — ${usuario.email}`),
-              criar('span', 'artes-item-cnpj', descreverUsuario(usuario, contexto.empresas)),
-            );
-            item.append(texto);
-            if (podeAbrir) {
-              const editar = botao('Editar', () => montarEdicao(contexto, usuario));
-              editar.setAttribute('aria-label', `Editar ${usuario.nome}`);
-              item.append(editar);
-            }
-            return item;
-          }),
-        );
+        usuarios = lidos;
+        desenharPagina();
         situacao.replaceChildren(
           ...(usuarios.length ? [] : [criar('div', 'hint', 'Nenhum usuário encontrado.')]),
         );
@@ -535,7 +563,10 @@ export function criarUsuarios(
   }
 
   return {
-    reiniciar: (contexto) => montarLista(contexto),
+    reiniciar: (contexto) => {
+      pagina = 1;
+      montarLista(contexto);
+    },
     encerrar() {
       geracao++;
       raiz.replaceChildren();

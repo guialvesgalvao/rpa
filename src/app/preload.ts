@@ -40,8 +40,8 @@ const api: RpaApi = {
   onSessaoMudou: (callback) =>
     void ipcRenderer.on(CHANNELS.sessaoMudou, (_event, sessao: SessaoTela) => callback(sessao)),
   artes: {
-    listarClientes: (busca, cursor) =>
-      ipcRenderer.invoke(CHANNELS.artesListarClientes, { busca, cursor }),
+    listarClientes: (busca, pagina) =>
+      ipcRenderer.invoke(CHANNELS.artesListarClientes, { busca, pagina }),
     obterCliente: (id) => ipcRenderer.invoke(CHANNELS.artesObterCliente, id),
     produtosDoCliente: (id) => ipcRenderer.invoke(CHANNELS.artesProdutosDoCliente, id),
     opcoes: () => ipcRenderer.invoke(CHANNELS.artesOpcoes),

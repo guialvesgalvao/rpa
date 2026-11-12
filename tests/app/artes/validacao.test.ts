@@ -18,21 +18,28 @@ describe('validarId', () => {
 });
 
 describe('validarConsultaClientes', () => {
-  it('apara a busca e descarta busca e cursor vazios', () => {
-    expect(validarConsultaClientes({ busca: '  Gráfica  ', cursor: 'abc' })).toEqual({
+  it('apara a busca, descarta a busca vazia e mantém a página', () => {
+    expect(validarConsultaClientes({ busca: '  Gráfica  ', pagina: 3 })).toEqual({
       busca: 'Gráfica',
-      cursor: 'abc',
+      pagina: 3,
     });
-    expect(validarConsultaClientes({ busca: '   ', cursor: null })).toEqual({
+    expect(validarConsultaClientes({ busca: '   ', pagina: 1 })).toEqual({
       busca: undefined,
-      cursor: undefined,
+      pagina: 1,
     });
   });
 
   it('recusa busca acima de 100 caracteres e formato inesperado', () => {
-    expect(() => validarConsultaClientes({ busca: 'a'.repeat(101) })).toThrow('Busca inválida.');
-    expect(() => validarConsultaClientes({ cursor: 'a'.repeat(513) })).toThrow();
+    expect(() => validarConsultaClientes({ busca: 'a'.repeat(101), pagina: 1 })).toThrow(
+      'Busca inválida.',
+    );
     expect(() => validarConsultaClientes('x')).toThrow();
+  });
+
+  it('exige página inteira a partir de 1', () => {
+    for (const pagina of [undefined, 0, -1, 1.5, '2', Number.NaN, Infinity]) {
+      expect(() => validarConsultaClientes({ pagina })).toThrow('Busca inválida.');
+    }
   });
 });
 

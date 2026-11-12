@@ -219,29 +219,30 @@ describe('criarClienteArtes', () => {
     };
   }
 
-  it('lista clientes com busca e cursor na query e o token no cabeçalho', async () => {
-    const { api, chamadas } = cliente(() => json({ itens: [], proximoCursor: null }));
+  it('lista clientes com página, 20 por página e busca na query e o token no cabeçalho', async () => {
+    const { api, chamadas } = cliente(() => json({ itens: [], proximoCursor: null, total: 41 }));
 
-    await api.listarClientes('aba', { busca: 'Gráfica Ç', cursor: 'abc' });
+    const pagina = await api.listarClientes('aba', { busca: 'Gráfica Ç', pagina: 3 });
 
+    expect(pagina.total).toBe(41);
     expect(chamadas[0]?.url).toBe(
-      'http://api.local/v1/empresas/aba/clientes?busca=Gr%C3%A1fica+%C3%87&cursor=abc',
+      'http://api.local/v1/empresas/aba/clientes?pagina=3&limite=20&busca=Gr%C3%A1fica+%C3%87',
     );
     expect(chamadas[0]?.init.headers).toEqual({ authorization: 'Bearer acesso-1' });
   });
 
-  it('sem busca nem cursor não envia query', async () => {
-    const { api, chamadas } = cliente(() => json({ itens: [], proximoCursor: null }));
+  it('sem busca envia só a página e o limite', async () => {
+    const { api, chamadas } = cliente(() => json({ itens: [], proximoCursor: null, total: 0 }));
 
-    await api.listarClientes('aba', {});
+    await api.listarClientes('aba', { pagina: 1 });
 
-    expect(chamadas[0]?.url).toBe('http://api.local/v1/empresas/aba/clientes');
+    expect(chamadas[0]?.url).toBe('http://api.local/v1/empresas/aba/clientes?pagina=1&limite=20');
   });
 
   it('resposta fora do contrato vira ErroIndisponivel', async () => {
     const { api } = cliente(() => json({ itens: 'x' }));
 
-    await expect(api.listarClientes('aba', {})).rejects.toBeInstanceOf(ErroIndisponivel);
+    await expect(api.listarClientes('aba', { pagina: 1 })).rejects.toBeInstanceOf(ErroIndisponivel);
   });
 
   it('classifica 403, 409 e 500', async () => {

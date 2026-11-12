@@ -196,7 +196,8 @@ export type ComprasApi = {
 
 /** Artes da empresa em uso. Falha de rede ou de permissão vem como mensagem pronta para a tela. */
 export type ArtesApi = {
-  listarClientes(busca: string, cursor: string | null): Promise<PaginaClientes>;
+  /** Página numerada (a partir de 1) de 20 clientes, com o total da busca. */
+  listarClientes(busca: string, pagina: number): Promise<PaginaClientes>;
   obterCliente(id: string): Promise<Cliente>;
   produtosDoCliente(id: string): Promise<ProdutoDoCliente[]>;
   opcoes(): Promise<OpcoesArte>;

@@ -29,6 +29,7 @@ import {
   EsquemaProdutoDoCliente,
   type ErrosNovaArte,
   LIMITES,
+  LIMITE_PADRAO_CLIENTES,
   type Opcao,
   type PaginaClientes,
   type ProdutoDoCliente,
@@ -59,7 +60,7 @@ export class ErroRequisicao extends Error {
 
 export type OpcoesArte = { produtos: Opcao[]; cores: Opcao[]; maquinas: Opcao[] };
 
-export type ConsultaClientes = { busca?: string; cursor?: string };
+export type ConsultaClientes = { busca?: string; pagina: number };
 
 export type DepsClienteArtes = {
   baseUrl: string;
@@ -225,12 +226,13 @@ export function criarClienteArtes({
   const listaDeOpcoes = z.array(EsquemaOpcao);
 
   return {
-    async listarClientes(empresa, { busca, cursor }) {
-      const params = new URLSearchParams();
+    async listarClientes(empresa, { busca, pagina }) {
+      const params = new URLSearchParams({
+        pagina: String(pagina),
+        limite: String(LIMITE_PADRAO_CLIENTES),
+      });
       if (busca) params.set('busca', busca);
-      if (cursor) params.set('cursor', cursor);
-      const consulta = params.size ? `?${params}` : '';
-      const resposta = await chamar('GET', rota(empresa, `/clientes${consulta}`));
+      const resposta = await chamar('GET', rota(empresa, `/clientes?${params}`));
       return lerJson(resposta, EsquemaPaginaClientes);
     },
     async obterCliente(empresa, id) {

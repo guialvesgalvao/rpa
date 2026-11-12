@@ -1,10 +1,14 @@
 import type { ArtesApi } from '../api.js';
+import { montarPaginacao } from '../paginacao.js';
 import {
-  type AcaoLista,
+  type AcaoPaginas,
   type Cliente,
-  type EstadoLista,
-  estadoInicial,
-  redutorLista,
+  type EstadoPaginas,
+  estadoInicialPaginas,
+  itensDaPagina,
+  LIMITE_PADRAO_CLIENTES,
+  redutorPaginas,
+  totalDePaginas,
 } from '../plataforma/contratos.js';
 import { blocoErro, criar, formatarCnpj, mensagemErro } from './dom.js';
 
@@ -16,14 +20,15 @@ export type DepsLista = {
 };
 
 /**
- * Lista de clientes com busca (espera de 300 ms) e scroll infinito. O estado é o redutor de `contratos`,
- * o mesmo do site; respostas de buscas antigas são descartadas pelo número da requisição.
+ * Lista de clientes com busca (espera de 300 ms) e páginas numeradas de 20, uma requisição por página. O
+ * estado é o redutor de `contratos`, o mesmo do site: páginas já vistas ficam em cache, busca nova volta à
+ * página 1 e respostas de cargas antigas são descartadas pelo número da requisição.
  */
 export function montarLista(
   raiz: HTMLElement,
   { api, abrirCliente }: DepsLista,
 ): { encerrar(): void } {
-  let estado: EstadoLista<Cliente> = estadoInicial<Cliente>();
+  let estado: EstadoPaginas<Cliente> = estadoInicialPaginas<Cliente>(LIMITE_PADRAO_CLIENTES);
   let requisicaoEnviada = -1;
   let erro = '';
   let encerrado = false;
@@ -35,15 +40,11 @@ export function montarLista(
   campoBusca.setAttribute('aria-label', 'Buscar cliente');
   const lista = criar('ul', 'artes-lista');
   const situacao = criar('div', 'artes-situacao');
-  const sentinela = criar('div', 'artes-sentinela');
+  const controles = criar('div');
   const card = criar('div', 'card');
-  card.append(criar('h2', undefined, 'Artes'), campoBusca, lista, situacao, sentinela);
+  card.append(criar('h2', undefined, 'Artes'), campoBusca, lista, situacao, controles);
   raiz.append(card);
-
-  const observador = new IntersectionObserver((entradas) => {
-    if (entradas.some((entrada) => entrada.isIntersecting)) despachar({ tipo: 'carregar_mais' });
-  });
-  observador.observe(sentinela);
+  let paginaDesenhada = estado.pagina;
 
   function linha(cliente: Cliente): HTMLElement {
     const item = criar('li');
@@ -59,13 +60,14 @@ export function montarLista(
   }
 
   function desenhar() {
-    lista.replaceChildren(...estado.itens.map(linha));
+    const itens = itensDaPagina(estado);
+    lista.replaceChildren(...itens.map(linha));
     situacao.replaceChildren();
     if (estado.status === 'carregando') {
       situacao.append(criar('div', 'hint', 'Carregando…'));
     } else if (estado.status === 'erro') {
       situacao.append(blocoErro(erro, () => despachar({ tipo: 'tentar_de_novo' })));
-    } else if (estado.itens.length === 0) {
+    } else if (itens.length === 0) {
       situacao.append(
         criar(
           'div',
@@ -76,10 +78,21 @@ export function montarLista(
         ),
       );
     }
-    // Com a página curta o sentinela continua visível e o observador não dispara de novo: reobserva.
-    if (estado.status === 'ocioso' && !estado.fim) {
-      observador.unobserve(sentinela);
-      observador.observe(sentinela);
+    const paginacao =
+      estado.total === null
+        ? null
+        : montarPaginacao({
+            paginaAtual: estado.pagina,
+            totalPaginas: totalDePaginas(estado.total, estado.porPagina),
+            total: estado.total,
+            rotulo: 'clientes',
+            aoEscolher: (pagina) => despachar({ tipo: 'pagina_escolhida', pagina }),
+          });
+    controles.replaceChildren(...(paginacao ? [paginacao] : []));
+    // Ao trocar de página, traz o começo da lista de volta para a tela se ele tiver saído dela.
+    if (paginaDesenhada !== estado.pagina) {
+      paginaDesenhada = estado.pagina;
+      if (card.getBoundingClientRect().top < 0) card.scrollIntoView({ block: 'start' });
     }
   }
 
@@ -87,12 +100,12 @@ export function montarLista(
     const requisicao = estado.requisicao;
     requisicaoEnviada = requisicao;
     try {
-      const pagina = await api.listarClientes(estado.busca, estado.proximoCursor);
+      const resultado = await api.listarClientes(estado.busca, estado.pagina);
       despachar({
         tipo: 'pagina_carregada',
         requisicao,
-        itens: pagina.itens,
-        proximoCursor: pagina.proximoCursor,
+        itens: resultado.itens,
+        total: resultado.total ?? resultado.itens.length,
       });
     } catch (e) {
       erro = mensagemErro(e);
@@ -100,9 +113,9 @@ export function montarLista(
     }
   }
 
-  function despachar(acao: AcaoLista<Cliente>) {
+  function despachar(acao: AcaoPaginas<Cliente>) {
     if (encerrado) return;
-    estado = redutorLista(estado, acao);
+    estado = redutorPaginas(estado, acao);
     desenhar();
     if (estado.status === 'carregando' && requisicaoEnviada !== estado.requisicao) void buscar();
   }
@@ -122,7 +135,6 @@ export function montarLista(
     encerrar() {
       encerrado = true;
       clearTimeout(espera);
-      observador.disconnect();
       card.remove();
     },
   };

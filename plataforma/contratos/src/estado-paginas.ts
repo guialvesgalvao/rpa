@@ -37,6 +37,21 @@ export function limitarPagina(pagina: number, totalPaginas: number): number {
   return Math.min(Math.max(1, Math.trunc(pagina)), Math.max(1, totalPaginas));
 }
 
+// Página de uma lista que já veio inteira (usuários): a página pedida, limitada ao intervalo, e os itens dela.
+export function fatiarPagina<T>(
+  lista: readonly T[],
+  pagina: number,
+  porPagina: number,
+): { itens: T[]; pagina: number; totalPaginas: number } {
+  const totalPaginas = totalDePaginas(lista.length, porPagina);
+  const atual = limitarPagina(pagina, totalPaginas);
+  return {
+    itens: lista.slice((atual - 1) * porPagina, atual * porPagina),
+    pagina: atual,
+    totalPaginas,
+  };
+}
+
 // A primeira carga (página 1) já nasce em andamento (`requisicao` 0).
 export function estadoInicialPaginas<T>(porPagina: number, busca = ''): EstadoPaginas<T> {
   return {

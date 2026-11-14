@@ -401,14 +401,17 @@ describe('GET /clientes/:id', () => {
 });
 
 describe('GET /clientes/:id/produtos', () => {
-  it('lista só produtos com arte, com o código e a quantidade', async () => {
+  it('lista só produtos finais com arte, com o código e a quantidade', async () => {
     const cliente = await criarCliente('aba', 'Padaria Exemplo Ltda');
     const outro = await criarCliente('aba', 'Mercado Exemplo Ltda');
-    const pizza = await criarProduto('aba', 'Caixa de Pizza', 'CX0001');
+    const pizza = await criarProduto('aba', 'Caixa de Pizza', '100001');
     const sacola = await criarProduto('aba', 'Sacola de Papel');
     await criarProduto('aba', 'Copo de Papel');
+    // Insumo (letra no código, ADR 0015): a arte antiga continua no banco, mas o produto sai da lista.
+    const tinta = await criarProduto('aba', 'Tinta Preta', 'TPP001');
 
     await criarArte('aba', cliente.id, pizza.id, 'Padrão');
+    await criarArte('aba', cliente.id, tinta.id, 'Padrão');
     await criarArte('aba', cliente.id, pizza.id, 'Natal');
     await criarArte('aba', cliente.id, sacola.id, 'Padrão');
     await criarArte('aba', outro.id, sacola.id, 'Padrão');
@@ -416,7 +419,7 @@ describe('GET /clientes/:id/produtos', () => {
     const resposta = await get(`/v1/empresas/aba/clientes/${cliente.id}/produtos`);
     expect(resposta.statusCode).toBe(200);
     expect(z.array(EsquemaProdutoDoCliente).parse(resposta.json())).toEqual([
-      { id: pizza.id, nome: 'Caixa de Pizza', codigo: 'CX0001', quantidadeArtes: 2 },
+      { id: pizza.id, nome: 'Caixa de Pizza', codigo: '100001', quantidadeArtes: 2 },
       { id: sacola.id, nome: 'Sacola de Papel', codigo: null, quantidadeArtes: 1 },
     ]);
   });
@@ -437,8 +440,9 @@ describe('GET /clientes/:id/produtos', () => {
 });
 
 describe('opções', () => {
-  it('GET /produtos devolve só os produtos da empresa, em ordem alfabética', async () => {
-    await criarProduto('aba', 'Sacola de Papel');
+  it('GET /produtos devolve só os produtos finais da empresa, em ordem alfabética', async () => {
+    await criarProduto('aba', 'Sacola de Papel', '200001');
+    await criarProduto('aba', 'Cola Branca', 'CB-01');
     await criarProduto('aba', 'Álbum de Fotos');
     await criarProduto('roma', 'Produto da Roma');
 
@@ -670,7 +674,7 @@ describe('inativos no Bling', () => {
     const ativo = await criarCliente('aba', 'Padaria Ativa Ltda');
     const inativo = await criarCliente('aba', 'Padaria Inativa Ltda');
     const produtoAtivo = await criarProduto('aba', 'Caixa de Pizza');
-    const produtoInativo = await criarProduto('aba', 'Sacola de Papel', 'SC0001');
+    const produtoInativo = await criarProduto('aba', 'Sacola de Papel', '100002');
     await criarArte('aba', inativo.id, produtoInativo.id, 'Padrão');
 
     const marca = new Date();
@@ -696,7 +700,7 @@ describe('inativos no Bling', () => {
 
     const produtosDoInativo = await get(`/v1/empresas/aba/clientes/${inativo.id}/produtos`);
     expect(z.array(EsquemaProdutoDoCliente).parse(produtosDoInativo.json())).toEqual([
-      { id: produtoInativo.id, nome: 'Sacola de Papel', codigo: 'SC0001', quantidadeArtes: 1 },
+      { id: produtoInativo.id, nome: 'Sacola de Papel', codigo: '100002', quantidadeArtes: 1 },
     ]);
     const artesDoInativo = await get(
       `/v1/empresas/aba/clientes/${inativo.id}/produtos/${produtoInativo.id}/artes`,

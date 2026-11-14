@@ -26,11 +26,13 @@ export const STATUS_COMPRA_EDITAVEIS: readonly StatusCompra[] = ['aberta', 'em_a
 export const pedidoEditavel = (pedido: { status: StatusCompra }): boolean =>
   STATUS_COMPRA_EDITAVEIS.includes(pedido.status);
 
-// Insumo é o produto ativo da empresa com código começando por este prefixo.
-export const PREFIXO_INSUMO = 'TPP';
+// Insumo é o produto ativo da empresa com pelo menos uma letra no código; código só com números é produto
+// final, e produto sem código não é insumo. Mesma expressão no Postgres (`~`) e no JS.
+export const PADRAO_INSUMO = '[A-Za-z]';
+const REGEX_INSUMO = new RegExp(PADRAO_INSUMO);
 
 export const ehCodigoDeInsumo = (codigo: string | null | undefined): boolean =>
-  typeof codigo === 'string' && codigo.startsWith(PREFIXO_INSUMO);
+  typeof codigo === 'string' && REGEX_INSUMO.test(codigo);
 
 /** O módulo Compras só existe nas empresas com sincronização do Bling. */
 export const empresaTemCompras = (slug: string | undefined): boolean =>

@@ -1,9 +1,10 @@
-import type {
-  ArteDoProduto,
-  Cliente,
-  Opcao,
-  PaginaClientes,
-  ProdutoDoCliente,
+import {
+  type ArteDoProduto,
+  type Cliente,
+  type Opcao,
+  PADRAO_INSUMO,
+  type PaginaClientes,
+  type ProdutoDoCliente,
 } from '@plataforma/contratos';
 import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 
@@ -175,6 +176,10 @@ export async function buscarCliente(
 
 const ordemProduto = sql`lower(f_unaccent(${produtos.nome}))`;
 
+// Produto final: sem código ou com código sem letra. Insumos (código com letra, ADR 0015) ficam fora das listas
+// de Artes; `buscarProduto` e as artes já gravadas continuam acessíveis pelo id.
+const naoEhInsumo = sql`(${produtos.codigo} is null or ${produtos.codigo} !~ ${PADRAO_INSUMO})`;
+
 // Só os produtos com ao menos uma arte para o cliente.
 export function produtosDoCliente(
   db: Banco,
@@ -190,7 +195,7 @@ export function produtosDoCliente(
     })
     .from(artes)
     .innerJoin(produtos, eq(produtos.id, artes.produtoId))
-    .where(and(eq(artes.empresaId, empresaId), eq(artes.clienteId, clienteId)))
+    .where(and(eq(artes.empresaId, empresaId), eq(artes.clienteId, clienteId), naoEhInsumo))
     .groupBy(produtos.id, produtos.nome, produtos.codigo)
     .orderBy(asc(ordemProduto), asc(produtos.id));
 }
@@ -282,7 +287,7 @@ export function listarProdutos(db: Banco, empresaId: string): Promise<Opcao[]> {
   return db
     .select({ id: produtos.id, nome: produtos.nome })
     .from(produtos)
-    .where(and(eq(produtos.empresaId, empresaId), isNull(produtos.inativoNoBlingEm)))
+    .where(and(eq(produtos.empresaId, empresaId), isNull(produtos.inativoNoBlingEm), naoEhInsumo))
     .orderBy(asc(ordemProduto), asc(produtos.id));
 }
 

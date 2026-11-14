@@ -23,12 +23,12 @@ async function irParaOpDaRoma(janela: Page): Promise<void> {
 async function buscarPedido(janela: Page, numero: string): Promise<void> {
   await janela.locator('#op-numeros').fill(numero);
   await janela.locator('#op-confirmar').click();
-  await expect(janela.locator('#op-pedidos .op-item', { hasText: 'XX0001' })).toBeVisible({
+  await expect(janela.locator('#op-pedidos .op-item', { hasText: '900001' })).toBeVisible({
     timeout: 20_000,
   });
 }
 
-const itemXX0001 = (janela: Page) => janela.locator('#op-pedidos .op-item', { hasText: 'XX0001' });
+const item900001 = (janela: Page) => janela.locator('#op-pedidos .op-item', { hasText: '900001' });
 
 test('observação do pedido: pré-preenche, sai no PDF e, apagada, não volta ao buscar de novo', async () => {
   test.setTimeout(180_000);
@@ -38,7 +38,7 @@ test('observação do pedido: pré-preenche, sai no PDF e, apagada, não volta a
     await buscarPedido(janela, '101');
 
     // A observação da fixture entra como Observação da OP.
-    await itemXX0001(janela)
+    await item900001(janela)
       .getByRole('button', { name: /Editar dados da OP|Pré-preencher OP/ })
       .click();
     const observacao = janela.locator('#op-detalhe').getByLabel('Observação');
@@ -60,16 +60,16 @@ test('observação do pedido: pré-preenche, sai no PDF e, apagada, não volta a
     expect(resumo.texto.replace(/\s+/g, ' ')).toContain('Entregar com caixa reforçada');
 
     // Apagar a observação, salvar e buscar o pedido de novo: ela não volta.
-    await itemXX0001(janela)
+    await item900001(janela)
       .getByRole('button', { name: /Editar dados da OP|Pré-preencher OP/ })
       .click();
     await observacao.fill('');
     await janela.locator('#op-detalhe').getByRole('button', { name: 'Salvar' }).click();
     await expect(
-      itemXX0001(janela).getByRole('button', { name: 'Pré-preencher OP' }),
+      item900001(janela).getByRole('button', { name: 'Pré-preencher OP' }),
     ).toBeVisible();
     await buscarPedido(janela, '101');
-    await itemXX0001(janela).getByRole('button', { name: 'Pré-preencher OP' }).click();
+    await item900001(janela).getByRole('button', { name: 'Pré-preencher OP' }).click();
     await expect(observacao).toHaveValue('');
   } finally {
     await app.close();

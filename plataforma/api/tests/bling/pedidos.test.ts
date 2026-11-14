@@ -156,8 +156,8 @@ describe('criarTarefasDosPedidos', () => {
       .returning();
     clienteId = cliente!.id;
     await db.insert(produtos).values([
-      { empresaId: aba, nome: 'Caixa 35', codigo: 'CX-35' },
-      { empresaId: aba, nome: 'Caixa 40', codigo: 'CX-40' },
+      { empresaId: aba, nome: 'Caixa 35', codigo: '3500' },
+      { empresaId: aba, nome: 'Caixa 40', codigo: '4000' },
     ]);
   });
 
@@ -165,7 +165,7 @@ describe('criarTarefasDosPedidos', () => {
     numero: '9001',
     contatoIdBling: 501,
     cnpj: null,
-    codigos: ['CX-35', 'CX-40'],
+    codigos: ['3500', '4000'],
     ...extra,
   });
 
@@ -194,7 +194,7 @@ describe('criarTarefasDosPedidos', () => {
   });
 
   it('tarefa concluída ou cancelada não conta como aberta; arte existente sim', async () => {
-    const [produto] = await db.select().from(produtos).where(eq(produtos.codigo, 'CX-35'));
+    const [produto] = await db.select().from(produtos).where(eq(produtos.codigo, '3500'));
     await criarArte(db, {
       empresaId: aba,
       clienteId,
@@ -212,7 +212,7 @@ describe('criarTarefasDosPedidos', () => {
       maquinaIds: [(await db.select().from(maquinas).limit(1))[0]!.id],
       pdf: { nomeOriginal: 'a.pdf', tipoMime: 'application/pdf', conteudo: PDF_MINIMO },
     });
-    const [outro] = await db.select().from(produtos).where(eq(produtos.codigo, 'CX-40'));
+    const [outro] = await db.select().from(produtos).where(eq(produtos.codigo, '4000'));
     await db
       .insert(tarefasArte)
       .values({ empresaId: aba, clienteId, produtoId: outro!.id, status: 'cancelada' });
@@ -221,9 +221,18 @@ describe('criarTarefasDosPedidos', () => {
     expect(resultado).toMatchObject({ criadas: 1, jaAtendidos: 1 });
   });
 
+  it('insumo (código com letra) não vira tarefa nem conta como produto ausente', async () => {
+    await db.insert(produtos).values({ empresaId: aba, nome: 'Tinta Ficticia', codigo: 'TPP001' });
+    const resultado = await criarTarefasDosPedidos(db, aba, [
+      pedido({ codigos: ['3500', 'TPP001', 'XYZ-9'] }),
+    ]);
+    expect(resultado).toMatchObject({ criadas: 1, semProduto: 0 });
+    expect(await db.select().from(tarefasArte)).toHaveLength(1);
+  });
+
   it('cliente pelo CNPJ quando o id do Bling não casa; fora da base: aviso só com contagens', async () => {
     const resultado = await criarTarefasDosPedidos(db, aba, [
-      pedido({ contatoIdBling: 999, cnpj: CNPJ, codigos: ['CX-35', 'NAO-EXISTE'] }),
+      pedido({ contatoIdBling: 999, cnpj: CNPJ, codigos: ['3500', '999999'] }),
       pedido({ numero: '9003', contatoIdBling: 998, cnpj: gerarCnpj(32) }),
     ]);
     expect(resultado).toMatchObject({ criadas: 1, semCliente: 1, semProduto: 1 });
@@ -243,7 +252,7 @@ describe('criarTarefasDosPedidos', () => {
         empresas: ['aba'],
       });
     }
-    const semDono = await criarTarefasDosPedidos(db, aba, [pedido({ codigos: ['CX-35'] })]);
+    const semDono = await criarTarefasDosPedidos(db, aba, [pedido({ codigos: ['3500'] })]);
     expect(semDono.semResponsavel).toBe(1);
     expect(semDono.avisos.join(' ')).toContain('sem responsável');
     expect((await db.select().from(tarefasArte))[0]?.responsavelId).toBeNull();
@@ -262,7 +271,7 @@ describe('criarTarefasDosPedidos', () => {
       ids.push(u.id);
     }
     await definirResponsavelAutomatico(db, aba, ids[1]!);
-    const resultado = await criarTarefasDosPedidos(db, aba, [pedido({ codigos: ['CX-40'] })]);
+    const resultado = await criarTarefasDosPedidos(db, aba, [pedido({ codigos: ['4000'] })]);
     expect(resultado).toMatchObject({ criadas: 1, semResponsavel: 0 });
     expect((await db.select().from(tarefasArte))[0]?.responsavelId).toBe(ids[1]);
   });

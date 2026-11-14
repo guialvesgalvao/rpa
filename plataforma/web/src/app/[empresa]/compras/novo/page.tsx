@@ -23,7 +23,7 @@ export default async function NovoPedido({ params }: PageProps<'/[empresa]/compr
         <h2>Novo pedido de compra</h2>
         {insumos.length === 0 ? (
           <div className="hint">
-            Nenhum insumo (produto com código TPP) sincronizado do Bling nesta empresa.
+            Nenhum insumo (produto com letra no código) sincronizado do Bling nesta empresa.
           </div>
         ) : (
           <FormPedido empresa={empresa} insumos={insumos} />

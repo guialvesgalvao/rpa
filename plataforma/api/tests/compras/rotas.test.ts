@@ -34,6 +34,8 @@ let tpp1: string;
 let tpp2: string;
 let tppInativo: string;
 let caixa: string;
+let semCodigo: string;
+let letraNoMeio: string;
 
 async function pessoa(
   email: string,
@@ -57,7 +59,7 @@ async function pessoa(
   return { id: criado.id, token: EsquemaRespostaEntrar.parse(resposta.json()).acesso };
 }
 
-async function produto(empresaId: string, codigo: string, nome: string, inativo = false) {
+async function produto(empresaId: string, codigo: string | null, nome: string, inativo = false) {
   const [linha] = await db
     .insert(produtos)
     .values({ empresaId, codigo, nome, inativoNoBlingEm: inativo ? new Date() : null })
@@ -72,7 +74,9 @@ beforeEach(async () => {
   tpp2 = await produto(roma!.id, 'TPP002', 'Fita Ficticia');
   tpp1 = await produto(roma!.id, 'TPP001', 'Tinta Ficticia');
   tppInativo = await produto(roma!.id, 'TPP009', 'Cola Ficticia', true);
-  caixa = await produto(roma!.id, 'CX-35', 'Caixa Ficticia');
+  caixa = await produto(roma!.id, '123456', 'Caixa Ficticia');
+  semCodigo = await produto(roma!.id, null, 'Sacola Ficticia');
+  letraNoMeio = await produto(roma!.id, '12A3', 'Cola Branca Ficticia');
   pedro = await pessoa('pedro@exemplo.com', 'Pedro Ficticio', { roma: PEDE }, 'producao');
   paula = await pessoa('paula@exemplo.com', 'Paula Ficticia', { roma: PEDE });
   ana = await pessoa('ana@exemplo.com', 'Ana Ficticia', { roma: ACOMPANHA, aba: ACOMPANHA });
@@ -123,10 +127,11 @@ async function historico(id: string, token = ana.token) {
 }
 
 describe('insumos', () => {
-  it('lista só os produtos ativos com código TPP, por código', async () => {
+  it('lista só os produtos ativos com letra no código, por código', async () => {
     const resposta = await chamar('GET', '/insumos', pedro.token);
     expect(resposta.statusCode).toBe(200);
     expect(z.array(EsquemaInsumo).parse(resposta.json())).toEqual([
+      { id: letraNoMeio, codigo: '12A3', nome: 'Cola Branca Ficticia' },
       { id: tpp1, codigo: 'TPP001', nome: 'Tinta Ficticia' },
       { id: tpp2, codigo: 'TPP002', nome: 'Fita Ficticia' },
     ]);
@@ -170,8 +175,8 @@ describe('criar pedido', () => {
     expect((await pedir(paula.token)).areaCriador).toBeNull();
   });
 
-  it('recusa insumo sem código TPP, inativo ou inexistente', async () => {
-    for (const insumoId of [caixa, tppInativo, '7b0e6c0a-3f5e-4c59-9d0a-2f3c1a4b5d6e']) {
+  it('recusa produto final (código só com números ou sem código), insumo inativo ou inexistente', async () => {
+    for (const insumoId of [caixa, semCodigo, tppInativo, '7b0e6c0a-3f5e-4c59-9d0a-2f3c1a4b5d6e']) {
       esperarErro(
         await chamar('POST', '/pedidos', pedro.token, { insumoId, quantidade: 1 }),
         400,

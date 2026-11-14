@@ -35,7 +35,7 @@ async function errosDaApi(resposta: Response, padrao: string): Promise<Erros> {
 
 type Props = {
   empresa: string;
-  // Insumos que podem ser escolhidos (TPP ativos). Vazio na edição de quem não pode pedir: o insumo fica.
+  // Insumos que podem ser escolhidos (ativos, com letra no código). Vazio na edição de quem não pode pedir: o insumo fica.
   insumos: Insumo[];
   // Ausente: novo pedido. Presente: edição.
   pedido?: Pick<PedidoCompra, 'id' | 'insumo' | 'quantidade' | 'observacao'>;
@@ -43,7 +43,7 @@ type Props = {
   aoSalvar?: () => void;
 };
 
-// Novo pedido (insumo da lista TPP, quantidade e observação) ou edição dos mesmos campos.
+// Novo pedido (insumo da lista, quantidade e observação) ou edição dos mesmos campos.
 export function FormPedido({ empresa, insumos, pedido, aoSalvar }: Props) {
   const roteador = useRouter();
   const [busca, setBusca] = useState('');
@@ -56,7 +56,7 @@ export function FormPedido({ empresa, insumos, pedido, aoSalvar }: Props) {
   const [ocupado, setOcupado] = useState(false);
 
   const escolheInsumo = insumos.length > 0;
-  // O insumo atual do pedido continua na lista mesmo se deixou de ser TPP ativo.
+  // O insumo atual do pedido continua na lista mesmo se deixou de ser insumo ativo.
   const opcoes =
     pedido && escolheInsumo && !insumos.some((i) => i.id === pedido.insumo.id)
       ? [pedido.insumo, ...insumos]

@@ -30,14 +30,14 @@ const pedido: PedidoOp = {
   itens: [
     {
       descricao: 'Caixa',
-      codigo: 'XX0001',
+      codigo: '900001',
       unidade: 'UN',
       quantidade: 1000,
       insumos: [{ nome: 'Papel', unidade: 'UN', quantidadePorUnidade: 0.5 }],
     },
     {
       descricao: 'Sacola',
-      codigo: 'XX0002',
+      codigo: '900002',
       unidade: 'UN',
       quantidade: 10,
       erro: ERRO_SEM_INSUMOS,
@@ -91,13 +91,13 @@ describe('gerarOps', () => {
     const resultados = await gerarOps(t.deps);
 
     expect(resultados.map((r) => [r.codigo, r.status, r.numeroOp])).toEqual([
-      ['XX0001', 'ok', 41],
-      ['XX0002', 'erro', undefined],
+      ['900001', 'ok', 41],
+      ['900002', 'erro', undefined],
       ['XX0003', 'ok', 42],
     ]);
     expect(t.reservas).toEqual([2]);
     expect(resultados[1]).toMatchObject({ erro: ERRO_SEM_INSUMOS });
-    expect(t.falhas).toEqual([`9001:XX0002:${ERRO_SEM_INSUMOS}`]);
+    expect(t.falhas).toEqual([`9001:900002:${ERRO_SEM_INSUMOS}`]);
     expect(resultados[0]).toMatchObject({
       arquivos: ['C:\\OPs\\OP 41.pdf'],
       detalhe: 'OP nº 41',
@@ -119,7 +119,7 @@ describe('gerarOps', () => {
       numeroPedido: '9001',
       previsaoInicial: pedido.dataVenda,
       previsaoFinal: pedido.dataPrevista,
-      item: { descricao: 'Caixa', codigo: 'XX0001', unidade: 'UN', quantidade: 1000 },
+      item: { descricao: 'Caixa', codigo: '900001', unidade: 'UN', quantidade: 1000 },
       insumos: [{ nome: 'Papel', unidade: 'UN', quantidadePorUnidade: 0.5 }],
       arte: { cor: 'Azul', maquinas: ['Favorit', 'Rekord'], imagem: PNG },
     });
@@ -244,7 +244,7 @@ describe('gerarOps', () => {
     ]);
     const salvar = t.deps.salvarPdf;
     t.deps.salvarPdf = async (ordem) => {
-      if (ordem.item.codigo === 'XX0001') throw new Error('Disco cheio');
+      if (ordem.item.codigo === '900001') throw new Error('Disco cheio');
       return salvar(ordem);
     };
     const resultados = await gerarOps(t.deps);

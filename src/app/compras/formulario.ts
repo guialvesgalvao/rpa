@@ -44,7 +44,7 @@ export function dadosDoFormulario(
   return { dados };
 }
 
-/** Novo pedido ou edição: insumo (busca na lista TPP), quantidade e observação. */
+/** Novo pedido ou edição: insumo (busca na lista de insumos), quantidade e observação. */
 export function montarFormularioPedido(
   raiz: HTMLElement,
   { api, pedido, podeTrocarInsumo, voltar, concluido }: DepsFormularioPedido,
@@ -94,7 +94,11 @@ export function montarFormularioPedido(
       campoInsumo.append(criar('label', undefined, 'Insumo'), busca, insumo);
       if (insumos.length === 0) {
         campoInsumo.append(
-          criar('div', 'hint warn', 'Nenhum insumo (código TPP) sincronizado do Bling.'),
+          criar(
+            'div',
+            'hint warn',
+            'Nenhum insumo (produto com letra no código) sincronizado do Bling.',
+          ),
         );
       }
     } else if (pedido) {

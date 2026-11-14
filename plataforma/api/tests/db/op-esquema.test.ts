@@ -23,7 +23,7 @@ describe('produtos.codigo', () => {
     await db.insert(produtos).values([
       { empresaId: aba, nome: 'Sem código A' },
       { empresaId: aba, nome: 'Sem código B' },
-      { empresaId: aba, nome: 'Com código', codigo: 'XX0001' },
+      { empresaId: aba, nome: 'Com código', codigo: '900001' },
     ]);
     expect(await db.$count(produtos, eq(produtos.empresaId, aba))).toBe(3);
   });
@@ -31,15 +31,15 @@ describe('produtos.codigo', () => {
   it('recusa código repetido na mesma empresa, mas aceita em empresas diferentes', async () => {
     const aba = await empresaId('aba');
     const roma = await empresaId('roma');
-    await db.insert(produtos).values({ empresaId: aba, nome: 'Produto A', codigo: 'XX0001' });
+    await db.insert(produtos).values({ empresaId: aba, nome: 'Produto A', codigo: '900001' });
 
     expect(
       await codigoDoErro(
-        db.insert(produtos).values({ empresaId: aba, nome: 'Produto B', codigo: 'XX0001' }),
+        db.insert(produtos).values({ empresaId: aba, nome: 'Produto B', codigo: '900001' }),
       ),
     ).toBe(VIOLA_UNICO);
     await expect(
-      db.insert(produtos).values({ empresaId: roma, nome: 'Produto A', codigo: 'XX0001' }),
+      db.insert(produtos).values({ empresaId: roma, nome: 'Produto A', codigo: '900001' }),
     ).resolves.toBeDefined();
   });
 

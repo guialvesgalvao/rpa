@@ -10,7 +10,7 @@ import { botao, criar } from '../artes/dom.js';
 export const AVISO_OBSERVACAO_CORTADA = 'Observação do pedido cortada para caber na OP.';
 
 export type DepsPreenchimento = {
-  /** Ex.: "Pedido 101 · XX0001 — Caixa de pizza 35x35". */
+  /** Ex.: "Pedido 101 · 900001 — Caixa de pizza 35x35". */
   titulo: string;
   inicial?: PreenchimentoOp;
   /** Aviso ao lado da Observação (ex.: a do pedido foi cortada para caber na OP). */

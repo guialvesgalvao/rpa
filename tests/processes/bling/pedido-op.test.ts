@@ -26,7 +26,7 @@ describe('extrairPedidoOp', () => {
       dataVenda: data(12, 10, 2026),
       dataPrevista: data(20, 10, 2026),
     });
-    expect(p.itens.map((i) => i.codigo)).toEqual(['XX0001', 'XX0002']);
+    expect(p.itens.map((i) => i.codigo)).toEqual(['900001', '900002']);
   });
 
   it('traz insumos com quantidade por unidade numérica', () => {
@@ -46,7 +46,7 @@ describe('extrairPedidoOp', () => {
   it('marca erro só no item sem componentes, mantendo os demais', () => {
     const [ok, semInsumos] = extrairPedidoOp(carregar()).itens;
     expect(ok?.erro).toBeUndefined();
-    expect(semInsumos).toMatchObject({ codigo: 'XX0002', erro: ERRO_SEM_INSUMOS });
+    expect(semInsumos).toMatchObject({ codigo: '900002', erro: ERRO_SEM_INSUMOS });
     expect(semInsumos?.insumos).toBeUndefined();
   });
 

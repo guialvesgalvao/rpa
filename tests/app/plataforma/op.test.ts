@@ -38,14 +38,14 @@ const pedido = (extra: Partial<PedidoOp> = {}): PedidoOp => ({
   itens: [
     {
       descricao: 'Caixa',
-      codigo: 'XX0001',
+      codigo: '900001',
       unidade: 'UN',
       quantidade: 1000,
       insumos: [{ nome: 'Papel', unidade: 'UN', quantidadePorUnidade: 0.5 }],
     },
     {
       descricao: 'Sacola',
-      codigo: 'XX0002',
+      codigo: '900002',
       unidade: 'UN',
       quantidade: 10,
       erro: ERRO_SEM_INSUMOS,
@@ -66,8 +66,8 @@ function apiFalsa(sobre: Partial<ClienteArtes> = {}) {
     produtosDoCliente: async () => {
       chamadas.push('produtos');
       return [
-        { id: PRODUTO, nome: 'Caixa', codigo: 'XX0001', quantidadeArtes: 1 },
-        { id: 'outro', nome: 'Sacola', codigo: 'XX0002', quantidadeArtes: 1 },
+        { id: PRODUTO, nome: 'Caixa', codigo: '900001', quantidadeArtes: 1 },
+        { id: 'outro', nome: 'Sacola', codigo: '900002', quantidadeArtes: 1 },
       ];
     },
     artesDoProduto: async (_e, _c, produtoId) => {

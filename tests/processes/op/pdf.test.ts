@@ -26,7 +26,7 @@ const op = (extra: Partial<OrdemProducao> = {}): OrdemProducao => ({
   cliente: { nome: 'Cliente Ficticio Ltda', fantasia: 'Pizzaria Ficticia' },
   numeroPedido: '9001',
   previsaoInicial: new Date(2026, 9, 12),
-  item: { descricao: 'Caixa Sintetica 35', codigo: 'XX0001', unidade: 'UN', quantidade: 1000 },
+  item: { descricao: 'Caixa Sintetica 35', codigo: '900001', unidade: 'UN', quantidade: 1000 },
   insumos: [
     { nome: 'Papel sintetico A', unidade: 'UN', quantidadePorUnidade: 0.5 },
     { nome: 'Papel sintetico B', unidade: 'UN', quantidadePorUnidade: 0.5 },
@@ -68,7 +68,7 @@ describe('PDF da OP', () => {
       'Pizzaria Ficticia',
       '9001',
       'Caixa Sintetica 35',
-      'XX0001',
+      '900001',
       '1.000,00',
       'Papel sintetico A',
       '500,00',
@@ -122,8 +122,8 @@ describe('PDF da OP', () => {
     try {
       const primeiro = await salvarPdfOp(page, op(), dir);
       const segundo = await salvarPdfOp(page, op(), dir);
-      expect(path.basename(primeiro)).toBe('OP 12 Pizzaria Ficticia XX0001.pdf');
-      expect(path.basename(segundo)).toBe('OP 12 Pizzaria Ficticia XX0001 (2).pdf');
+      expect(path.basename(primeiro)).toBe('OP 12 Pizzaria Ficticia 900001.pdf');
+      expect(path.basename(segundo)).toBe('OP 12 Pizzaria Ficticia 900001 (2).pdf');
       expect((await readFile(segundo)).subarray(0, 4).toString('latin1')).toBe('%PDF');
     } finally {
       await rm(dir, { recursive: true, force: true });

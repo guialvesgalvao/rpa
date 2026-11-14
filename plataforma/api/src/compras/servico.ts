@@ -6,7 +6,7 @@ import {
   type EdicaoPedidoCompra,
   type EventoCompra,
   type Insumo,
-  PREFIXO_INSUMO,
+  PADRAO_INSUMO,
   type PedidoCompra,
   type PedidoCompraDetalhe,
   pedidoEditavel,
@@ -14,7 +14,7 @@ import {
   STATUS_COMPRA_EDITAVEIS,
   type StatusCompra,
 } from '@plataforma/contratos';
-import { and, asc, desc, eq, inArray, isNull, like, or, type SQL, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, or, type SQL, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 
 import { type Armazenamento, NO_BANCO } from '../artes/servico.js';
@@ -53,14 +53,14 @@ const encerrado = () =>
   new ErroApi(409, 'pedido_encerrado', 'O pedido já foi concluído ou cancelado.');
 
 const insumoInvalido = () =>
-  new ErroApi(400, 'insumo_invalido', 'Escolha um insumo da lista (código começando por TPP).');
+  new ErroApi(400, 'insumo_invalido', 'Escolha um insumo da lista (código com letra).');
 
-// Produto ativo da empresa com código de insumo. `like` com o prefixo fixo, sem curingas vindos de fora.
+// Produto ativo da empresa com código de insumo (pelo menos uma letra). O padrão é fixo, nada vem de fora.
 const ehInsumo = (empresaId: string): SQL | undefined =>
   and(
     eq(produtos.empresaId, empresaId),
     isNull(produtos.inativoNoBlingEm),
-    like(produtos.codigo, `${PREFIXO_INSUMO}%`),
+    sql`${produtos.codigo} ~ ${PADRAO_INSUMO}`,
   );
 
 export async function listarInsumos(db: Banco, empresaId: string): Promise<Insumo[]> {

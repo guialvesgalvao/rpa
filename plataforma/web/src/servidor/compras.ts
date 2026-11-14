@@ -36,6 +36,6 @@ export const historicoDoPedido = (empresa: string, id: string): Promise<EventoCo
     z.array(EsquemaEventoCompra),
   );
 
-// Produtos ativos da empresa com código TPP (exige `compras.pedir`).
+// Produtos ativos da empresa com letra no código (insumos) (exige `compras.pedir`).
 export const insumosDaEmpresa = (empresa: string): Promise<Insumo[]> =>
   lerDaApi(`${base(empresa)}/insumos`, z.array(EsquemaInsumo));

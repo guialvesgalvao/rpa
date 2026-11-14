@@ -1,4 +1,4 @@
-import { STATUS_EM_ANDAMENTO } from '@plataforma/contratos';
+import { ehCodigoDeInsumo, STATUS_EM_ANDAMENTO } from '@plataforma/contratos';
 import { and, eq, inArray } from 'drizzle-orm';
 
 import type { Banco } from '../db/cliente.js';
@@ -80,6 +80,8 @@ export async function criarTarefasDosPedidos(
       continue;
     }
     for (const codigo of pedido.codigos) {
+      // Insumo (código com letra) não tem arte: não vira tarefa nem conta como produto ausente.
+      if (ehCodigoDeInsumo(codigo)) continue;
       const [produto] = await db
         .select({ id: produtos.id })
         .from(produtos)

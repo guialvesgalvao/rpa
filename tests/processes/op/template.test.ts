@@ -19,7 +19,7 @@ const opBase = (): OrdemProducao => ({
   numeroPedido: '9001',
   previsaoInicial: new Date(2026, 9, 12),
   previsaoFinal: new Date(2026, 9, 20),
-  item: { descricao: 'Caixa Sintetica 35', codigo: 'XX0001', unidade: 'UN', quantidade: 1000 },
+  item: { descricao: 'Caixa Sintetica 35', codigo: '900001', unidade: 'UN', quantidade: 1000 },
   insumos: [
     { nome: 'Papel sintetico A', unidade: 'UN', quantidadePorUnidade: 0.5 },
     { nome: 'Papel sintetico B', unidade: 'UN', quantidadePorUnidade: 1 },
@@ -180,6 +180,6 @@ describe('nomeOp', () => {
   it('monta o nome com número, cliente e código, sem caracteres inválidos', () => {
     const op = opBase();
     op.cliente.fantasia = 'Pizzaria: Ficticia/Sul';
-    expect(nomeOp(op)).toBe('OP 12 Pizzaria_ Ficticia_Sul XX0001.pdf');
+    expect(nomeOp(op)).toBe('OP 12 Pizzaria_ Ficticia_Sul 900001.pdf');
   });
 });

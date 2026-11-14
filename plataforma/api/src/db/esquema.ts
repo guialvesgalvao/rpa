@@ -476,7 +476,7 @@ export const comprasPedidos = pgTable(
     empresaId: uuid('empresa_id')
       .notNull()
       .references(() => empresas.id),
-    // O insumo: produto da empresa com código `TPP…` (a regra do código é da API).
+    // O insumo: produto da empresa com letra no código (a regra do código é da API, ADR 0015).
     produtoId: uuid('produto_id').notNull(),
     quantidade: numeric('quantidade', { precision: 12, scale: 3, mode: 'number' }).notNull(),
     observacao: text('observacao'),

@@ -36,11 +36,13 @@ describe('pedidos de compra', () => {
     ]);
   });
 
-  it('reconhece o insumo pelo prefixo TPP e o módulo só nas empresas com sincronização', () => {
-    expect(ehCodigoDeInsumo('TPP001')).toBe(true);
-    expect(ehCodigoDeInsumo('tpp001')).toBe(false);
-    expect(ehCodigoDeInsumo('CX-35')).toBe(false);
-    expect(ehCodigoDeInsumo(null)).toBe(false);
+  it('reconhece o insumo pela letra no código e o módulo só nas empresas com sincronização', () => {
+    for (const codigo of ['TPP001', 'tpp001', 'ABC1', '1A2', 'CX-35']) {
+      expect(ehCodigoDeInsumo(codigo)).toBe(true);
+    }
+    for (const codigo of ['123', '000123', '12-34', '', null, undefined]) {
+      expect(ehCodigoDeInsumo(codigo)).toBe(false);
+    }
     expect(empresaTemCompras('roma')).toBe(true);
     expect(empresaTemCompras('aba')).toBe(false);
     expect(empresaTemCompras(undefined)).toBe(false);

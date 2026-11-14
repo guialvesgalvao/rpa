@@ -334,12 +334,12 @@ describe('semear-dev', () => {
     expect(await db.$count(clientes)).toBe(CLIENTES_POR_EMPRESA * 2 + 1);
   });
 
-  it('semeia na Roma o cliente e os produtos da fixture da OP, com 2 artes no XX0001', async () => {
+  it('semeia na Roma o cliente e os produtos da fixture da OP, com 2 artes no 900001', async () => {
     await semear(db);
     const [roma] = await db.select().from(empresas).where(eq(empresas.slug, 'roma'));
     const [cliente] = await db.select().from(clientes).where(eq(clientes.cnpj, CLIENTE_OP.cnpj));
     expect(cliente?.empresaId).toBe(roma?.id);
-    const [caixa] = await db.select().from(produtos).where(eq(produtos.codigo, 'XX0001'));
+    const [caixa] = await db.select().from(produtos).where(eq(produtos.codigo, '900001'));
     const daCaixa = await db
       .select()
       .from(artes)

@@ -4,7 +4,7 @@
       "id": 1001,
       "descricao": "Caixa de Pizza Sintetica 35",
       "descricaoDetalhada": "",
-      "codigo": "XX0001",
+      "codigo": "900001",
       "unidade": "UN",
       "quantidade": 1000,
       "componentes": [
@@ -37,7 +37,7 @@
       "id": 1002,
       "descricao": "Sacola Sintetica",
       "descricaoDetalhada": "",
-      "codigo": "XX0002",
+      "codigo": "900002",
       "unidade": "UN",
       "quantidade": 1000,
       "componentes": [],

@@ -179,7 +179,7 @@ export type AnexoCompraParaBaixar = {
  * alcance: quem só pede vê os próprios. Falha de rede ou de permissão vem como mensagem pronta para a tela.
  */
 export type ComprasApi = {
-  /** Produtos ativos com código TPP (só com `compras.pedir`). */
+  /** Produtos ativos com letra no código (insumos) (só com `compras.pedir`). */
   insumos(): Promise<Insumo[]>;
   listar(consulta: ConsultaComprasApp): Promise<PedidoCompra[]>;
   obter(id: string): Promise<PedidoCompraTela>;

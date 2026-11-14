@@ -38,7 +38,7 @@ const NOMES_PRODUTOS = [
 // Código (SKU) fictício por posição, só para casar o item do pedido nos testes locais.
 const PRODUTOS = NOMES_PRODUTOS.map((nome, i) => ({
   nome,
-  codigo: `DEV${String(i + 1).padStart(4, '0')}`,
+  codigo: `91${String(i + 1).padStart(4, '0')}`,
 }));
 
 const NOME_ARTE_EXTRA = 'Natal';
@@ -348,7 +348,7 @@ async function semearArtesIniciais(
 // Única empresa com a aba OP no app (e com o módulo Compras).
 const EMPRESA_OP = 'roma';
 
-// Insumos fictícios do módulo Compras: produtos com código `TPP` (ADR 0012). Dados fictícios.
+// Insumos fictícios do módulo Compras: produtos com letra no código (ADR 0015). Dados fictícios.
 export const INSUMOS_DEV = [
   { nome: 'Tinta Preta Fictícia 1 L', codigo: 'TPP0001' },
   { nome: 'Cola Branca Fictícia 5 kg', codigo: 'TPP0002' },
@@ -381,11 +381,11 @@ export const CLIENTE_OP = {
   cnpj: '11222333000181',
 };
 export const PRODUTOS_OP = [
-  { nome: 'Caixa de Pizza Sintetica 35', codigo: 'XX0001' },
-  { nome: 'Sacola Sintetica', codigo: 'XX0002' },
+  { nome: 'Caixa de Pizza Sintetica 35', codigo: '900001' },
+  { nome: 'Sacola Sintetica', codigo: '900002' },
 ];
 
-// Idempotente: duas artes para o produto XX0001 do cliente da fixture (a mais nova com imagem e as duas
+// Idempotente: duas artes para o produto 900001 do cliente da fixture (a mais nova com imagem e as duas
 // máquinas; a antiga só com PDF), para exercitar a pré-seleção e o bloco de arte da OP.
 async function semearOp(
   db: Banco,

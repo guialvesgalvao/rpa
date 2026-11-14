@@ -112,9 +112,18 @@ describe('htmlDaOp', () => {
     expect(html).toMatch(
       /2\) Acoplagem<\/td>\s*<td class="marca">\( \)<\/td><td class="marca">\(X\)/,
     );
-    // Os passos sem dados (3 a 7) e o 2 (sem data) continuam em branco.
+    // O passo sem dados (3) e o 2 (sem data) continuam em branco.
     expect(html.match(/____\/____\/______/g)).toHaveLength(PASSOS_PROCESSO.length - 1);
     expect(html.match(/\(X\)/g)).toHaveLength(2);
+  });
+
+  it('o processo tem só Off-Set, Acoplagem e Corte e Vinco, nessa ordem', () => {
+    expect(PASSOS_PROCESSO).toEqual(['Off-Set', 'Acoplagem', 'Corte e Vinco']);
+    const html = htmlDaOp(opBase());
+    expect(html).toMatch(/1\) Off-Set[\s\S]*2\) Acoplagem[\s\S]*3\) Corte e Vinco/);
+    for (const removido of ['Guilhotina', 'Colagem', 'Inspeção Final', 'Despacho', '4)']) {
+      expect(html).not.toContain(removido);
+    }
   });
 
   it('escapa o responsável e a quantidade do processo', () => {

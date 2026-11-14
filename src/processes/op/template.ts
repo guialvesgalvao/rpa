@@ -1,15 +1,7 @@
 import type { ImagemOp, LinhaProcessoDaOp, OrdemProducao } from './tipos.js';
 
-/** Passos fixos da tabela "Descrição do Processo" (`table-example.jpeg`). */
-export const PASSOS_PROCESSO = [
-  'Off-Set',
-  'Acoplagem',
-  'Guilhotina',
-  'Corte e Vinco',
-  'Colagem',
-  'Inspeção Final',
-  'Despacho',
-] as const;
+/** Passos fixos da tabela "Descrição do Processo", nesta ordem (ADR 0016). */
+export const PASSOS_PROCESSO = ['Off-Set', 'Acoplagem', 'Corte e Vinco'] as const;
 
 /** Altura mínima da caixa de Observação; a imagem da arte tem o dobro. */
 const ALTURA_OBSERVACAO_MM = 22;

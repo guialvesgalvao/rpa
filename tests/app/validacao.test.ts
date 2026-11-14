@@ -212,6 +212,8 @@ describe('validarItensOp', () => {
       { dataEntrega: '20/11/2026' },
       { dataEntrega: '2026-02-30' },
       { processo: [{ aplica: 'sim' }] },
+      // A lista antiga de 7 passos não passa mais.
+      { processo: Array.from({ length: 7 }, () => ({})) },
       { processo: Array.from({ length: PASSOS_PROCESSO.length }, () => ({ aplica: 'talvez' })) },
       {
         processo: Array.from({ length: PASSOS_PROCESSO.length }, () => ({

@@ -96,7 +96,7 @@ O topo do menu mostra a empresa em uso (ABA Embalagens, Roma…). Com mais de um
 - **Cliente:** quem compra da fábrica (ex.: uma pizzaria), também vindo do Bling.
 - **Arte:** a estampa de um produto do catálogo feita para um cliente específico (ex.: a caixa 35x35 com a marca da pizzaria). Tem ao menos um arquivo (PDF ou imagem), cor e máquinas (Favorit, Rekord e Ultra; uma ou mais). Se a cor não está na lista, **+ Nova cor** a cria ali mesmo, só com o nome (sem diferenciar maiúsculas nem acentos de uma existente).
 
-A home de Artes (app e site) lista os clientes em **páginas numeradas de 20**, com a busca por nome, razão social ou CNPJ; uma busca nova volta à página 1, e voltar a uma página já vista não a busca de novo. Na página do cliente, cada produto com arte abre a lista das artes dele (nome, cor, máquinas e data); **Visualizar imagem** abre a imagem da arte, e arte só com PDF mostra **Sem imagem** (ADR 0014).
+A home de Artes (app e site) lista os clientes em **páginas numeradas de 20**, com a busca por nome, razão social ou CNPJ; uma busca nova volta à página 1, e voltar a uma página já vista não a busca de novo. Na página do cliente, cada produto com arte abre a lista das artes dele (nome, cor, máquinas e data); **Visualizar imagem** abre a imagem da arte, e arte só com PDF mostra **Sem imagem** (ADR 0014). Embaixo, **Baixar arquivo PDF** baixa o PDF da arte (no app, pela janela de salvar); arte sem PDF mostra **Sem PDF**. Insumos (produtos com letra no código, ADR 0015) não aparecem nas listas de produtos de Artes nem geram tarefa a partir dos pedidos.
 
 O fluxo é este: o cliente pede à fábrica um produto do catálogo. Se ainda não há arte dele para esse produto, ou se ele quer uma nova, o arte-finalista desenvolve a arte e a cadastra para esse cliente e produto. A OP usa essa arte. Não existe vínculo direto entre cliente e produto: é a arte que liga os dois. Por isso a lista de produtos de um cliente mostra só os que já têm arte, e o cadastro de uma arte nova escolhe o produto no catálogo inteiro.
 
@@ -117,7 +117,7 @@ No topo da home de Artes ficam os atalhos **Pendentes**, **Em andamento**, **Agu
 
 ### Compras
 
-Pedidos de compra de insumos, no app e no site, só na Roma (ADR 0012). Insumo é o produto ativo do Bling com código começando por `TPP`, vindo da sincronização. O pedido tem insumo, quantidade (até 3 casas decimais) e observação opcional, e guarda quem pediu, a área dessa pessoa naquele momento, a data, o responsável e o status: **Aberta**, **Em andamento**, **Concluída** ou **Cancelada**.
+Pedidos de compra de insumos, no app e no site, só na Roma (ADR 0012). Insumo é o produto ativo do Bling com pelo menos uma letra no código (código só com números é produto final), vindo da sincronização (ADR 0015). O pedido tem insumo, quantidade (até 3 casas decimais) e observação opcional, e guarda quem pediu, a área dessa pessoa naquele momento, a data, o responsável e o status: **Aberta**, **Em andamento**, **Concluída** ou **Cancelada**.
 
 - **Fazer pedidos:** cria pedidos e vê os próprios. Edita insumo, quantidade e observação enquanto o pedido não terminou e cancela o próprio pedido enquanto está Aberta.
 - **Acompanhar todos os pedidos:** vê todos, **assume** (vira responsável e o pedido passa para Em andamento), muda para qualquer status, edita e comenta em qualquer um.
@@ -129,10 +129,12 @@ A lista filtra por **Meus pedidos** (criados ou assumidos), **Em aberto** e, par
 Na lista de pedidos da aba OP, cada produto marcado tem o botão **Pré-preencher OP**. Ele abre um formulário com os campos que antes saíam sempre em branco no PDF:
 
 - **Data entrega de produção**;
-- **Descrição do Processo:** para cada um dos 7 passos, Sim/Não, Quantidade, Responsável e Data (o Visto continua para o papel);
+- **Descrição do Processo:** para cada um dos 3 passos (Off-Set, Acoplagem e Corte e Vinco), Sim/Não, Quantidade, Responsável e Data (o Visto continua para o papel);
 - **Observação:** até 400 caracteres e 4 linhas; as quebras a mais viram espaço, para a OP continuar em 1 página. Já vem com as **Observações do pedido de venda** (as do Bling, não as internas), a mesma em todos os produtos do pedido, e vai na OP mesmo sem abrir o formulário; dá para editar ou apagar. Se a do pedido passa do limite, vem cortada, com um aviso no formulário.
 
 Ao clicar em **Gerar OPs**, um diálogo lista, agrupado por pedido, cada produto e a arte escolhida (`→ sem arte` quando não houver); só **Gerar OPs** no diálogo gera, **Cancelar** ou Esc não gera nada.
+
+O PDF traz também o bloco **Formato**, entre Insumos e Descrição do Processo, com a **Descrição curta** do cadastro do produto no Bling, lida na busca do pedido (ADR 0016). Produto sem descrição sai sem o bloco; se a leitura falhar, a OP sai assim mesmo, sem o bloco, e o log registra o aviso.
 
 Salvo (ou quando o pedido já traz observação), o botão vira **Editar dados da OP ✓** e o resumo da seleção conta as OPs pré-preenchidas. A geração usa esses dados; campo vazio sai em branco, como antes. O pré-preenchimento vale só para a próxima geração: fica na tela enquanto o pedido estiver na lista (inclusive ao buscar de novo) e não é salvo em lugar nenhum.
 

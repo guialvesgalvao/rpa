@@ -15,8 +15,10 @@ Registros das decisões de arquitetura do projeto. Cada ADR traz contexto, decis
 | [0009](0009-cores-cadastraveis.md)                   | Cores cadastráveis no cadastro da arte                       | aceito                                                                    | 2026-11-10 |
 | [0010](0010-testes-e2e-locais.md)                    | Testes E2E locais nos planos e na execução                   | aceito                                                                    | 2026-11-10 |
 | [0011](0011-permissoes-por-modulo.md)                | Permissões por módulo, definidas por empresa                 | aceito; item 7 complementado pela 0013                                    | 2026-11-11 |
-| [0012](0012-pedidos-de-compra.md)                    | Pedidos de compra de insumos                                 | aceito                                                                    | 2026-11-11 |
+| [0012](0012-pedidos-de-compra.md)                    | Pedidos de compra de insumos                                 | aceito; item 1 substituído pela 0015                                      | 2026-11-11 |
 | [0013](0013-redefinicao-e-troca-de-senha.md)         | Redefinição de senha pelo painel e Minha conta               | aceito                                                                    | 2026-11-12 |
 | [0014](0014-paginacao-numerada-e-visualizar-arte.md) | Paginação numerada das listas e visualização da arte         | aceito                                                                    | 2026-11-12 |
+| [0015](0015-insumo-pelo-codigo-com-letra.md)         | Insumo pelo código com letra                                 | aceito                                                                    | 2026-11-13 |
+| [0016](0016-formato-e-processo-da-op.md)             | "Formato" e passos do processo na OP                         | aceito                                                                    | 2026-11-13 |
 
 Uma decisão nova ganha o próximo número. Para mudar uma decisão aceita, crie um ADR novo e marque o antigo como substituído.

@@ -1,6 +1,6 @@
 # ADR 0012 — Pedidos de compra de insumos
 
-- **Status:** aceito
+- **Status:** aceito; item 1 (insumo = código `TPP`) substituído pela [ADR 0015](0015-insumo-pelo-codigo-com-letra.md)
 - **Data:** 2026-11-11
 
 ## Contexto

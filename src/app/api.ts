@@ -206,6 +206,8 @@ export type ArtesApi = {
   artesDoProduto(clienteId: string, produtoId: string): Promise<ArteDoProduto[]>;
   /** Imagem da arte (o tipo é conferido pelos bytes no main); a janela a mostra por um `blob:`. */
   imagemDaArte(arteId: string): Promise<ImagemArte>;
+  /** Pede o destino e grava o PDF da arte (o nome da arte é a sugestão); `false` se o usuário cancelou. */
+  baixarPdf(arte: { arteId: string; nome: string }): Promise<boolean>;
   opcoes(): Promise<OpcoesArte>;
   /** Cria a cor (só o nome) e a devolve; a mensagem do erro vai pronta para a tela. */
   criarCor(nome: string): Promise<Opcao>;
@@ -368,6 +370,7 @@ export const CHANNELS = {
   artesProdutosDoCliente: 'rpa:artes:produtos-do-cliente',
   artesArtesDoProduto: 'rpa:artes:artes-do-produto',
   artesImagem: 'rpa:artes:imagem',
+  artesBaixarPdf: 'rpa:artes:baixar-pdf',
   artesOpcoes: 'rpa:artes:opcoes',
   artesCriarCor: 'rpa:artes:criar-cor',
   artesEscolherArquivo: 'rpa:artes:escolher-arquivo',

@@ -1,8 +1,12 @@
+import { mkdtemp, readFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+
 import { expect, test } from '@playwright/test';
 
 import { USUARIOS } from '../apoio/ambiente.js';
 import { apiComo, artesDoProduto, clientePorNome, produtosDoCliente } from '../apoio/api.js';
-import { abrirAppLogado, escolherArquivoNoDialogo } from '../apoio/app.js';
+import { abrirAppLogado, escolherArquivoNoDialogo, salvarArquivoNoDialogo } from '../apoio/app.js';
 import {
   abrirClienteNoApp,
   abrirNovaArteNoApp,
@@ -170,6 +174,55 @@ test('artes do produto: "Visualizar imagem" abre a imagem; só com PDF mostra "S
       semImagem.artes.filter((arte) => arte.temImagem === com).length;
     await expect(itemSem.getByText('Sem imagem', { exact: true })).toHaveCount(contar(false));
     await expect(itemSem.getByRole('button', { name: 'Visualizar imagem' })).toHaveCount(
+      contar(true),
+    );
+  } finally {
+    await app.close();
+  }
+});
+
+test('artes do produto: "Baixar arquivo PDF" salva o PDF; só com imagem mostra "Sem PDF"', async () => {
+  // O 8º cliente do seed tem artes só com PDF, só com imagem e com os dois.
+  const nome = nomeDoCliente(7);
+  const api = await apiComo(USUARIOS.admin);
+  const cliente = await clientePorNome(api, 'aba', nome);
+  const produtos = await Promise.all(
+    (await produtosDoCliente(api, 'aba', cliente.id)).map(async (produto) => ({
+      produto,
+      artes: await artesDoProduto(api, 'aba', cliente.id, produto.id),
+    })),
+  );
+  await api.fechar();
+  const comPdf = produtos.find(({ artes }) => artes.some((arte) => arte.temPdf));
+  const semPdf = produtos.find(({ artes }) => artes.some((arte) => !arte.temPdf));
+  if (!comPdf || !semPdf) throw new Error('seed sem as variantes de arte esperadas');
+  const primeiraComPdf = comPdf.artes.find((arte) => arte.temPdf)!;
+
+  const destino = path.join(await mkdtemp(path.join(tmpdir(), 'rpa-e2e-pdf-')), 'arte.pdf');
+  const { app, janela } = await abrirAppLogado(USUARIOS.finalista);
+  try {
+    const sugestao = await salvarArquivoNoDialogo(app, destino);
+    const raiz = raizArtes(janela);
+    await abrirClienteNoApp(janela, nome);
+    const produto = (nomeProduto: string) =>
+      raiz
+        .locator('li.produto-com-artes')
+        .filter({ has: janela.getByText(nomeProduto, { exact: true }) });
+
+    const itemPdf = produto(comPdf.produto.nome);
+    await itemPdf.locator('button.produto-cabecalho').click();
+    const artes = itemPdf.getByRole('list', { name: `Artes de ${comPdf.produto.nome}` });
+    await artes.getByRole('button', { name: 'Baixar arquivo PDF' }).first().click();
+    await expect(artes.getByText('Salvo.', { exact: true })).toBeVisible();
+    expect((await readFile(destino)).subarray(0, 5).toString('latin1')).toBe('%PDF-');
+    expect(await sugestao()).toBe(`${primeiraComPdf.nome}.pdf`);
+
+    // Cada arte sem PDF mostra "Sem PDF" no lugar do botão.
+    const itemSem = produto(semPdf.produto.nome);
+    if (semPdf !== comPdf) await itemSem.locator('button.produto-cabecalho').click();
+    const contar = (com: boolean) => semPdf.artes.filter((arte) => arte.temPdf === com).length;
+    await expect(itemSem.getByText('Sem PDF', { exact: true })).toHaveCount(contar(false));
+    await expect(itemSem.getByRole('button', { name: 'Baixar arquivo PDF' })).toHaveCount(
       contar(true),
     );
   } finally {

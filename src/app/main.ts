@@ -107,6 +107,7 @@ import {
   validarCadastro,
   validarAnexoCompraParaBaixar,
   validarAnexoParaBaixar,
+  validarPdfParaBaixar,
   validarComentario,
   validarConsultaCompras,
   validarEdicaoPedidoCompra,
@@ -921,6 +922,16 @@ async function salvarAnexo(
   await writeFile(result.filePath, await baixar());
   return true;
 }
+
+// PDF da arte: o nome da arte vira a sugestão (com `.pdf`); os bytes são conferidos em `pdfDaArte`.
+ipcMain.handle(CHANNELS.artesBaixarPdf, async (event, input: unknown): Promise<boolean> => {
+  const { arteId, nome } = validarPdfParaBaixar(input);
+  const { empresa } = await contexto();
+  const sugestao = /\.pdf$/i.test(nome) ? nome : `${nome}.pdf`;
+  const salvo = await salvarAnexo(event, sugestao, () => artesApi.pdfDaArte(empresa, arteId));
+  if (salvo) logger.info({ empresa }, 'PDF da arte baixado');
+  return salvo;
+});
 
 ipcMain.handle(CHANNELS.tarefasBaixarAnexo, async (event, input: unknown): Promise<boolean> => {
   const { tarefaId, comentarioId, anexoId, nome } = validarAnexoParaBaixar(input);

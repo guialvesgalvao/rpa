@@ -82,6 +82,26 @@ export async function escolherArquivoNoDialogo(
   }, caminho);
 }
 
+/**
+ * Troca o diálogo nativo de salvar do processo principal por um que grava em `caminho`. Devolve o nome
+ * sugerido pelo app na última chamada (`defaultPath`).
+ */
+export async function salvarArquivoNoDialogo(
+  app: ElectronApplication,
+  caminho: string,
+): Promise<() => Promise<string | undefined>> {
+  await app.evaluate(({ dialog }, destino) => {
+    const global = globalThis as { sugestaoSalvar?: string };
+    dialog.showSaveDialog = (async (...args: unknown[]) => {
+      const opcoes = args.find((a) => a && typeof a === 'object' && 'defaultPath' in a) as
+        { defaultPath?: string } | undefined;
+      global.sugestaoSalvar = opcoes?.defaultPath;
+      return { canceled: false, filePath: destino };
+    }) as unknown as typeof dialog.showSaveDialog;
+  }, caminho);
+  return () => app.evaluate(() => (globalThis as { sugestaoSalvar?: string }).sugestaoSalvar);
+}
+
 export async function abrirAba(janela: Page, rotulo: string): Promise<void> {
   await janela.locator('#menu').getByRole('button', { name: rotulo, exact: true }).click();
 }

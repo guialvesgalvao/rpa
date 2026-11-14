@@ -165,6 +165,32 @@ describe('imagemDaArte', () => {
   });
 });
 
+describe('pdfDaArte', () => {
+  const PDF = new TextEncoder().encode('%PDF-1.4 sintético');
+
+  it('baixa o PDF e confere a assinatura', async () => {
+    const { cliente: c, urls } = api(() => new Response(PDF));
+    const bytes = await c.pdfDaArte('roma', ARTE);
+    expect(urls).toEqual([`http://api.local/v1/empresas/roma/artes/${ARTE}/pdf`]);
+    expect([...bytes]).toEqual([...PDF]);
+  });
+
+  it('conteúdo que não é PDF vira ErroIndisponivel', async () => {
+    await expect(
+      api(() => new Response(PNG)).cliente.pdfDaArte('roma', ARTE),
+    ).rejects.toBeInstanceOf(ErroIndisponivel);
+  });
+
+  it('arte sem PDF (404) vira ErroRequisicao; 5xx vira ErroIndisponivel', async () => {
+    await expect(
+      api(() => erroApi(404, 'pdf_nao_encontrado')).cliente.pdfDaArte('roma', ARTE),
+    ).rejects.toMatchObject({ name: 'ErroRequisicao', status: 404 });
+    await expect(
+      api(() => new Response('erro', { status: 503 })).cliente.pdfDaArte('roma', ARTE),
+    ).rejects.toBeInstanceOf(ErroIndisponivel);
+  });
+});
+
 describe('artesDoItem', () => {
   const produtos = [
     { id: OUTRO_PRODUTO, nome: 'Sacola', codigo: null, quantidadeArtes: 1 },

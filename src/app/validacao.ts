@@ -296,6 +296,15 @@ export function validarAnexoParaBaixar(input: unknown): z.infer<typeof anexoPara
   return parsed.data;
 }
 
+const pdfDaArteSchema = z.object({ arteId: z.uuid(), nome: z.string().trim().min(1).max(500) });
+
+/** Arte cujo PDF a janela quer baixar: o id e o nome (só para sugerir o nome do arquivo). */
+export function validarPdfParaBaixar(input: unknown): z.infer<typeof pdfDaArteSchema> {
+  const parsed = pdfDaArteSchema.safeParse(input);
+  if (!parsed.success) throw new Error('Arte inválida.');
+  return parsed.data;
+}
+
 /** Nome da cor nova (mesmas regras do site e da API), sem os espaços em volta. */
 export function validarNomeCor(input: unknown): string {
   if (typeof input !== 'string') throw new Error('Informe o nome da cor.');

@@ -6,7 +6,12 @@ import { blocoErro, botao, criar, formatarCnpj, mensagemErro } from './dom.js';
 export type DepsCliente = {
   api: Pick<
     ArtesApi,
-    'obterCliente' | 'produtosDoCliente' | 'opcoes' | 'artesDoProduto' | 'imagemDaArte'
+    | 'obterCliente'
+    | 'produtosDoCliente'
+    | 'opcoes'
+    | 'artesDoProduto'
+    | 'imagemDaArte'
+    | 'baixarPdf'
   >;
   clienteId: string;
   /** Mensagem de sucesso mostrada no topo (ex.: "Arte cadastrada"). */

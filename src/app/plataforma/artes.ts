@@ -90,6 +90,8 @@ export type ClienteArtes = {
   /** Artes do produto para o cliente, da mais nova para a mais antiga. */
   artesDoProduto(empresa: string, clienteId: string, produtoId: string): Promise<ArteDoProduto[]>;
   imagemDaArte(empresa: string, arteId: string): Promise<ImagemArte>;
+  /** PDF da arte (conferido pela assinatura `%PDF-`), para gravar onde o usuário escolher. */
+  pdfDaArte(empresa: string, arteId: string): Promise<Uint8Array>;
   opcoes(empresa: string): Promise<OpcoesArte>;
   /** Cor nova (global, só o nome); 409 se já existir sem diferenciar maiúsculas nem acentos. */
   criarCor(nome: string): Promise<Opcao>;
@@ -282,6 +284,22 @@ export function criarClienteArtes({
         throw new ErroIndisponivel('Resposta do servidor fora do contrato.');
       }
       return { mime: tipo.mime, bytes };
+    },
+    async pdfDaArte(empresa, arteId) {
+      const resposta = await chamar('GET', rota(empresa, `/artes/${encodeURIComponent(arteId)}/pdf`), {
+        timeout: timeoutEnvioMs,
+      });
+      let bytes: Uint8Array;
+      try {
+        bytes = new Uint8Array(await resposta.arrayBuffer());
+      } catch (erro) {
+        throw new ErroIndisponivel('Sem conexão com o servidor.', { cause: erro });
+      }
+      const tipo = detectarTipo(bytes.subarray(0, BYTES_ASSINATURA));
+      if (tipo?.tipo !== 'pdf' || bytes.length > LIMITES.pdfBytes) {
+        throw new ErroIndisponivel('Resposta do servidor fora do contrato.');
+      }
+      return bytes;
     },
     async opcoes(empresa) {
       const lerCores = async (): Promise<Opcao[]> => {

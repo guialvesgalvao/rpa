@@ -4,6 +4,7 @@ import {
   MAX_PEDIDOS_OP,
   validarCnpj,
   validarAnexoParaBaixar,
+  validarPdfParaBaixar,
   validarComentario,
   validarConclusao,
   validarConsultaTarefas,
@@ -297,6 +298,22 @@ describe('tarefas de arte', () => {
     expect(validarAnexoParaBaixar(anexo)).toEqual(anexo);
     expect(() => validarAnexoParaBaixar({ ...anexo, anexoId: 'x' })).toThrow('Anexo inválido.');
     expect(() => validarAnexoParaBaixar({ ...anexo, nome: '' })).toThrow('Anexo inválido.');
+  });
+
+  it('PDF da arte para baixar: id da arte e nome', () => {
+    expect(validarPdfParaBaixar({ arteId: id, nome: ' Natal ' })).toEqual({
+      arteId: id,
+      nome: 'Natal',
+    });
+    for (const entrada of [
+      { arteId: 'x', nome: 'Natal' },
+      { arteId: id, nome: '  ' },
+      { arteId: id, nome: 'x'.repeat(501) },
+      { arteId: id },
+      null,
+    ]) {
+      expect(() => validarPdfParaBaixar(entrada)).toThrow('Arte inválida.');
+    }
   });
 
   it('conclusão: os campos do cadastro, sem o cliente e com a tarefa', () => {

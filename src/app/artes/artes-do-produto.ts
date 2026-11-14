@@ -4,14 +4,14 @@ import { blocoErro, botao, criar, mensagemErro } from './dom.js';
 import { formatarDataHora } from './tarefas-dados.js';
 
 export type DepsArtesDoProduto = {
-  api: Pick<ArtesApi, 'artesDoProduto' | 'imagemDaArte'>;
+  api: Pick<ArtesApi, 'artesDoProduto' | 'imagemDaArte' | 'baixarPdf'>;
   clienteId: string;
 };
 
 /**
  * Um produto do perfil do cliente (mesmo comportamento do site): clicar abre a lista das artes dele, buscada
  * só na primeira abertura; cada arte com imagem tem "Visualizar imagem", que abre a imagem num `<dialog>`, e
- * arte só com PDF mostra "Sem imagem".
+ * arte só com PDF mostra "Sem imagem"; embaixo, "Baixar arquivo PDF" (janela de salvar) ou "Sem PDF".
  */
 export function itemDoProduto(
   produto: ProdutoDoCliente,
@@ -78,15 +78,42 @@ function listaDeArtes(
       criar('strong', undefined, arte.nome),
       criar('div', 'hint', `${arte.cor.nome}${maquinas} · ${formatarDataHora(arte.criadoEm)}`),
     );
-    linha.append(
-      texto,
+    const acoes = criar('div', 'acoes-arte');
+    acoes.append(
       arte.temImagem
         ? botao('Visualizar imagem', () => abrirImagem(arte, api))
         : criar('span', 'hint', 'Sem imagem'),
     );
+    if (arte.temPdf) {
+      const aviso = criar('span', 'hint');
+      acoes.append(
+        botao('Baixar arquivo PDF', () => void baixarPdf(arte, api, aviso)),
+        aviso,
+      );
+    } else {
+      acoes.append(criar('span', 'hint', 'Sem PDF'));
+    }
+    linha.append(texto, acoes);
     lista.append(linha);
   }
   return lista;
+}
+
+/** Pede o destino e grava o PDF; o aviso ao lado do botão diz se salvou ou o erro. */
+async function baixarPdf(
+  arte: ArteDoProduto,
+  api: DepsArtesDoProduto['api'],
+  aviso: HTMLElement,
+): Promise<void> {
+  aviso.className = 'hint';
+  aviso.textContent = 'Baixando…';
+  try {
+    const salvo = await api.baixarPdf({ arteId: arte.id, nome: arte.nome });
+    aviso.textContent = salvo ? 'Salvo.' : '';
+  } catch (erro) {
+    aviso.className = 'hint warn';
+    aviso.textContent = mensagemErro(erro);
+  }
 }
 
 /**

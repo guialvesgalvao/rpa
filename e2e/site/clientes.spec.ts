@@ -1,3 +1,5 @@
+import { readFile } from 'node:fs/promises';
+
 import { expect, test } from '@playwright/test';
 
 import { ESTADO_SITE, USUARIOS } from '../apoio/ambiente.js';
@@ -180,6 +182,48 @@ for (const perfil of ['admin', 'finalista'] as const) {
         semImagem.artes.filter((arte) => arte.temImagem === com).length;
       await expect(itemSem.getByText('Sem imagem', { exact: true })).toHaveCount(contar(false));
       await expect(itemSem.getByRole('button', { name: 'Visualizar imagem' })).toHaveCount(
+        contar(true),
+      );
+    });
+
+    test('2.7 artes do produto: "Baixar arquivo PDF" baixa o PDF; só com imagem mostra "Sem PDF"', async ({
+      page,
+    }) => {
+      // O 12º cliente do seed tem artes só com PDF, só com imagem e com os dois.
+      const api = await apiComo(USUARIOS.admin);
+      const cliente = await clientePorNome(api, 'aba', nomeDoCliente(11));
+      const produtos = await Promise.all(
+        (await produtosDoCliente(api, 'aba', cliente.id)).map(async (produto) => ({
+          produto,
+          artes: await artesDoProduto(api, 'aba', cliente.id, produto.id),
+        })),
+      );
+      await api.fechar();
+      const comPdf = produtos.find(({ artes }) => artes.some((arte) => arte.temPdf));
+      const semPdf = produtos.find(({ artes }) => artes.some((arte) => !arte.temPdf));
+      if (!comPdf || !semPdf) throw new Error('seed sem as variantes de arte esperadas');
+
+      await page.goto(`/aba/artes/clientes/${cliente.id}`);
+      const produto = (nome: string) =>
+        page.locator('li.produto-com-artes').filter({ has: page.getByText(nome, { exact: true }) });
+
+      const itemPdf = produto(comPdf.produto.nome);
+      await itemPdf.locator('button.produto-cabecalho').click();
+      const artes = itemPdf.getByRole('list', { name: `Artes de ${comPdf.produto.nome}` });
+      const [download] = await Promise.all([
+        page.waitForEvent('download'),
+        artes.getByRole('link', { name: 'Baixar arquivo PDF' }).first().click(),
+      ]);
+      expect(download.suggestedFilename().toLowerCase()).toMatch(/\.pdf$/);
+      const caminho = await download.path();
+      expect((await readFile(caminho)).subarray(0, 4).toString('latin1')).toBe('%PDF');
+
+      // Cada arte sem PDF mostra "Sem PDF" no lugar do link.
+      const itemSem = produto(semPdf.produto.nome);
+      if (semPdf !== comPdf) await itemSem.locator('button.produto-cabecalho').click();
+      const contar = (com: boolean) => semPdf.artes.filter((arte) => arte.temPdf === com).length;
+      await expect(itemSem.getByText('Sem PDF', { exact: true })).toHaveCount(contar(false));
+      await expect(itemSem.getByRole('link', { name: 'Baixar arquivo PDF' })).toHaveCount(
         contar(true),
       );
     });

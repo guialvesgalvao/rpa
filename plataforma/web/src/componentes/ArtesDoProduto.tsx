@@ -95,13 +95,27 @@ export function ArtesDoProduto({ empresa, clienteId, produto }: Props) {
                         {` · ${formatarDataHora(arte.criadoEm)}`}
                       </div>
                     </div>
-                    {arte.temImagem ? (
-                      <button type="button" onClick={() => setVendo(arte)}>
-                        Visualizar imagem
-                      </button>
-                    ) : (
-                      <span className="hint">Sem imagem</span>
-                    )}
+                    <div className="acoes-arte">
+                      {arte.temImagem ? (
+                        <button type="button" onClick={() => setVendo(arte)}>
+                          Visualizar imagem
+                        </button>
+                      ) : (
+                        <span className="hint">Sem imagem</span>
+                      )}
+                      {arte.temPdf ? (
+                        // Pelo BFF (cookie de sessão); o nome do arquivo vem do `content-disposition` da API.
+                        <a
+                          className="botao"
+                          href={`/api/v1/empresas/${encodeURIComponent(empresa)}/artes/${arte.id}/pdf`}
+                          download
+                        >
+                          Baixar arquivo PDF
+                        </a>
+                      ) : (
+                        <span className="hint">Sem PDF</span>
+                      )}
+                    </div>
                   </li>
                 ))}
               </ul>

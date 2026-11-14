@@ -57,7 +57,10 @@ test('observação do pedido: pré-preenche, sai no PDF e, apagada, não volta a
     const pdfs = readdirSync(pasta).filter((nome) => nome.toLowerCase().endsWith('.pdf'));
     expect(pdfs.length).toBeGreaterThan(0);
     const resumo = await resumirPdf(readFileSync(path.join(pasta, pdfs[0]!)));
-    expect(resumo.texto.replace(/\s+/g, ' ')).toContain('Entregar com caixa reforçada');
+    const texto = resumo.texto.replace(/\s+/g, ' ');
+    expect(texto).toContain('Entregar com caixa reforçada');
+    // Formato: Descrição curta do produto (fixture `produtos-op.json`), entre Insumos e o Processo.
+    expect(texto).toMatch(/Insumos .*Formato Formato fictício: 35 x 35 cm .*Descrição do Processo/);
 
     // Apagar a observação, salvar e buscar o pedido de novo: ela não volta.
     await item900001(janela)

@@ -56,7 +56,13 @@ export function lerPedidosBling(
     await prepararListagem(page, config, logger);
     return lerPedidos(
       numeros,
-      (numero, rastro) => fonteBling(page, rastro)(numero),
+      (numero, rastro) =>
+        fonteBling(page, rastro, (item, err) =>
+          logger.warn(
+            { numero, codigo: item.codigo, err },
+            'Não li a Descrição curta do produto; a OP sai sem o bloco Formato',
+          ),
+        )(numero),
       async (numero, error) => {
         const screenshot = path.join(
           await ensureDir(config.artifactsDir),

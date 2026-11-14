@@ -117,6 +117,22 @@ describe('htmlDaOp', () => {
     expect(html.match(/\(X\)/g)).toHaveLength(2);
   });
 
+  it('Formato: entre Insumos e Descrição do Processo, escapado, com as quebras de linha', () => {
+    const html = htmlDaOp({ ...opBase(), formato: 'Caixa 35 x 35\nTampa <b> & fundo' });
+    expect(html).toMatch(
+      /Insumos \(matéria prima\)[\s\S]*<h2>Formato<\/h2>[\s\S]*Descrição do Processo/,
+    );
+    expect(html).toContain(
+      '<div class="caixa formato">Caixa 35 x 35\nTampa &lt;b&gt; &amp; fundo</div>',
+    );
+  });
+
+  it('sem Formato (ausente ou só espaços), o bloco não sai', () => {
+    for (const formato of [undefined, '', '  \n ']) {
+      expect(htmlDaOp({ ...opBase(), formato })).not.toContain('<h2>Formato</h2>');
+    }
+  });
+
   it('o processo tem só Off-Set, Acoplagem e Corte e Vinco, nessa ordem', () => {
     expect(PASSOS_PROCESSO).toEqual(['Off-Set', 'Acoplagem', 'Corte e Vinco']);
     const html = htmlDaOp(opBase());

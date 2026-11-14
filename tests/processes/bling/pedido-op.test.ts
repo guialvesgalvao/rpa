@@ -4,13 +4,16 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
+  comFormato,
   ERRO_SEM_INSUMOS,
   extrairPedidoOp,
   fonteMock,
+  type ItemOp,
   mockAtivo,
 } from '../../../src/processes/bling/pedido-op.js';
 
 const caminho = resolve(import.meta.dirname, '../../fixtures/pedido-op.json');
+const caminhoProdutos = resolve(import.meta.dirname, '../../fixtures/produtos-op.json');
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const carregar = () => JSON.parse(readFileSync(caminho, 'utf8')) as Record<string, any>;
 const data = (d: number, m: number, a: number) => new Date(a, m - 1, d);
@@ -90,7 +93,50 @@ describe('extrairPedidoOp', () => {
   });
 });
 
+describe('Formato (Descrição curta)', () => {
+  it('guarda o id do produto do Bling de cada item', () => {
+    expect(extrairPedidoOp(carregar()).itens.map((i) => i.idProdutoBling)).toEqual([
+      '2001',
+      '2002',
+    ]);
+    const json = carregar();
+    delete json.itens[0].produto;
+    expect(extrairPedidoOp(json).itens[0]).not.toHaveProperty('idProdutoBling');
+  });
+
+  it('lê só os itens que geram OP; a falha de um vira aviso e os outros seguem', async () => {
+    const pedido = extrairPedidoOp(carregar());
+    const extra: ItemOp = { ...pedido.itens[0]!, codigo: '900003', idProdutoBling: '2003' };
+    const semDescricao: ItemOp = { ...pedido.itens[0]!, codigo: '900004', idProdutoBling: '2004' };
+    const lidos: string[] = [];
+    const avisos: string[] = [];
+    const resultado = await comFormato(
+      { ...pedido, itens: [...pedido.itens, extra, semDescricao] },
+      async (id) => {
+        lidos.push(id);
+        if (id === '2003') throw new Error('O Bling respondeu 500');
+        return id === '2001' ? 'Formato 35' : undefined;
+      },
+      (item, error) => avisos.push(`${item.codigo}: ${(error as Error).message}`),
+    );
+    expect(lidos.sort()).toEqual(['2001', '2003', '2004']);
+    expect(resultado.itens.map((i) => i.formato)).toEqual([
+      'Formato 35',
+      undefined,
+      undefined,
+      undefined,
+    ]);
+    expect(avisos).toEqual(['900003: O Bling respondeu 500']);
+  });
+});
+
 describe('fonte fictícia', () => {
+  it('traz o Formato da fixture de produtos, em texto', async () => {
+    const p = await fonteMock(caminho, caminhoProdutos)('1234');
+    expect(p.itens[0]?.formato).toBe('Formato fictício: 35 x 35 cm\nTampa e fundo & reforço');
+    expect(p.itens[1]?.formato).toBeUndefined();
+  });
+
   it('lê a fixture sem navegador, com o número pedido', async () => {
     const p = await fonteMock(caminho)('1234');
     expect(p.numero).toBe('1234');

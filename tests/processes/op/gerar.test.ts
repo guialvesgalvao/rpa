@@ -295,6 +295,18 @@ describe('montarOrdem', () => {
     expect(ordem.dataEntrega).toBeUndefined();
     expect(ordem.processo).toBeUndefined();
     expect(ordem.observacao).toBeUndefined();
+    expect(ordem).not.toHaveProperty('formato');
+  });
+
+  it('leva o Formato do item para a OP', () => {
+    const ordem = montarOrdem({
+      pedido,
+      item: { ...pedido.itens[0]!, formato: 'Formato 35' },
+      numero: 1,
+      data: HOJE,
+      empresa: 'Roma Embalagens',
+    });
+    expect(ordem.formato).toBe('Formato 35');
   });
 
   it('aplica o pré-preenchimento, com as datas como data local', () => {

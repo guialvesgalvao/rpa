@@ -87,6 +87,7 @@ export function montarOrdem(args: {
       quantidade: item.quantidade,
     },
     insumos: item.insumos ?? [],
+    ...(item.formato ? { formato: item.formato } : {}),
     ...(processo ? { processo } : {}),
     ...(preenchimento?.observacao ? { observacao: preenchimento.observacao } : {}),
     arte: arte && { cor: arte.cor, maquinas: arte.maquinas, imagem },

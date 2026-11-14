@@ -74,6 +74,7 @@ table { width: 100%; border-collapse: collapse; }
 .processo .data { text-align: center; width: 30mm; }
 .processo .qtde { width: 22mm; }
 .processo .responsavel { width: 50mm; }
+.formato { padding: 2mm 3mm; white-space: pre-wrap; overflow-wrap: anywhere; font-weight: bold; }
 .observacao { min-height: ${ALTURA_OBSERVACAO_MM}mm; padding: 2mm 3mm; white-space: pre-wrap; overflow-wrap: anywhere; }
 .arte { display: flex; gap: 4mm; margin-top: 4mm; }
 .arte .imagem { flex: 0 0 auto; height: ${ALTURA_ARTE_MM}mm; max-width: 110mm; display: flex; align-items: center; justify-content: center; }
@@ -152,6 +153,16 @@ function blocoInsumos({ insumos, item }: OrdemProducao): string {
 </section>`;
 }
 
+/** "Descrição curta" do produto, entre Insumos e Descrição do Processo; sem texto, o bloco não sai. */
+function blocoFormato({ formato }: OrdemProducao): string {
+  const texto = formato?.trim();
+  if (!texto) return '';
+  return `<section>
+  <h2>Formato</h2>
+  <div class="caixa formato">${escaparHtml(texto)}</div>
+</section>`;
+}
+
 const DATA_PROCESSO_EM_BRANCO = '____/____/______';
 
 const marca = (marcada: boolean): string => (marcada ? '(X)' : '( )');
@@ -212,6 +223,7 @@ ${blocoCliente(op)}
 ${blocoDatas(op)}
 ${blocoItem(op)}
 ${blocoInsumos(op)}
+${blocoFormato(op)}
 ${blocoProcesso(op)}
 ${blocoObservacao(op)}
 ${blocoArte(op)}

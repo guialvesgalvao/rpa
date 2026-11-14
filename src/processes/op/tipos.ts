@@ -41,6 +41,8 @@ export type OrdemProducao = {
   dataEntrega?: Date;
   item: ItemDaOp;
   insumos: InsumoDaOp[];
+  /** "Descrição curta" do produto no Bling, em texto; ausente ou vazia, o PDF sai sem o bloco "Formato". */
+  formato?: string;
   /** Uma linha por passo de `PASSOS_PROCESSO`; ausente (ou linha ausente), sai em branco. */
   processo?: LinhaProcessoDaOp[];
   observacao?: string;

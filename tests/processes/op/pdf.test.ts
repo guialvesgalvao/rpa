@@ -85,8 +85,11 @@ describe('PDF da OP', () => {
 
   it('com arte: continua em 1 página e traz imagem, máquina e cor', async () => {
     const arte = { imagem: { bytes: png, mime: 'image/png' }, maquinas: ['Favorit'], cor: '4x0' };
-    const pdf = await resumirPdf(await gerarPdfOp(page, op({ arte })));
+    const formato = 'Caixa 35 x 35 cm\nTampa e fundo juntos';
+    const pdf = await resumirPdf(await gerarPdfOp(page, op({ arte, formato })));
     expect(pdf.paginas).toBe(1);
+    expect(pdf.texto).toContain('Formato');
+    expect(pdf.texto).toContain('Tampa e fundo juntos');
     expect(pdf.texto.match(/Máquina/g)).toHaveLength(1);
     expect(pdf.texto).toContain('Favorit');
     expect(pdf.texto).toContain('4x0');

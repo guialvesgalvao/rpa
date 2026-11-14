@@ -5,6 +5,7 @@ import type { Page } from 'playwright';
 import { z } from 'zod';
 
 import type { Rastro } from '../../core/rastro.js';
+import { emParalelo, lerDescricaoCurta, textoDaDescricao } from './descricao-curta.js';
 import { capturarObterVenda } from './pedido.js';
 
 export const ERRO_SEM_INSUMOS = 'Produto sem insumos cadastrados';
@@ -19,6 +20,10 @@ export type ItemOp = {
   /** Ausente quando o item tem `erro`. */
   insumos?: InsumoOp[];
   erro?: string;
+  /** Id do produto no Bling (`itens[].produto.id`), para ler a Descrição curta. */
+  idProdutoBling?: string;
+  /** Descrição curta do produto, já em texto; sai como "Formato" na OP. Ausente: sem o bloco. */
+  formato?: string;
 };
 
 export type PedidoOp = {
@@ -60,7 +65,9 @@ const schema = z.object({
       componentes: z
         .array(z.object({ nome: z.string(), unidade: z.string().nullish(), quantidade: numero }))
         .nullish(),
-      produto: z.object({ tipo: z.string().nullish() }).nullish(),
+      produto: z
+        .object({ id: z.union([z.number(), z.string()]).nullish(), tipo: z.string().nullish() })
+        .nullish(),
     }),
   ),
 });
@@ -113,11 +120,13 @@ export function extrairPedidoOp(json: unknown, numeroEsperado?: string): PedidoO
     itens: itens
       .filter((i) => i.produto?.tipo !== 'S')
       .map((i): ItemOp => {
+        const idProduto = i.produto?.id != null ? String(i.produto.id).trim() : '';
         const base = {
           descricao: i.descricao,
           codigo: i.codigo,
           unidade: i.unidade?.trim() ?? '',
           quantidade: i.quantidade,
+          ...(idProduto ? { idProdutoBling: idProduto } : {}),
         };
         const componentes = i.componentes ?? [];
         if (!componentes.length) return { ...base, erro: ERRO_SEM_INSUMOS };
@@ -135,15 +144,53 @@ export function extrairPedidoOp(json: unknown, numeroEsperado?: string): PedidoO
 
 export type FontePedidoOp = (numero: string) => Promise<PedidoOp>;
 
-/** Fonte real: abre o pedido no Bling (RPA) e lê o `obterVenda`. */
-export function fonteBling(page: Page, rastro: Rastro): FontePedidoOp {
+/** Lê a Descrição curta de um produto do Bling pelo id; `undefined` = produto sem descrição. */
+export type LerFormato = (idProduto: string) => Promise<string | undefined>;
+
+/** Falha ao ler a Descrição curta de um item: não impede a OP, só fica registrada. */
+export type AvisarFormato = (item: ItemOp, error: unknown) => void;
+
+const LEITURAS_SIMULTANEAS = 4;
+
+/**
+ * Completa os itens que geram OP (sem `erro`, com o id do produto) com o "Formato". A falha de um
+ * item não impede os demais nem a OP: o item fica sem o bloco e `avisar` registra o motivo.
+ */
+export async function comFormato(
+  pedido: PedidoOp,
+  ler: LerFormato,
+  avisar?: AvisarFormato,
+): Promise<PedidoOp> {
+  const itens = [...pedido.itens];
+  const posicoes = itens.flatMap((item, i) => (!item.erro && item.idProdutoBling ? [i] : []));
+  await emParalelo(posicoes, LEITURAS_SIMULTANEAS, async (i) => {
+    const item = itens[i]!;
+    try {
+      const formato = await ler(item.idProdutoBling!);
+      if (formato) itens[i] = { ...item, formato };
+    } catch (error) {
+      avisar?.(item, error);
+    }
+  });
+  return { ...pedido, itens };
+}
+
+/** Fonte real: abre o pedido no Bling (RPA), lê o `obterVenda` e a Descrição curta dos produtos. */
+export function fonteBling(page: Page, rastro: Rastro, avisar?: AvisarFormato): FontePedidoOp {
   return async (numero) => {
     const json = await capturarObterVenda(page, numero, rastro);
-    return rastro.etapa('Li os dados do pedido (itens, datas e insumos)', async () =>
+    const pedido = await rastro.etapa('Li os dados do pedido (itens, datas e insumos)', async () =>
       extrairPedidoOp(json, numero),
     );
+    return comFormato(pedido, (id) => lerDescricaoCurta(page, id), avisar);
   };
 }
+
+/** Produtos fictícios da fonte de teste, no formato de `/Api/v3/produtos/{id}`, por id. */
+const esquemaProdutosMock = z.record(
+  z.string(),
+  z.object({ data: z.object({ descricaoCurta: z.string().nullish() }) }),
+);
 
 /**
  * Fonte fictícia: devolve o pedido da fixture sintética, sem abrir o Bling, com o número pedido
@@ -151,11 +198,17 @@ export function fonteBling(page: Page, rastro: Rastro): FontePedidoOp {
  */
 export function fonteMock(
   caminho = resolve(process.cwd(), 'tests/fixtures/pedido-op.json'),
+  caminhoProdutos = resolve(process.cwd(), 'tests/fixtures/produtos-op.json'),
 ): FontePedidoOp {
-  return async (numero) => ({
-    ...extrairPedidoOp(JSON.parse(await readFile(caminho, 'utf8')) as unknown),
-    numero,
-  });
+  return async (numero) => {
+    const pedido = extrairPedidoOp(JSON.parse(await readFile(caminho, 'utf8')) as unknown);
+    const produtos = esquemaProdutosMock.parse(
+      JSON.parse(await readFile(caminhoProdutos, 'utf8')) as unknown,
+    );
+    const ler: LerFormato = async (id) =>
+      textoDaDescricao(produtos[id]?.data.descricaoCurta ?? '') || undefined;
+    return { ...(await comFormato(pedido, ler)), numero };
+  };
 }
 
 export const mockAtivo = (env: NodeJS.ProcessEnv = process.env): boolean => env.RPA_OP_MOCK === '1';

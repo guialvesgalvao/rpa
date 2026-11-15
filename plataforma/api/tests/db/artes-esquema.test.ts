@@ -321,8 +321,8 @@ describe('semear-dev', () => {
 
   it('popula clientes, produtos e artes, e pode ser repetido sem duplicar', async () => {
     const resumo = await semear(db);
-    // + o cliente e os 2 produtos da fixture da OP e os insumos de Compras, só na Roma.
-    expect(resumo.clientes).toBe(CLIENTES_POR_EMPRESA * 2 + 1);
+    // + o cliente e os 2 produtos da fixture da OP, os insumos de Compras e o revendedor (ADR 0017), só na Roma.
+    expect(resumo.clientes).toBe(CLIENTES_POR_EMPRESA * 2 + 2);
     expect(resumo.produtos).toBe(16 + PRODUTOS_OP.length + INSUMOS_DEV.length);
     expect(resumo.artes).toBeGreaterThan(0);
     expect(await db.$count(usuarios)).toBe(2);
@@ -331,7 +331,7 @@ describe('semear-dev', () => {
     const repetido = await semear(db);
     expect(repetido).toEqual({ clientes: 0, produtos: 0, artes: 0 });
     expect(await db.$count(artes)).toBe(antes);
-    expect(await db.$count(clientes)).toBe(CLIENTES_POR_EMPRESA * 2 + 1);
+    expect(await db.$count(clientes)).toBe(CLIENTES_POR_EMPRESA * 2 + 2);
   });
 
   it('semeia na Roma o cliente e os produtos da fixture da OP, com 2 artes no 900001', async () => {

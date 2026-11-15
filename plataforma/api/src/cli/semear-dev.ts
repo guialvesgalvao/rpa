@@ -15,6 +15,8 @@ import {
   empresas,
   maquinas,
   produtos,
+  tarefasArte,
+  tarefasArteHistorico,
   usuarioEmpresas,
   usuarios,
 } from '../db/esquema.js';
@@ -283,6 +285,9 @@ export async function semear(db: Banco): Promise<ResumoSemente> {
       resumo.artes += op.artes;
       // Depois das artes: os insumos não entram na primeira carga de artes da empresa.
       resumo.produtos += await semearInsumos(db, empresa.id);
+      const revenda = await semearRevenda(db, empresa.id, adminId, todasCores, todasMaquinas);
+      resumo.clientes += revenda.clientes;
+      resumo.artes += revenda.artes;
     }
   }
   return resumo;
@@ -371,6 +376,126 @@ async function semearInsumos(db: Banco, empresaId: string): Promise<number> {
     .onConflictDoNothing()
     .returning({ id: produtos.id });
   return novos.length;
+}
+
+// Revendedor fictício (ADR 0017): artes de dois clientes finais e uma sem cliente final no mesmo produto,
+// uma tarefa concluída (pedido do Bling) que gerou a primeira arte e uma tarefa aberta de outro cliente final.
+// Fica na Roma: a ABA tem exatamente `CLIENTES_POR_EMPRESA` clientes nos testes. Dados fictícios.
+export const CLIENTE_REVENDA = {
+  razaoSocial: 'Revenda Ficticia Ltda',
+  nomeFantasia: 'Revenda Ficticia',
+  cnpj: gerarCnpj(90_001),
+};
+export const PRODUTO_REVENDA = PRODUTOS[0]!;
+export const ARTES_REVENDA = [
+  { nome: 'Frente', clienteFinal: 'Pizzaria Fictícia Exemplo', pedido: '9900', dias: 2 },
+  { nome: 'Verso', clienteFinal: 'Hamburgueria Exemplo', pedido: null, dias: 1 },
+  { nome: 'Padrão', clienteFinal: null, pedido: null, dias: 0 },
+] as const;
+export const TAREFA_REVENDA = { clienteFinal: 'Lanchonete Exemplo', pedido: '9901' };
+
+async function semearRevenda(
+  db: Banco,
+  empresaId: string,
+  adminId: string,
+  todasCores: Opcao[],
+  todasMaquinas: Opcao[],
+): Promise<{ clientes: number; artes: number }> {
+  const novos = await db
+    .insert(clientes)
+    .values({ empresaId, ...CLIENTE_REVENDA })
+    .onConflictDoNothing()
+    .returning({ id: clientes.id });
+  const [cliente] = await db
+    .select({ id: clientes.id })
+    .from(clientes)
+    .where(and(eq(clientes.empresaId, empresaId), eq(clientes.cnpj, CLIENTE_REVENDA.cnpj)));
+  const [produto] = await db
+    .select({ id: produtos.id })
+    .from(produtos)
+    .where(and(eq(produtos.empresaId, empresaId), eq(produtos.codigo, PRODUTO_REVENDA.codigo)));
+  if (!cliente || !produto) throw new Error('cliente ou produto da revenda não gravado');
+  const resumo = { clientes: novos.length, artes: 0 };
+  if ((await db.$count(artes, eq(artes.clienteId, cliente.id))) > 0) return resumo;
+
+  for (const [i, variante] of ARTES_REVENDA.entries()) {
+    const cor = todasCores[i % todasCores.length];
+    if (!cor) continue;
+    const criadoEm = new Date(Date.now() - variante.dias * 24 * 60 * 60 * 1000);
+    const pdfId = await gravarArquivo(db, 'arte-revenda.pdf', 'application/pdf', PDF_MINIMO);
+    const [arte] = await db
+      .insert(artes)
+      .values({
+        empresaId,
+        clienteId: cliente.id,
+        produtoId: produto.id,
+        nome: variante.nome,
+        clienteFinal: variante.clienteFinal,
+        corId: cor.id,
+        pdfId,
+        criadoPor: adminId,
+        atualizadoPor: adminId,
+        criadoEm,
+        atualizadoEm: criadoEm,
+      })
+      .returning({ id: artes.id });
+    if (!arte) throw new Error('arte não gravada');
+    await db
+      .insert(arteMaquinas)
+      .values(
+        maquinasDaVariante(todasMaquinas, 1).map((m) => ({ arteId: arte.id, maquinaId: m.id })),
+      );
+    resumo.artes++;
+    if (variante.pedido) {
+      await semearTarefaRevenda(db, {
+        empresaId,
+        clienteId: cliente.id,
+        produtoId: produto.id,
+        responsavelId: adminId,
+        clienteFinal: variante.clienteFinal,
+        pedidoNumero: variante.pedido,
+        status: 'concluida',
+        arteId: arte.id,
+      });
+    }
+  }
+  await semearTarefaRevenda(db, {
+    empresaId,
+    clienteId: cliente.id,
+    produtoId: produto.id,
+    responsavelId: adminId,
+    clienteFinal: TAREFA_REVENDA.clienteFinal,
+    pedidoNumero: TAREFA_REVENDA.pedido,
+    status: 'nao_iniciada',
+    arteId: null,
+  });
+  return resumo;
+}
+
+async function semearTarefaRevenda(
+  db: Banco,
+  valores: {
+    empresaId: string;
+    clienteId: string;
+    produtoId: string;
+    responsavelId: string;
+    clienteFinal: string | null;
+    pedidoNumero: string;
+    status: 'nao_iniciada' | 'concluida';
+    arteId: string | null;
+  },
+): Promise<void> {
+  const [tarefa] = await db
+    .insert(tarefasArte)
+    .values({ ...valores, origem: 'bling_pedido' })
+    .returning({ id: tarefasArte.id });
+  if (!tarefa) throw new Error('tarefa não gravada');
+  await db.insert(tarefasArteHistorico).values({
+    tarefaId: tarefa.id,
+    statusAnterior: null,
+    statusNovo: valores.status,
+    autorId: null,
+  });
 }
 
 // Cliente e produtos da fixture sintética do app (`tests/fixtures/pedido-op.json`): com `RPA_OP_MOCK=1`, a

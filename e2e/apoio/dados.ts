@@ -30,3 +30,18 @@ export function nomeDoCliente(indice: number): string {
 export function mascararCnpj(cnpj: string): string {
   return cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
 }
+
+// Revendedor fictício da Roma (`CLIENTE_REVENDA`, `ARTES_REVENDA` e `TAREFA_REVENDA` no `semear`, ADR 0017).
+export const REVENDA = {
+  nome: 'Revenda Ficticia',
+  produto: 'Caixa de Pizza',
+  artes: [
+    { nome: 'Frente', clienteFinal: 'Pizzaria Fictícia Exemplo', pedido: '9900' },
+    { nome: 'Verso', clienteFinal: 'Hamburgueria Exemplo', pedido: null },
+    { nome: 'Padrão', clienteFinal: null, pedido: null },
+  ],
+  tarefa: { clienteFinal: 'Lanchonete Exemplo', pedido: '9901' },
+} as const;
+
+/** Título da tarefa aberta do revendedor: "Arte de <produto> para <cliente final> (<revendedor>)". */
+export const TITULO_TAREFA_REVENDA = `Arte de ${REVENDA.produto} para ${REVENDA.tarefa.clienteFinal} (${REVENDA.nome})`;

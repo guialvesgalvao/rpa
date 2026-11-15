@@ -1,6 +1,6 @@
 # ADR 0017 — Cliente final de revenda nas tarefas e nas artes
 
-- **Status:** proposto
+- **Status:** aceito (2026-11-15, aceite visual local do usuário)
 - **Data:** 2026-11-15
 
 ## Contexto

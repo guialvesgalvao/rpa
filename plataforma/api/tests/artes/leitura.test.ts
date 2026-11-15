@@ -249,6 +249,31 @@ describe('GET /clientes', () => {
     ]);
   });
 
+  it('acha o revendedor pelo cliente final das artes dele, sem acento, nas duas paginações', async () => {
+    const revenda = await criarCliente('aba', 'Revenda Ficticia Ltda');
+    await criarCliente('aba', 'Outro Ltda');
+    const produto = await criarProduto('aba', 'Caixa de Pizza');
+    await criarArte('aba', revenda.id, produto.id, 'Frente');
+    await criarArte('aba', revenda.id, produto.id, 'Verso');
+    await db.update(artes).set({ clienteFinal: 'Pizzaria Fictícia' });
+
+    expect((await pagina('?busca=pizzaria%20ficticia')).itens.map((c) => c.id)).toEqual([
+      revenda.id,
+    ]);
+    const numerada = await pagina('?busca=PIZZARIA&pagina=1');
+    expect(numerada.itens.map((c) => c.id)).toEqual([revenda.id]);
+    expect(numerada.total).toBe(1);
+    // Cliente final de arte de outra empresa não entra.
+    const roma = await criarCliente('roma', 'Revenda Roma Ltda');
+    const produtoRoma = await criarProduto('roma', 'Copo');
+    await criarArte('roma', roma.id, produtoRoma.id, 'Padrão');
+    await db
+      .update(artes)
+      .set({ clienteFinal: 'Hamburgueria Exemplo' })
+      .where(eq(artes.clienteId, roma.id));
+    expect((await pagina('?busca=hamburgueria')).itens).toHaveLength(0);
+  });
+
   it('trata % e _ do termo como texto literal', async () => {
     await criarCliente('aba', 'Padaria Exemplo Ltda');
     expect((await pagina('?busca=%25')).itens).toHaveLength(0);

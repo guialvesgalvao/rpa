@@ -118,7 +118,12 @@ export async function listarClientes(
   const termo = busca ? normalizarTermo(busca) : '';
   const condicoes = [eq(clientes.empresaId, empresaId), isNull(clientes.inativoNoBlingEm)];
   if (termo) {
-    condicoes.push(sql`${clientes.busca} like '%' || f_unaccent(${escaparLike(termo)}) || '%'`);
+    // Também acha o revendedor pelo cliente final das artes dele (ADR 0017). A busca por CNPJ do app
+    // (`clientePorCnpj`) filtra pelo CNPJ exato, então um acerto a mais aqui não a afeta.
+    const padrao = sql`'%' || f_unaccent(${escaparLike(termo)}) || '%'`;
+    condicoes.push(
+      sql`(${clientes.busca} like ${padrao} or exists (select 1 from ${artes} a where a.cliente_id = ${clientes.id} and a.empresa_id = ${clientes.empresaId} and a.cliente_final_chave like ${padrao}))`,
+    );
   }
 
   if (pagina !== undefined) {

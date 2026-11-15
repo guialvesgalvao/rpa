@@ -52,6 +52,12 @@ export default async function PaginaTarefa({
               {tarefa.cliente.nome}
             </Link>
           </dd>
+          {tarefa.clienteFinal && (
+            <>
+              <dt>Cliente final</dt>
+              <dd>{tarefa.clienteFinal}</dd>
+            </>
+          )}
           <dt>Produto</dt>
           <dd>{tarefa.produto.nome}</dd>
           <dt>Responsável</dt>

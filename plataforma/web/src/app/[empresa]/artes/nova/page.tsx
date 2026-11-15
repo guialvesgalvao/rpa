@@ -15,7 +15,7 @@ export default async function NovaArte({
   searchParams,
 }: PageProps<'/[empresa]/artes/nova'>) {
   const { empresa } = await params;
-  const { cliente: clienteId, produto } = await searchParams;
+  const { cliente: clienteId, produto, clienteFinal } = await searchParams;
   if (typeof clienteId !== 'string') notFound();
   await exigirPermissaoNaPagina(empresa, 'artes.adicionar');
 
@@ -35,6 +35,7 @@ export default async function NovaArte({
           empresa={empresa}
           clienteId={cliente.id}
           produtoInicial={typeof produto === 'string' ? produto : undefined}
+          clienteFinalInicial={typeof clienteFinal === 'string' ? clienteFinal : undefined}
           {...opcoes}
         />
       </div>

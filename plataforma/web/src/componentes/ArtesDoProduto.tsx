@@ -2,7 +2,11 @@
 
 import {
   EsquemaArteDoProduto,
+  FILTRO_CLIENTE_FINAL_TODOS,
+  filtrarPorClienteFinal,
+  opcoesFiltroClienteFinal,
   rotuloArtes,
+  seloClienteFinal,
   type ArteDoProduto,
   type ProdutoDoCliente,
 } from '@plataforma/contratos';
@@ -19,12 +23,17 @@ type Carga =
 type Props = { empresa: string; clienteId: string; produto: ProdutoDoCliente };
 
 // Um produto do perfil do cliente: clicar abre a lista das artes dele (buscada só na primeira abertura) e cada
-// arte com imagem abre a imagem num modal. Arte só com PDF mostra "Sem imagem".
+// arte com imagem abre a imagem num modal. Arte só com PDF mostra "Sem imagem". Arte feita para o cliente final
+// de uma revenda (ADR 0017) mostra o selo, e com algum cliente final a lista ganha o filtro por ele.
 export function ArtesDoProduto({ empresa, clienteId, produto }: Props) {
   const [aberto, setAberto] = useState(false);
   const [carga, setCarga] = useState<Carga>({ status: 'fechado' });
   const [vendo, setVendo] = useState<ArteDoProduto | null>(null);
+  const [filtro, setFiltro] = useState(FILTRO_CLIENTE_FINAL_TODOS);
   const idLista = `artes-${produto.id}`;
+  const opcoesFiltro = carga.status === 'pronto' ? opcoesFiltroClienteFinal(carga.artes) : [];
+  const artesVisiveis =
+    carga.status === 'pronto' ? filtrarPorClienteFinal(carga.artes, filtro) : [];
 
   // Busca quando abre pela primeira vez (ou ao tentar de novo, que volta a carga para "fechado"); fechar e
   // reabrir reaproveita a lista. Fechar no meio da carga a cancela, e reabrir busca de novo.
@@ -83,42 +92,59 @@ export function ArtesDoProduto({ empresa, clienteId, produto }: Props) {
             (carga.artes.length === 0 ? (
               <div className="hint">Nenhuma arte cadastrada para este produto.</div>
             ) : (
-              <ul aria-label={`Artes de ${produto.nome}`}>
-                {carga.artes.map((arte) => (
-                  <li key={arte.id}>
-                    <div>
-                      <strong>{arte.nome}</strong>
-                      <div className="hint">
-                        {arte.cor.nome}
-                        {arte.maquinas.length > 0 &&
-                          ` · ${arte.maquinas.map((m) => m.nome).join(', ')}`}
-                        {` · ${formatarDataHora(arte.criadoEm)}`}
+              <>
+                {opcoesFiltro.length > 0 && (
+                  <label className="filtro-cliente-final">
+                    Cliente final{' '}
+                    <select value={filtro} onChange={(evento) => setFiltro(evento.target.value)}>
+                      {opcoesFiltro.map((opcao) => (
+                        <option key={opcao.valor} value={opcao.valor}>
+                          {opcao.rotulo}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+                <ul aria-label={`Artes de ${produto.nome}`}>
+                  {artesVisiveis.map((arte) => (
+                    <li key={arte.id}>
+                      <div>
+                        <strong>{arte.nome}</strong>
+                        {seloClienteFinal(arte) && (
+                          <div className="selo-cliente-final">{seloClienteFinal(arte)}</div>
+                        )}
+                        <div className="hint">
+                          {arte.cor.nome}
+                          {arte.maquinas.length > 0 &&
+                            ` · ${arte.maquinas.map((m) => m.nome).join(', ')}`}
+                          {` · ${formatarDataHora(arte.criadoEm)}`}
+                        </div>
                       </div>
-                    </div>
-                    <div className="acoes-arte">
-                      {arte.temImagem ? (
-                        <button type="button" onClick={() => setVendo(arte)}>
-                          Visualizar imagem
-                        </button>
-                      ) : (
-                        <span className="hint">Sem imagem</span>
-                      )}
-                      {arte.temPdf ? (
-                        // Pelo BFF (cookie de sessão); o nome do arquivo vem do `content-disposition` da API.
-                        <a
-                          className="botao"
-                          href={`/api/v1/empresas/${encodeURIComponent(empresa)}/artes/${arte.id}/pdf`}
-                          download
-                        >
-                          Baixar arquivo PDF
-                        </a>
-                      ) : (
-                        <span className="hint">Sem PDF</span>
-                      )}
-                    </div>
-                  </li>
-                ))}
-              </ul>
+                      <div className="acoes-arte">
+                        {arte.temImagem ? (
+                          <button type="button" onClick={() => setVendo(arte)}>
+                            Visualizar imagem
+                          </button>
+                        ) : (
+                          <span className="hint">Sem imagem</span>
+                        )}
+                        {arte.temPdf ? (
+                          // Pelo BFF (cookie de sessão); o nome do arquivo vem do `content-disposition` da API.
+                          <a
+                            className="botao"
+                            href={`/api/v1/empresas/${encodeURIComponent(empresa)}/artes/${arte.id}/pdf`}
+                            download
+                          >
+                            Baixar arquivo PDF
+                          </a>
+                        ) : (
+                          <span className="hint">Sem PDF</span>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </>
             ))}
         </div>
       )}

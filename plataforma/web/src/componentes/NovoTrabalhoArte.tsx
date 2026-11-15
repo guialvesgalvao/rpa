@@ -1,16 +1,25 @@
 'use client';
 
-import { EsquemaErro, EsquemaTarefa, type Opcao } from '@plataforma/contratos';
+import {
+  CLIENTE_FINAL_MAX,
+  EsquemaErro,
+  EsquemaTarefa,
+  validarClienteFinal,
+  type Opcao,
+} from '@plataforma/contratos';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
 type Props = { empresa: string; clienteId: string; catalogo: Opcao[] };
 
 // Um produto do catálogo da empresa e as duas saídas: inserir uma arte pronta (formulário de nova arte com o
-// produto escolhido) ou iniciar o desenvolvimento (cria a tarefa e abre a página dela).
+// produto escolhido) ou iniciar o desenvolvimento (cria a tarefa e abre a página dela). O cliente final, se
+// preenchido, segue para os dois.
 export function NovoTrabalhoArte({ empresa, clienteId, catalogo }: Props) {
   const roteador = useRouter();
   const [produtoId, setProdutoId] = useState('');
+  // Cliente final de revenda (ADR 0017), opcional: entra na tarefa ao iniciar o desenvolvimento.
+  const [clienteFinal, setClienteFinal] = useState('');
   const [erro, setErro] = useState('');
   const [enviando, setEnviando] = useState(false);
 
@@ -21,17 +30,29 @@ export function NovoTrabalhoArte({ empresa, clienteId, catalogo }: Props) {
 
   function inserirPronta() {
     const produto = escolhido();
-    if (produto) roteador.push(`/${empresa}/artes/nova?cliente=${clienteId}&produto=${produto}`);
+    if (!produto) return;
+    const consulta = new URLSearchParams({ cliente: clienteId, produto });
+    if (clienteFinal.trim()) consulta.set('clienteFinal', clienteFinal.trim());
+    roteador.push(`/${empresa}/artes/nova?${consulta}`);
   }
 
   async function iniciar() {
     const produto = escolhido();
     if (!produto) return;
+    const erroClienteFinal = validarClienteFinal(clienteFinal);
+    if (erroClienteFinal) {
+      setErro(erroClienteFinal);
+      return;
+    }
     setEnviando(true);
     try {
       const resposta = await fetch(
         `/api/v1/empresas/${encodeURIComponent(empresa)}/clientes/${clienteId}/produtos/${produto}/tarefas`,
-        { method: 'POST' },
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ clienteFinal }),
+        },
       );
       if (resposta.status === 401) {
         window.location.assign('/entrar');
@@ -78,6 +99,17 @@ export function NovoTrabalhoArte({ empresa, clienteId, catalogo }: Props) {
             {erro}
           </div>
         )}
+      </div>
+      <div className="campo">
+        <label htmlFor="cliente-final-trabalho">Cliente final (opcional)</label>
+        <input
+          id="cliente-final-trabalho"
+          type="text"
+          value={clienteFinal}
+          onChange={(e) => setClienteFinal(e.target.value)}
+          maxLength={CLIENTE_FINAL_MAX}
+        />
+        <div className="hint">Na revenda, para quem é a arte (o cliente do revendedor).</div>
       </div>
       <div className="actions">
         <button type="button" onClick={inserirPronta}>

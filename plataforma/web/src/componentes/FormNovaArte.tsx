@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  CLIENTE_FINAL_MAX,
   EsquemaErro,
   LIMITES,
   NOME_PADRAO_ARTE,
@@ -24,6 +25,8 @@ type Props = {
   maquinas: Opcao[];
   // Produto já escolhido ao abrir (ex.: o do "Novo trabalho de arte").
   produtoInicial?: string;
+  // Cliente final já digitado ao abrir (ex.: o do "Novo trabalho de arte").
+  clienteFinalInicial?: string;
   // O produto não muda (conclusão de tarefa: é o da tarefa).
   produtoFixo?: boolean;
   // Envio no lugar do cadastro comum (ex.: concluir a tarefa): rota do proxy e página de destino.
@@ -56,6 +59,7 @@ export function FormNovaArte({
   cores,
   maquinas,
   produtoInicial,
+  clienteFinalInicial,
   produtoFixo,
   envio,
 }: Props) {
@@ -64,6 +68,8 @@ export function FormNovaArte({
     produtoInicial && produtos.some((p) => p.id === produtoInicial) ? produtoInicial : '',
   );
   const [nome, setNome] = useState('');
+  // Só no cadastro comum: na conclusão da tarefa, a arte herda o cliente final da tarefa (ADR 0017).
+  const [clienteFinal, setClienteFinal] = useState(clienteFinalInicial ?? '');
   const [corId, setCorId] = useState('');
   // Cores criadas aqui entram na lista sem recarregar a página.
   const [listaCores, setListaCores] = useState(cores);
@@ -87,6 +93,7 @@ export function FormNovaArte({
       maquinaIds,
       pdf: pdf?.entrada,
       imagem: imagem?.entrada,
+      clienteFinal: envio ? null : clienteFinal,
     });
     setErros(errosLocais);
     if (Object.keys(errosLocais).length > 0) return;
@@ -94,6 +101,7 @@ export function FormNovaArte({
     const corpo = new FormData();
     corpo.set('produtoId', produtoId);
     corpo.set('nome', nome);
+    if (!envio && clienteFinal.trim()) corpo.set('clienteFinal', clienteFinal);
     corpo.set('corId', corId);
     for (const id of maquinaIds) corpo.append('maquinaIds', id);
     if (pdf) corpo.set('pdf', pdf.arquivo);
@@ -173,6 +181,24 @@ export function FormNovaArte({
         <div className="hint">Se ficar em branco, a arte será salva como &apos;Padrão&apos;.</div>
         <Erro texto={erros.nome} />
       </div>
+
+      {!envio && (
+        <div className="campo">
+          <label htmlFor="cliente-final">Cliente final (opcional)</label>
+          <input
+            id="cliente-final"
+            type="text"
+            value={clienteFinal}
+            onChange={(e) => setClienteFinal(e.target.value)}
+            maxLength={CLIENTE_FINAL_MAX}
+            aria-invalid={Boolean(erros.clienteFinal)}
+          />
+          <div className="hint">
+            Na revenda, para quem a arte foi feita (o cliente do revendedor).
+          </div>
+          <Erro texto={erros.clienteFinal} />
+        </div>
+      )}
 
       <fieldset className="campo">
         <legend>Cor</legend>

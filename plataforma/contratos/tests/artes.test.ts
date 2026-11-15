@@ -99,6 +99,8 @@ describe('EsquemaArteDoProduto', () => {
     criadoEm: '2026-03-05T12:00:00.000Z',
     temPdf: true,
     temImagem: false,
+    clienteFinal: 'Pizzaria Ficticia',
+    pedidoNumero: '10',
   };
 
   it('aceita uma arte completa', () => {

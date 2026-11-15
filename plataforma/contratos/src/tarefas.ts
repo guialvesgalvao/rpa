@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { EsquemaOpcao } from './artes.ts';
+import { CLIENTE_FINAL_MAX, limparClienteFinal } from './cliente-final.ts';
 
 // Tarefa de desenvolvimento de arte: registra quando o arte finalista começou e terminou a arte de um produto
 // do catálogo para um cliente. Concluir exige os dados da arte, e a conclusão cadastra a arte.
@@ -52,6 +53,8 @@ export const EsquemaTarefa = z.object({
   // Tarefa criada na tela (`manual`) ou a partir de um pedido de venda do Bling (com o número).
   origem: z.enum(ORIGENS_TAREFA).default('manual'),
   pedidoNumero: z.string().nullable().default(null),
+  // Cliente final de revenda (ADR 0017); ausente na resposta de uma API anterior: `null`.
+  clienteFinal: z.string().nullable().default(null),
   // Arte cadastrada na conclusão; `null` até concluir.
   arteId: z.uuid().nullable(),
   criadoEm: z.iso.datetime(),
@@ -95,6 +98,19 @@ export const EsquemaNovoComentario = z.object({
   texto: z.string().trim().min(1).max(COMENTARIO_TAREFA_MAX),
 });
 
+// Criação manual da tarefa: o cliente final é opcional (vazio = sem cliente final).
+export const EsquemaNovaTarefa = z.object({
+  clienteFinal: z
+    .string()
+    .max(CLIENTE_FINAL_MAX * 2)
+    .optional()
+    .transform((texto) => limparClienteFinal(texto))
+    .refine((texto) => !texto || texto.length <= CLIENTE_FINAL_MAX, {
+      message: `O cliente final pode ter no máximo ${CLIENTE_FINAL_MAX} caracteres.`,
+    }),
+});
+export type NovaTarefa = z.input<typeof EsquemaNovaTarefa>;
+
 export const EsquemaMudancaStatus = z.object({ status: EsquemaStatusTarefa });
 
 // Responsável pelas tarefas automáticas da empresa (só admin). `responsavelId`: o configurado (`null` = nenhum;
@@ -116,9 +132,14 @@ export type EventoTarefa = z.infer<typeof EsquemaEventoTarefa>;
 export type NovoComentario = z.infer<typeof EsquemaNovoComentario>;
 export type MudancaStatus = z.infer<typeof EsquemaMudancaStatus>;
 
-// Ex.: "Arte de Caixa de pizza 35x35 para Pizzaria Ficticia".
-export const tituloTarefa = (tarefa: Pick<Tarefa, 'cliente' | 'produto'>): string =>
-  `Arte de ${tarefa.produto.nome} para ${tarefa.cliente.nome}`;
+// Ex.: "Arte de Caixa de pizza 35x35 para Pizzaria Ficticia"; com cliente final de revenda (ADR 0017),
+// "Arte de Caixa de pizza 35x35 para Pizzaria Ficticia (Revenda Ficticia)", com o revendedor entre parênteses.
+export const tituloTarefa = (
+  tarefa: Pick<Tarefa, 'cliente' | 'produto'> & { clienteFinal?: string | null },
+): string =>
+  tarefa.clienteFinal
+    ? `Arte de ${tarefa.produto.nome} para ${tarefa.clienteFinal} (${tarefa.cliente.nome})`
+    : `Arte de ${tarefa.produto.nome} para ${tarefa.cliente.nome}`;
 
 // A conclusão sem arte vinculada precisa dos dados da arte (rota `concluir`); com arte, basta mudar o status.
 export const precisaDaArteParaConcluir = (tarefa: Pick<Tarefa, 'arteId'>): boolean =>

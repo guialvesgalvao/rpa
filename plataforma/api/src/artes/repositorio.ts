@@ -229,6 +229,11 @@ export async function artesDoProduto(
       corNome: cores.nome,
       pdfId: artes.pdfId,
       imagemId: artes.imagemId,
+      clienteFinal: artes.clienteFinal,
+      // Pedido do Bling da tarefa que gerou a arte (subconsulta: a lista não pode repetir a arte).
+      pedidoNumero: sql<
+        string | null
+      >`(select t.pedido_numero from tarefas_arte t where t.arte_id = ${artes.id} and t.pedido_numero is not null limit 1)`,
     })
     .from(artes)
     .innerJoin(cores, eq(cores.id, artes.corId))
@@ -264,6 +269,8 @@ export async function artesDoProduto(
     criadoEm: linha.criadoEm.toISOString(),
     temPdf: linha.pdfId !== null,
     temImagem: linha.imagemId !== null,
+    clienteFinal: linha.clienteFinal,
+    pedidoNumero: linha.pedidoNumero,
   }));
 }
 

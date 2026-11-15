@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { validarClienteFinal } from './cliente-final.ts';
+
 export const LIMITE_PADRAO_CLIENTES = 20;
 export const LIMITE_MAXIMO_CLIENTES = 50;
 
@@ -98,9 +100,11 @@ export type EntradaNovaArte = {
   maquinaIds: readonly string[];
   pdf?: EntradaArquivo;
   imagem?: EntradaArquivo;
+  clienteFinal?: string | null;
 };
 
-export type CampoNovaArte = 'produtoId' | 'nome' | 'corId' | 'maquinaIds' | 'arquivos';
+export type CampoNovaArte =
+  'produtoId' | 'nome' | 'corId' | 'maquinaIds' | 'arquivos' | 'clienteFinal';
 
 export type ErrosNovaArte = Partial<Record<CampoNovaArte, string>>;
 
@@ -127,6 +131,8 @@ export function validarNovaArte(entrada: EntradaNovaArte): ErrosNovaArte {
   }
   if (!entrada.corId) erros.corId = 'Selecione uma cor.';
   if (entrada.maquinaIds.length === 0) erros.maquinaIds = 'Selecione ao menos uma máquina.';
+  const erroClienteFinal = validarClienteFinal(entrada.clienteFinal);
+  if (erroClienteFinal) erros.clienteFinal = erroClienteFinal;
   const erroArquivo = erroDoArquivo(entrada.pdf, 'pdf') ?? erroDoArquivo(entrada.imagem, 'imagem');
   if (erroArquivo) erros.arquivos = erroArquivo;
   else if (!entrada.pdf && !entrada.imagem) erros.arquivos = 'Envie ao menos um arquivo.';
@@ -166,6 +172,8 @@ export const EsquemaArte = z.object({
   maquinaIds: z.array(z.uuid()),
   pdf: EsquemaArquivoArte.nullable(),
   imagem: EsquemaArquivoArte.nullable(),
+  // Cliente final de revenda (ADR 0017); ausente na resposta de uma API anterior: `null`.
+  clienteFinal: z.string().nullable().default(null),
 });
 
 // Arte de um produto do cliente, já com cor e máquinas por nome (lista para escolher a arte de uma OP).
@@ -177,6 +185,9 @@ export const EsquemaArteDoProduto = z.object({
   criadoEm: z.iso.datetime(),
   temPdf: z.boolean(),
   temImagem: z.boolean(),
+  // Cliente final de revenda (ADR 0017) e o pedido do Bling da tarefa que gerou a arte; `null` sem eles.
+  clienteFinal: z.string().nullable().default(null),
+  pedidoNumero: z.string().nullable().default(null),
 });
 
 export type ArquivoArte = z.infer<typeof EsquemaArquivoArte>;

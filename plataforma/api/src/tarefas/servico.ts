@@ -54,6 +54,7 @@ const colunasTarefa = {
   arteId: tarefasArte.arteId,
   origem: tarefasArte.origem,
   pedidoNumero: tarefasArte.pedidoNumero,
+  clienteFinal: tarefasArte.clienteFinal,
   criadoEm: tarefasArte.criadoEm,
   atualizadoEm: tarefasArte.atualizadoEm,
 };
@@ -70,6 +71,7 @@ type LinhaTarefa = {
   arteId: string | null;
   origem: string;
   pedidoNumero: string | null;
+  clienteFinal: string | null;
   criadoEm: Date;
   atualizadoEm: Date;
 };
@@ -86,6 +88,7 @@ function paraTarefa(linha: LinhaTarefa): Tarefa {
     status: linha.status as StatusTarefa,
     origem: linha.origem as OrigemTarefa,
     pedidoNumero: linha.pedidoNumero,
+    clienteFinal: linha.clienteFinal,
     arteId: linha.arteId,
     criadoEm: linha.criadoEm.toISOString(),
     atualizadoEm: linha.atualizadoEm.toISOString(),

@@ -137,6 +137,7 @@ export async function obterArte(
     maquinaIds: maquinaIds.map((m) => m.id),
     pdf: arquivoDe(arte.pdfId),
     imagem: arquivoDe(arte.imagemId),
+    clienteFinal: arte.clienteFinal,
   };
 }
 

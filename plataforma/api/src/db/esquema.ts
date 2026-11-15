@@ -314,6 +314,12 @@ export const artes = pgTable(
     criadoEm: instante('criado_em').notNull().defaultNow(),
     atualizadoPor: uuid('atualizado_por').references(() => usuarios.id, { onDelete: 'set null' }),
     atualizadoEm: instante('atualizado_em').notNull().defaultNow(),
+    // Cliente final de revenda (ADR 0017): o revendedor é o cliente; aqui, para quem a arte foi feita.
+    clienteFinal: text('cliente_final'),
+    // Chave de comparação (sem acento, minúsculas, espaços colapsados); a mesma expressão de `chaveClienteFinalSql`.
+    clienteFinalChave: text('cliente_final_chave').generatedAlwaysAs(
+      sql`f_unaccent(lower(regexp_replace(btrim(cliente_final), '\\s+', ' ', 'g')))`,
+    ),
   },
   (t) => [
     // O cliente e o produto precisam ser da mesma empresa da arte.
@@ -369,6 +375,12 @@ export const tarefasArte = pgTable(
     // `manual` (tela) ou `bling_pedido` (worker dos pedidos de venda, com o número do pedido).
     origem: text('origem').notNull().default('manual'),
     pedidoNumero: text('pedido_numero'),
+    // Cliente final de revenda (ADR 0017): o revendedor é o cliente; aqui, para quem a arte foi feita.
+    clienteFinal: text('cliente_final'),
+    // Chave de comparação (sem acento, minúsculas, espaços colapsados); a mesma expressão de `chaveClienteFinalSql`.
+    clienteFinalChave: text('cliente_final_chave').generatedAlwaysAs(
+      sql`f_unaccent(lower(regexp_replace(btrim(cliente_final), '\\s+', ' ', 'g')))`,
+    ),
     // A arte cadastrada na conclusão. Não pode ser removida enquanto a tarefa existir.
     arteId: uuid('arte_id').references(() => artes.id, { onDelete: 'restrict' }),
     criadoEm: instante('criado_em').notNull().defaultNow(),

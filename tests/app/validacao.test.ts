@@ -251,6 +251,12 @@ describe('tarefas de arte', () => {
     expect(() => validarNovaTarefa({ clienteId: id, produtoId: 'x' })).toThrow(
       'Cliente ou produto inválido.',
     );
+    expect(
+      validarNovaTarefa({ clienteId: id, produtoId: id, clienteFinal: 'Pizzaria Ficticia' }),
+    ).toEqual({ clienteId: id, produtoId: id, clienteFinal: 'Pizzaria Ficticia' });
+    expect(() =>
+      validarNovaTarefa({ clienteId: id, produtoId: id, clienteFinal: 'x'.repeat(501) }),
+    ).toThrow('Cliente ou produto inválido.');
   });
 
   it('filtro: escopo e status conhecidos', () => {

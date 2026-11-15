@@ -24,6 +24,8 @@ const arte = (id: string, criadoEm: string, nome = 'Padrão'): ArteDoProduto => 
   criadoEm,
   temPdf: true,
   temImagem: true,
+  clienteFinal: null,
+  pedidoNumero: null,
 });
 
 const A = arte('a', '2026-10-01T10:00:00.000Z', 'Antiga');

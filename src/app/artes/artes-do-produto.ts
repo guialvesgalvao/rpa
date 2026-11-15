@@ -1,5 +1,13 @@
 import type { ArtesApi } from '../api.js';
-import { type ArteDoProduto, type ProdutoDoCliente, rotuloArtes } from '../plataforma/contratos.js';
+import {
+  type ArteDoProduto,
+  FILTRO_CLIENTE_FINAL_TODOS,
+  filtrarPorClienteFinal,
+  opcoesFiltroClienteFinal,
+  type ProdutoDoCliente,
+  rotuloArtes,
+  seloClienteFinal,
+} from '../plataforma/contratos.js';
 import { blocoErro, botao, criar, mensagemErro } from './dom.js';
 import { formatarDataHora } from './tarefas-dados.js';
 
@@ -11,7 +19,9 @@ export type DepsArtesDoProduto = {
 /**
  * Um produto do perfil do cliente (mesmo comportamento do site): clicar abre a lista das artes dele, buscada
  * só na primeira abertura; cada arte com imagem tem "Visualizar imagem", que abre a imagem num `<dialog>`, e
- * arte só com PDF mostra "Sem imagem"; embaixo, "Baixar arquivo PDF" (janela de salvar) ou "Sem PDF".
+ * arte só com PDF mostra "Sem imagem"; embaixo, "Baixar arquivo PDF" (janela de salvar) ou "Sem PDF". Arte
+ * feita para o cliente final de uma revenda (ADR 0017) mostra o selo, e com algum cliente final a lista
+ * ganha o filtro por ele.
  */
 export function itemDoProduto(
   produto: ProdutoDoCliente,
@@ -68,14 +78,38 @@ function listaDeArtes(
   if (artes.length === 0) return criar('div', 'hint', 'Nenhuma arte cadastrada para este produto.');
   const lista = criar('ul');
   lista.setAttribute('aria-label', `Artes de ${produto.nome}`);
+  preencherLista(lista, artes, api);
+  const opcoes = opcoesFiltroClienteFinal(artes);
+  if (opcoes.length === 0) return lista;
+  const filtro = criar('select');
+  for (const { valor, rotulo } of opcoes) filtro.append(new Option(rotulo, valor));
+  filtro.value = FILTRO_CLIENTE_FINAL_TODOS;
+  filtro.addEventListener('change', () =>
+    preencherLista(lista, filtrarPorClienteFinal(artes, filtro.value), api),
+  );
+  const rotulo = criar('label', 'filtro-cliente-final', 'Cliente final ');
+  rotulo.append(filtro);
+  const bloco = criar('div');
+  bloco.append(rotulo, lista);
+  return bloco;
+}
+
+function preencherLista(
+  lista: HTMLElement,
+  artes: ArteDoProduto[],
+  api: DepsArtesDoProduto['api'],
+): void {
+  lista.replaceChildren();
   for (const arte of artes) {
     const linha = criar('li');
     const texto = criar('div');
     const maquinas = arte.maquinas.length
       ? ` · ${arte.maquinas.map((maquina) => maquina.nome).join(', ')}`
       : '';
+    const selo = seloClienteFinal(arte);
     texto.append(
       criar('strong', undefined, arte.nome),
+      ...(selo ? [criar('div', 'selo-cliente-final', selo)] : []),
       criar('div', 'hint', `${arte.cor.nome}${maquinas} · ${formatarDataHora(arte.criadoEm)}`),
     );
     const acoes = criar('div', 'acoes-arte');
@@ -96,7 +130,6 @@ function listaDeArtes(
     linha.append(texto, acoes);
     lista.append(linha);
   }
-  return lista;
 }
 
 /** Pede o destino e grava o PDF; o aviso ao lado do botão diz se salvou ou o erro. */

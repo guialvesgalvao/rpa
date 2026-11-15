@@ -27,6 +27,8 @@ const ARTE: ArteDoProduto = {
   criadoEm: '2026-10-30T12:00:00.000Z',
   temPdf: false,
   temImagem: true,
+  clienteFinal: null,
+  pedidoNumero: null,
 };
 
 const pedido = (extra: Partial<PedidoOp> = {}): PedidoOp => ({

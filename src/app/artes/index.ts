@@ -64,18 +64,19 @@ export function criarArtes(
         clienteId,
         sucesso,
         voltar: mostrarLista,
-        cadastrar: (cliente, produtoId) =>
+        cadastrar: (cliente, produtoId, clienteFinal) =>
           mostrarDetalhe(() =>
             montarFormulario(areaDetalhe, {
               api,
               cliente,
               produtoId,
+              ...(clienteFinal ? { clienteFinal } : {}),
               voltar: () => mostrarCliente(clienteId),
               concluido: () => mostrarCliente(clienteId, 'Arte cadastrada'),
             }),
           ),
-        iniciarTarefa: async (cliente, produtoId) => {
-          const tarefa = await tarefas.criar(cliente.id, produtoId);
+        iniciarTarefa: async (cliente, produtoId, clienteFinal) => {
+          const tarefa = await tarefas.criar(cliente.id, produtoId, clienteFinal);
           mostrarTarefa(tarefa.id, () => mostrarCliente(clienteId), 'Tarefa criada');
         },
       }),

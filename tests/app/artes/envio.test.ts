@@ -89,6 +89,31 @@ describe('montarEnvio', () => {
     expect(envio.form.has('imagem')).toBe(false);
   });
 
+  it('cliente final de revenda: vai no multipart; em branco, fica de fora; longo demais, erro', async () => {
+    const com = await montarEnvio(
+      { ...entrada, clienteFinal: 'Pizzaria Ficticia' },
+      { pdf: local() },
+      abrirBlob,
+    );
+    if (!('form' in com)) throw new Error('esperava o formulário');
+    expect(com.form.get('clienteFinal')).toBe('Pizzaria Ficticia');
+    const branco = await montarEnvio(
+      { ...entrada, clienteFinal: '  ' },
+      { pdf: local() },
+      abrirBlob,
+    );
+    if (!('form' in branco)) throw new Error('esperava o formulário');
+    expect(branco.form.has('clienteFinal')).toBe(false);
+    const longo = await montarEnvio(
+      { ...entrada, clienteFinal: 'x'.repeat(121) },
+      { pdf: local() },
+      abrirBlob,
+    );
+    expect(longo).toEqual({
+      erros: { clienteFinal: 'O cliente final pode ter no máximo 120 caracteres.' },
+    });
+  });
+
   it('envia PDF e imagem juntos e repete maquinaIds', async () => {
     const outra = '9a0c6d2e-8a41-4b5e-9d3a-1c2b3d4e5f61';
     const envio = await montarEnvio(

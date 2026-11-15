@@ -757,9 +757,9 @@ ipcMain.handle(
 
 // Tarefas de arte: os dois perfis usam; a API decide o alcance (o arte finalista só alcança as suas).
 ipcMain.handle(CHANNELS.tarefasCriar, async (_event, input: unknown): Promise<Tarefa> => {
-  const { clienteId, produtoId } = validarNovaTarefa(input);
+  const { clienteId, produtoId, clienteFinal } = validarNovaTarefa(input);
   const { empresa } = await contexto();
-  const tarefa = await artesApi.criarTarefa(empresa, clienteId, produtoId);
+  const tarefa = await artesApi.criarTarefa(empresa, clienteId, produtoId, clienteFinal);
   logger.info({ empresa }, 'Tarefa de arte criada');
   return tarefa;
 });

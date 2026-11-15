@@ -99,7 +99,12 @@ export type ClienteArtes = {
   /** Reserva `quantidade` números de OP consecutivos (só admin). */
   reservarNumerosOp(empresa: string, quantidade: number): Promise<number[]>;
   /** Tarefa de desenvolvimento de arte do produto (catálogo) para o cliente. */
-  criarTarefa(empresa: string, clienteId: string, produtoId: string): Promise<Tarefa>;
+  criarTarefa(
+    empresa: string,
+    clienteId: string,
+    produtoId: string,
+    clienteFinal?: string,
+  ): Promise<Tarefa>;
   listarTarefas(empresa: string, consulta: ConsultaTarefasApp): Promise<Tarefa[]>;
   contagemTarefas(empresa: string): Promise<ContagemTarefas>;
   /** Arte finalista que recebe as tarefas automáticas da empresa (só admin). */
@@ -333,9 +338,11 @@ export function criarClienteArtes({
       });
       return (await lerJson(resposta, EsquemaNumerosOp)).numeros;
     },
-    async criarTarefa(empresa, clienteId, produtoId) {
+    async criarTarefa(empresa, clienteId, produtoId, clienteFinal) {
       const caminho = `/clientes/${encodeURIComponent(clienteId)}/produtos/${encodeURIComponent(produtoId)}/tarefas`;
-      return lerJson(await chamar('POST', rota(empresa, caminho)), EsquemaTarefa);
+      // Sem cliente final, sem corpo (como antes); a API trata vazio como ausente.
+      const opcoes = clienteFinal?.trim() ? { json: { clienteFinal } } : undefined;
+      return lerJson(await chamar('POST', rota(empresa, caminho), opcoes), EsquemaTarefa);
     },
     async listarTarefas(empresa, { escopo, status }) {
       const params = new URLSearchParams({ escopo });
@@ -492,6 +499,7 @@ export type EntradaCadastro = {
   nome?: string;
   corId: string;
   maquinaIds: string[];
+  clienteFinal?: string;
 };
 
 export type ArquivosCadastro = { pdf?: ArquivoLocal; imagem?: ArquivoLocal };
@@ -555,6 +563,7 @@ export async function montarEnvio(
   form.append('nome', entrada.nome ?? '');
   form.append('corId', entrada.corId);
   for (const id of entrada.maquinaIds) form.append('maquinaIds', id);
+  if (entrada.clienteFinal?.trim()) form.append('clienteFinal', entrada.clienteFinal);
   for (const campo of ['pdf', 'imagem'] as const) {
     const arquivo = arquivos[campo];
     // `validarNovaArte` garante o tipo detectado de cada arquivo enviado.

@@ -58,6 +58,17 @@ describe('tarefas no cliente da API', () => {
     ]);
   });
 
+  it('com cliente final de revenda, manda o corpo; em branco, cria sem corpo', async () => {
+    const { cliente, chamadas } = api(() =>
+      json(tarefa({ clienteFinal: 'Hamburgueria Exemplo' }), 201),
+    );
+    const criada = await cliente.criarTarefa('roma', CLIENTE, PRODUTO, 'Hamburgueria Exemplo');
+    expect(criada.clienteFinal).toBe('Hamburgueria Exemplo');
+    expect(JSON.parse(String(chamadas[0]?.corpo))).toEqual({ clienteFinal: 'Hamburgueria Exemplo' });
+    await cliente.criarTarefa('roma', CLIENTE, PRODUTO, '  ');
+    expect(chamadas[1]?.corpo).toBeUndefined();
+  });
+
   it('usuários: lista, cria, edita, define permissões e exclui pelas rotas da empresa', async () => {
     const detalhe = {
       id: USUARIO,

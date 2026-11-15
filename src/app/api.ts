@@ -119,6 +119,8 @@ export type CadastroArte = {
   maquinaIds: string[];
   pdfId?: string;
   imagemId?: string;
+  /** Cliente final de revenda (ADR 0017), opcional; na conclusão de tarefa vale o da tarefa. */
+  clienteFinal?: string;
 };
 
 export type CadastroResultado = { ok: true } | { ok: false; erros: ErrosCadastro };
@@ -135,7 +137,8 @@ export type { ConsultaTarefasApp };
  * vê e muda as próprias. Falha de rede ou de permissão vem como mensagem pronta para a tela.
  */
 export type TarefasApi = {
-  criar(clienteId: string, produtoId: string): Promise<Tarefa>;
+  /** `clienteFinal`: cliente final de revenda (ADR 0017), opcional. */
+  criar(clienteId: string, produtoId: string, clienteFinal?: string): Promise<Tarefa>;
   listar(consulta: ConsultaTarefasApp): Promise<Tarefa[]>;
   /** Contadores dos atalhos da home de Artes (não terminadas, por status). */
   contagem(): Promise<ContagemTarefas>;

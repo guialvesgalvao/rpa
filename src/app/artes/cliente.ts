@@ -1,5 +1,5 @@
 import type { ArtesApi } from '../api.js';
-import { type Cliente, type Opcao } from '../plataforma/contratos.js';
+import { CLIENTE_FINAL_MAX, type Cliente, type Opcao } from '../plataforma/contratos.js';
 import { itemDoProduto } from './artes-do-produto.js';
 import { blocoErro, botao, criar, formatarCnpj, mensagemErro } from './dom.js';
 
@@ -17,15 +17,16 @@ export type DepsCliente = {
   /** Mensagem de sucesso mostrada no topo (ex.: "Arte cadastrada"). */
   sucesso?: string;
   voltar: () => void;
-  /** "Inserir arte pronta": o formulário de nova arte, com o produto já escolhido. */
-  cadastrar: (cliente: Cliente, produtoId?: string) => void;
+  /** "Inserir arte pronta": o formulário de nova arte, com o produto (e o cliente final) já escolhidos. */
+  cadastrar: (cliente: Cliente, produtoId?: string, clienteFinal?: string) => void;
   /** "Iniciar o desenvolvimento": cria a tarefa do produto para o cliente e a abre. */
-  iniciarTarefa: (cliente: Cliente, produtoId: string) => Promise<void>;
+  iniciarTarefa: (cliente: Cliente, produtoId: string, clienteFinal?: string) => Promise<void>;
 };
 
 /**
  * "Novo trabalho de arte": um produto do catálogo da empresa (o mesmo para todos os clientes) e as
- * duas saídas, inserir uma arte pronta ou iniciar o desenvolvimento (tarefa).
+ * duas saídas, inserir uma arte pronta ou iniciar o desenvolvimento (tarefa). O cliente final de revenda
+ * (ADR 0017), se preenchido, segue para as duas.
  */
 function blocoNovoTrabalho(
   cliente: Cliente,
@@ -38,6 +39,12 @@ function blocoNovoTrabalho(
   for (const { id, nome } of catalogo) produto.append(new Option(nome, id));
   const erro = criar('div', 'hint warn');
   erro.setAttribute('role', 'alert');
+  const clienteFinal = criar('input');
+  clienteFinal.type = 'text';
+  clienteFinal.maxLength = CLIENTE_FINAL_MAX;
+  clienteFinal.setAttribute('aria-label', 'Cliente final (opcional)');
+  clienteFinal.placeholder = 'Cliente final (opcional)';
+  const valorClienteFinal = () => clienteFinal.value.trim() || undefined;
 
   const escolhido = (): string | undefined => {
     erro.textContent = produto.value ? '' : 'Selecione um produto do catálogo.';
@@ -45,7 +52,7 @@ function blocoNovoTrabalho(
   };
   const pronta = botao('Inserir arte pronta', () => {
     const produtoId = escolhido();
-    if (produtoId) cadastrar(cliente, produtoId);
+    if (produtoId) cadastrar(cliente, produtoId, valorClienteFinal());
   });
   const iniciar = botao(
     'Iniciar desenvolvimento',
@@ -54,7 +61,7 @@ function blocoNovoTrabalho(
       if (!produtoId) return;
       iniciar.disabled = true;
       try {
-        await iniciarTarefa(cliente, produtoId);
+        await iniciarTarefa(cliente, produtoId, valorClienteFinal());
       } catch (falha) {
         erro.textContent = mensagemErro(falha);
         iniciar.disabled = false;
@@ -69,10 +76,11 @@ function blocoNovoTrabalho(
   bloco.append(
     criar('label', undefined, 'Novo trabalho de arte'),
     produto,
+    clienteFinal,
     criar(
       'div',
       'hint',
-      'Insira uma arte que já existe ou inicie o desenvolvimento: a tarefa registra o andamento até a arte ficar pronta.',
+      'Insira uma arte que já existe ou inicie o desenvolvimento: a tarefa registra o andamento até a arte ficar pronta. Na revenda, o cliente final é para quem a arte é feita.',
     ),
     erro,
     acoes,

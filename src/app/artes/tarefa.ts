@@ -89,6 +89,7 @@ export function montarTarefa(
     const info = criar('div', 'tarefa-info');
     info.append(
       campoInfo('Cliente', tarefa.cliente.nome),
+      ...(tarefa.clienteFinal ? [campoInfo('Cliente final', tarefa.clienteFinal)] : []),
       campoInfo('Produto', tarefa.produto.nome),
       campoInfo('Responsável', tarefa.responsavel?.nome ?? 'Usuário removido'),
       campoInfo('Criada em', formatarDataHora(tarefa.criadoEm)),

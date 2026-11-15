@@ -1,6 +1,7 @@
 import type { ArquivoEscolhido, ArtesApi, CadastroArte, CadastroResultado } from '../api.js';
 import type { ErrosCadastro } from '../plataforma/artes.js';
 import {
+  CLIENTE_FINAL_MAX,
   chaveDaCor,
   type Cliente,
   LIMITES,
@@ -24,6 +25,8 @@ export type DepsFormulario = {
    * listado (ex.: inativado no Bling), entra como opção com este nome.
    */
   produtoFixo?: { nome: string };
+  /** Cliente final de revenda já digitado ao abrir (ex.: o do "Novo trabalho de arte"). */
+  clienteFinal?: string;
   /** Título do cartão; padrão: "Nova arte — <cliente>". */
   titulo?: string;
   /** Envio no lugar do cadastro comum (ex.: concluir a tarefa com a arte). */
@@ -164,7 +167,17 @@ function blocoNovaCor(
 /** Formulário de nova arte, com as mesmas regras e mensagens do site (`validarNovaArte`). */
 export function montarFormulario(
   raiz: HTMLElement,
-  { api, cliente, produtoId, produtoFixo, titulo, enviar, voltar, concluido }: DepsFormulario,
+  {
+    api,
+    cliente,
+    produtoId,
+    produtoFixo,
+    clienteFinal: clienteFinalInicial,
+    titulo,
+    enviar,
+    voltar,
+    concluido,
+  }: DepsFormulario,
 ): { encerrar(): void } {
   let encerrado = false;
   const card = criar('div', 'card');
@@ -208,6 +221,17 @@ export function montarFormulario(
       'Nome',
       nome,
       `Se ficar em branco, a arte será salva como '${NOME_PADRAO_ARTE}'`,
+    );
+
+    // Só no cadastro comum: na conclusão da tarefa, a arte herda o cliente final da tarefa (ADR 0017).
+    const clienteFinal = criar('input');
+    clienteFinal.type = 'text';
+    clienteFinal.maxLength = CLIENTE_FINAL_MAX;
+    clienteFinal.value = clienteFinalInicial ?? '';
+    const campoClienteFinal = campo(
+      'Cliente final (opcional)',
+      clienteFinal,
+      'Na revenda, para quem a arte foi feita (o cliente do revendedor)',
     );
 
     const seletor = (tipo: TipoArquivo, rotulo: string, limite: string) => {
@@ -268,6 +292,7 @@ export function montarFormulario(
     form.append(
       campoProduto.raiz,
       campoNome.raiz,
+      ...(enviar ? [] : [campoClienteFinal.raiz]),
       campoArquivos,
       campoMaquinas.raiz,
       campoCor.raiz,
@@ -278,6 +303,7 @@ export function montarFormulario(
     const mostrarErros = (erros: ErrosCadastro) => {
       campoProduto.erro.textContent = erros.produtoId ?? '';
       campoNome.erro.textContent = erros.nome ?? '';
+      campoClienteFinal.erro.textContent = erros.clienteFinal ?? '';
       erroArquivos.textContent = erros.arquivos ?? '';
       campoMaquinas.erro.textContent = erros.maquinaIds ?? '';
       campoCor.erro.textContent = erros.corId ?? '';
@@ -292,6 +318,7 @@ export function montarFormulario(
         nome: nome.value,
         corId,
         maquinaIds: maquinas.marcados(),
+        ...(enviar || !clienteFinal.value.trim() ? {} : { clienteFinal: clienteFinal.value }),
       };
       const resumo = (a?: ArquivoEscolhido) => a && { tamanho: a.tamanho, tipo: a.tipo };
       const erros = validarNovaArte({

@@ -206,6 +206,8 @@ const cadastroSchema = z.object({
   maquinaIds: z.array(z.string().max(100)).max(20),
   pdfId: z.uuid().optional(),
   imagemId: z.uuid().optional(),
+  // O tamanho é conferido por `validarNovaArte` (mensagem ao lado do campo).
+  clienteFinal: z.string().max(500).optional(),
 });
 
 export type CadastroEntrada = z.infer<typeof cadastroSchema>;
@@ -217,7 +219,10 @@ export function validarCadastro(input: unknown): CadastroEntrada {
   return parsed.data;
 }
 
-const conclusaoSchema = cadastroSchema.omit({ clienteId: true }).extend({ tarefaId: z.uuid() });
+// Sem o cliente final: a arte da conclusão herda o da tarefa (ADR 0017).
+const conclusaoSchema = cadastroSchema
+  .omit({ clienteId: true, clienteFinal: true })
+  .extend({ tarefaId: z.uuid() });
 
 export type ConclusaoEntrada = z.infer<typeof conclusaoSchema>;
 
@@ -237,7 +242,20 @@ export function validarProdutoDoCliente(input: unknown): { clienteId: string; pr
   return parsed.data;
 }
 
-export const validarNovaTarefa = validarProdutoDoCliente;
+const novaTarefaSchema = produtoDoClienteSchema.extend({
+  clienteFinal: z.string().max(500).optional(),
+});
+
+/** Tarefa nova: o par cliente e produto e o cliente final de revenda (opcional; a API confere o tamanho). */
+export function validarNovaTarefa(input: unknown): {
+  clienteId: string;
+  produtoId: string;
+  clienteFinal?: string;
+} {
+  const parsed = novaTarefaSchema.safeParse(input);
+  if (!parsed.success) throw new Error('Cliente ou produto inválido.');
+  return parsed.data;
+}
 
 const consultaTarefasSchema = z.object({
   escopo: z.enum(ESCOPOS_TAREFAS),

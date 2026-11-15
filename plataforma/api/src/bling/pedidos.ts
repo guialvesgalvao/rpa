@@ -24,6 +24,8 @@ const EsquemaPedidoLista = z.object({ id: z.number().int().positive() });
 
 const EsquemaPedidoDetalhe = z.object({
   numero,
+  // "AAAA-MM-DD".
+  data: textoOuNulo,
   contato: z.object({
     id: z.number().int().positive(),
     numeroDocumento: textoOuNulo,
@@ -38,6 +40,9 @@ const EsquemaPedidoDetalhe = z.object({
     )
     .nullish()
     .transform((itens) => itens ?? []),
+  // "Nome" do endereço de entrega: na revenda, o cliente final (ADR 0017). Na resposta interna da tela do pedido
+  // é `venda.etiqueta_nome` (Task 1 do plano 2026-11-15); na v3, `transporte.etiqueta.nome`.
+  transporte: z.object({ etiqueta: z.object({ nome: textoOuNulo }).nullish() }).nullish(),
 });
 
 export type PedidoAberto = {
@@ -47,6 +52,10 @@ export type PedidoAberto = {
   cnpj: string | null;
   // Códigos dos produtos do pedido, sem repetição.
   codigos: string[];
+  // Data do pedido ("AAAA-MM-DD"); `null` se o Bling não mandar.
+  data: string | null;
+  // "Nome" do endereço de entrega, como veio (o cliente final sai dele em `clienteFinalDoPedido`).
+  nomeEntrega: string | null;
 };
 
 function cnpjDe(documento: string | null): string | null {
@@ -121,6 +130,8 @@ export async function lerPedidosAbertos(
       contatoIdBling: detalhe.contato.id,
       cnpj: cnpjDe(detalhe.contato.numeroDocumento),
       codigos,
+      data: detalhe.data,
+      nomeEntrega: detalhe.transporte?.etiqueta?.nome ?? null,
     });
   }
   return pedidos;

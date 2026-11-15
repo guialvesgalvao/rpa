@@ -136,6 +136,7 @@ export async function criarTarefa(
     responsavelId?: string | null;
     origem?: OrigemTarefa;
     pedidoNumero?: string;
+    clienteFinal?: string | null;
   },
 ): Promise<Tarefa> {
   const responsavelId =
@@ -150,6 +151,7 @@ export async function criarTarefa(
         responsavelId,
         origem: entrada.origem ?? 'manual',
         pedidoNumero: entrada.pedidoNumero ?? null,
+        clienteFinal: entrada.clienteFinal ?? null,
       })
       .returning({ id: tarefasArte.id, status: tarefasArte.status });
     if (!tarefa) throw new Error('Tarefa não criada.');

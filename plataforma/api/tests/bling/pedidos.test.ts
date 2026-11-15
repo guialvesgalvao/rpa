@@ -8,10 +8,11 @@ import {
   type PedidoAberto,
   SITUACAO_EM_ABERTO,
 } from '../../src/bling/pedidos.js';
-import { criarTarefasDosPedidos } from '../../src/bling/tarefas-pedidos.js';
+import { CLIENTE_FINAL_DESDE, criarTarefasDosPedidos } from '../../src/bling/tarefas-pedidos.js';
 import { gerarCnpj, PDF_MINIMO } from '../../src/cli/semear-dev.js';
 import { criarArte } from '../../src/artes/servico.js';
 import {
+  artes,
   clientes,
   cores,
   empresas,
@@ -109,7 +110,9 @@ describe('lerPedidosAbertos', () => {
         return json({
           data: {
             numero: 9001,
+            data: '2026-11-08',
             contato: { id: 501, numeroDocumento: '11.222.333/0001-81' },
+            transporte: { etiqueta: { nome: ' Pizzaria Ficticia ' } },
             itens: [
               { codigo: 'CX-35', produto: { id: 77 } },
               { codigo: 'CX-35', produto: { id: 77 } },
@@ -133,8 +136,22 @@ describe('lerPedidosAbertos', () => {
     });
 
     expect(pedidos).toEqual([
-      { numero: '9001', contatoIdBling: 501, cnpj: '11222333000181', codigos: ['CX-35'] },
-      { numero: '9002', contatoIdBling: 502, cnpj: null, codigos: [] },
+      {
+        numero: '9001',
+        contatoIdBling: 501,
+        cnpj: '11222333000181',
+        codigos: ['CX-35'],
+        data: '2026-11-08',
+        nomeEntrega: 'Pizzaria Ficticia',
+      },
+      {
+        numero: '9002',
+        contatoIdBling: 502,
+        cnpj: null,
+        codigos: [],
+        data: null,
+        nomeEntrega: null,
+      },
     ]);
     expect(urls[0]).toContain(`idsSituacoes%5B%5D=${SITUACAO_EM_ABERTO}`);
     expect(urls[0]).toContain('dataInicial=2026-10-10');
@@ -166,6 +183,8 @@ describe('criarTarefasDosPedidos', () => {
     contatoIdBling: 501,
     cnpj: null,
     codigos: ['3500', '4000'],
+    data: null,
+    nomeEntrega: null,
     ...extra,
   });
 
@@ -274,5 +293,115 @@ describe('criarTarefasDosPedidos', () => {
     const resultado = await criarTarefasDosPedidos(db, aba, [pedido({ codigos: ['4000'] })]);
     expect(resultado).toMatchObject({ criadas: 1, semResponsavel: 0 });
     expect((await db.select().from(tarefasArte))[0]?.responsavelId).toBe(ids[1]);
+  });
+
+  describe('cliente final de revenda (ADR 0017)', () => {
+    const NOVO = CLIENTE_FINAL_DESDE;
+    const ANTIGO = '2026-11-01';
+    const revenda = (numero: string, nomeEntrega: string | null, data = NOVO) =>
+      pedido({ numero, codigos: ['3500'], data, nomeEntrega });
+
+    const tarefas = () =>
+      db
+        .select({ clienteFinal: tarefasArte.clienteFinal, pedido: tarefasArte.pedidoNumero })
+        .from(tarefasArte)
+        .orderBy(tarefasArte.pedidoNumero);
+
+    async function arteDe(clienteFinal: string | null) {
+      const [produto] = await db.select().from(produtos).where(eq(produtos.codigo, '3500'));
+      const usuario = await criarUsuario(db, {
+        email: `adm${Math.random()}@exemplo.com`,
+        nome: 'Admin Ficticio',
+        perfil: 'admin',
+        senha: 'senha-ficticia-123',
+        empresas: ['aba'],
+      });
+      const arte = await criarArte(db, {
+        empresaId: aba,
+        clienteId,
+        produtoId: produto!.id,
+        usuarioId: usuario.id,
+        nome: `Arte ${Math.random()}`,
+        corId: (await db.select().from(cores).limit(1))[0]!.id,
+        maquinaIds: [(await db.select().from(maquinas).limit(1))[0]!.id],
+        pdf: { nomeOriginal: 'a.pdf', tipoMime: 'application/pdf', conteudo: PDF_MINIMO },
+      });
+      await db.update(artes).set({ clienteFinal }).where(eq(artes.id, arte.id));
+    }
+
+    it('revenda cria a tarefa com o cliente final; dois clientes finais, duas tarefas', async () => {
+      const resultado = await criarTarefasDosPedidos(db, aba, [
+        revenda('9001', 'Pizzaria Ficticia'),
+        revenda('9002', 'Hamburgueria Exemplo'),
+      ]);
+      expect(resultado).toMatchObject({ criadas: 2, jaAtendidos: 0 });
+      expect(await tarefas()).toEqual([
+        { clienteFinal: 'Pizzaria Ficticia', pedido: '9001' },
+        { clienteFinal: 'Hamburgueria Exemplo', pedido: '9002' },
+      ]);
+    });
+
+    it('o mesmo cliente final com outra grafia não duplica (no ciclo e no seguinte)', async () => {
+      const primeira = await criarTarefasDosPedidos(db, aba, [
+        revenda('9001', 'Pizzaria Fictícia'),
+        revenda('9002', 'PIZZARIA   FICTICIA'),
+      ]);
+      expect(primeira).toMatchObject({ criadas: 1 });
+      const segunda = await criarTarefasDosPedidos(db, aba, [revenda('9003', 'pizzaria ficticia')]);
+      expect(segunda).toMatchObject({ criadas: 0, jaAtendidos: 1 });
+    });
+
+    it('arte da revendedora sem cliente final não barra a revenda; com o mesmo cliente final, barra', async () => {
+      await arteDe(null);
+      expect(
+        await criarTarefasDosPedidos(db, aba, [revenda('9001', 'Pizzaria Ficticia')]),
+      ).toMatchObject({ criadas: 1 });
+      await db.delete(tarefasArteHistorico);
+      await db.delete(tarefasArte);
+      await arteDe('Pizzaria Fictícia');
+      expect(
+        await criarTarefasDosPedidos(db, aba, [revenda('9002', 'pizzaria ficticia')]),
+      ).toMatchObject({ criadas: 0, jaAtendidos: 1 });
+      // Pedido da própria revendedora (sem cliente final): só as artes sem cliente final contam.
+      expect(await criarTarefasDosPedidos(db, aba, [revenda('9003', null)])).toMatchObject({
+        criadas: 0,
+        jaAtendidos: 1,
+      });
+    });
+
+    it('pedido sem cliente final, com só artes de clientes finais, gera tarefa', async () => {
+      await arteDe('Pizzaria Ficticia');
+      expect(await criarTarefasDosPedidos(db, aba, [revenda('9001', null)])).toMatchObject({
+        criadas: 1,
+      });
+      expect(await tarefas()).toEqual([{ clienteFinal: null, pedido: '9001' }]);
+    });
+
+    it('nome de entrega igual ao do cliente não é cliente final', async () => {
+      await criarTarefasDosPedidos(db, aba, [revenda('9001', 'CLIENTE FICTÍCIO LTDA')]);
+      expect(await tarefas()).toEqual([{ clienteFinal: null, pedido: '9001' }]);
+    });
+
+    it('pedido anterior ao corte: regra antiga (arte existente barra), mas guarda o cliente final', async () => {
+      const antes = await criarTarefasDosPedidos(db, aba, [
+        revenda('9001', 'Pizzaria Ficticia', ANTIGO),
+        revenda('9002', 'Hamburgueria Exemplo', ANTIGO),
+      ]);
+      expect(antes).toMatchObject({ criadas: 1 });
+      expect(await tarefas()).toEqual([{ clienteFinal: 'Pizzaria Ficticia', pedido: '9001' }]);
+
+      await db.delete(tarefasArteHistorico);
+      await db.delete(tarefasArte);
+      await arteDe(null);
+      expect(
+        await criarTarefasDosPedidos(db, aba, [revenda('9003', 'Pizzaria Ficticia', ANTIGO)]),
+      ).toMatchObject({ criadas: 0, jaAtendidos: 1 });
+      // Sem data: também a regra antiga.
+      expect(
+        await criarTarefasDosPedidos(db, aba, [
+          pedido({ codigos: ['3500'], nomeEntrega: 'Outra' }),
+        ]),
+      ).toMatchObject({ criadas: 0, jaAtendidos: 1 });
+    });
   });
 });

@@ -277,6 +277,7 @@ export async function concluirTarefa(
               arteId: tarefasArte.arteId,
               clienteId: tarefasArte.clienteId,
               produtoId: tarefasArte.produtoId,
+              clienteFinal: tarefasArte.clienteFinal,
             })
             .from(tarefasArte)
             .where(alcance(empresaId, acesso, tarefaId))
@@ -295,6 +296,8 @@ export async function concluirTarefa(
             clienteId: atual.clienteId,
             produtoId: atual.produtoId,
             usuarioId: acesso.usuarioId,
+            // A arte herda o cliente final da tarefa (ADR 0017).
+            clienteFinal: atual.clienteFinal,
           });
           await tx
             .update(tarefasArte)

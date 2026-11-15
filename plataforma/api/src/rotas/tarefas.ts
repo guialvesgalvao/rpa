@@ -4,6 +4,7 @@ import {
   type ComentarioTarefa,
   type ContagemTarefas,
   EsquemaConsultaTarefas,
+  EsquemaNovaTarefa,
   EsquemaDefinirResponsavelAutomatico,
   EsquemaMudancaStatus,
   EsquemaNovoComentario,
@@ -91,11 +92,14 @@ export function rotasTarefas(
         if (!cliente) throw new ErroApi(404, 'cliente_nao_encontrado', 'Cliente não encontrado.');
         const produto = ehUuid(produtoId) ? await buscarProduto(db, empresaId, produtoId) : null;
         if (!produto) throw new ErroApi(404, 'produto_nao_encontrado', 'Produto não encontrado.');
+        // Corpo opcional (o app antigo não manda): só o cliente final de revenda (ADR 0017).
+        const { clienteFinal } = lerCorpo(EsquemaNovaTarefa, request.body ?? {});
         const tarefa = await criarTarefa(db, {
           empresaId,
           clienteId: cliente.id,
           produtoId: produto.id,
           usuarioId: usuarioDe(request).usuarioId,
+          clienteFinal,
         });
         return reply.code(201).send(tarefa);
       },

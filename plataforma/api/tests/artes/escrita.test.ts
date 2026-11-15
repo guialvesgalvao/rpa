@@ -328,6 +328,52 @@ describe('POST /clientes/:id/artes', () => {
   });
 });
 
+describe('cliente final de revenda (ADR 0017)', () => {
+  it('cadastro com cliente final; sem o campo, a arte fica sem; longo demais: 422', async () => {
+    const com = await cadastrar([
+      ...camposBase(),
+      { nome: 'nome', valor: 'Revenda' },
+      { nome: 'clienteFinal', valor: '  Pizzaria   Ficticia ' },
+      parteArquivo('pdf', pdf()),
+    ]);
+    expect(com.clienteFinal).toBe('Pizzaria Ficticia');
+    const sem = await cadastrar();
+    expect(sem.clienteFinal).toBeNull();
+    const longo = await enviar('POST', urlCadastro(), [
+      ...camposBase(),
+      { nome: 'nome', valor: 'Outra' },
+      { nome: 'clienteFinal', valor: 'x'.repeat(121) },
+      parteArquivo('pdf', pdf()),
+    ]);
+    esperarErro(longo, 422, 'validacao');
+  });
+
+  it('edição: ausente mantém, preenchido troca, vazio tira', async () => {
+    const arte = await cadastrar([
+      ...camposBase(),
+      { nome: 'clienteFinal', valor: 'Pizzaria Ficticia' },
+      parteArquivo('pdf', pdf()),
+    ]);
+    const editar = async (partes: Parte[]) => {
+      const resposta = await enviar('PATCH', urlArte(arte.id), partes, tokenAdmin);
+      expect(resposta.statusCode).toBe(200);
+      return EsquemaArte.parse(resposta.json()).clienteFinal;
+    };
+    expect(await editar([{ nome: 'nome', valor: 'Frente' }])).toBe('Pizzaria Ficticia');
+    expect(await editar([{ nome: 'clienteFinal', valor: 'Hamburgueria Exemplo' }])).toBe(
+      'Hamburgueria Exemplo',
+    );
+    expect(await editar([{ nome: 'clienteFinal', valor: '  ' }])).toBeNull();
+    const longo = await enviar(
+      'PATCH',
+      urlArte(arte.id),
+      [{ nome: 'clienteFinal', valor: 'x'.repeat(121) }],
+      tokenAdmin,
+    );
+    esperarErro(longo, 422, 'validacao');
+  });
+});
+
 describe('PATCH /artes/:id', () => {
   it('admin troca nome, cor, máquinas e arquivos mantendo ao menos um', async () => {
     const arte = await cadastrar();

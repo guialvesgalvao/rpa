@@ -395,6 +395,41 @@ describe('POST /tarefas/:id/concluir', () => {
     });
   });
 
+  it('com cliente final: título, campo da tarefa, arte herdada e pedido na lista de artes', async () => {
+    const resposta = await app.inject({
+      method: 'POST',
+      url: urlCriar(),
+      headers: auth(tokenAna),
+      payload: { clienteFinal: '  Hamburgueria   Exemplo ' },
+    });
+    expect(resposta.statusCode).toBe(201);
+    const tarefa = EsquemaTarefa.parse(resposta.json());
+    expect(tarefa.clienteFinal).toBe('Hamburgueria Exemplo');
+    await db.update(tarefasArte).set({ pedidoNumero: '9001' }).where(eq(tarefasArte.id, tarefa.id));
+
+    // Um `clienteFinal` mandado na conclusão é ignorado: vale o da tarefa.
+    const concluida = await concluir(tarefa.id, camposArte());
+    expect(concluida.statusCode).toBe(200);
+    const artes = await app.inject({
+      method: 'GET',
+      url: `/v1/empresas/aba/clientes/${clienteId}/produtos/${produtoId}/artes`,
+      headers: auth(tokenAna),
+    });
+    expect(z.array(EsquemaArteDoProduto).parse(artes.json())).toMatchObject([
+      { clienteFinal: 'Hamburgueria Exemplo', pedidoNumero: '9001' },
+    ]);
+  });
+
+  it('cliente final longo demais na criação: 400', async () => {
+    const resposta = await app.inject({
+      method: 'POST',
+      url: urlCriar(),
+      headers: auth(tokenAna),
+      payload: { clienteFinal: 'x'.repeat(121) },
+    });
+    expect(resposta.statusCode).toBe(400);
+  });
+
   it('sem arquivo: 422 e a tarefa continua como estava', async () => {
     const tarefa = await criar();
     const resposta = await concluir(

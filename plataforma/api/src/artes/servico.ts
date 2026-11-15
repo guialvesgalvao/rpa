@@ -32,6 +32,8 @@ export type NovaArte = {
   maquinaIds: string[];
   pdf?: ArquivoRecebido;
   imagem?: ArquivoRecebido;
+  // Cliente final de revenda (ADR 0017); já limpo (`limparClienteFinal`).
+  clienteFinal?: string | null;
 };
 
 // Campos ausentes ficam como estão. `remover*` tira o arquivo (só vale se sobrar outro).
@@ -47,6 +49,8 @@ export type EdicaoArte = {
   imagem?: ArquivoRecebido;
   removerPdf?: boolean;
   removerImagem?: boolean;
+  // `null` tira o cliente final; ausente, fica como está.
+  clienteFinal?: string | null;
 };
 
 export type Transacao = Parameters<Parameters<Banco['transaction']>[0]>[0];
@@ -161,6 +165,7 @@ export async function inserirArte(tx: Transacao, entrada: NovaArte): Promise<str
       imagemId,
       criadoPor: entrada.usuarioId,
       atualizadoPor: entrada.usuarioId,
+      clienteFinal: entrada.clienteFinal ?? null,
     })
     .returning({ id: artes.id });
   if (!arte) throw new Error('Arte não criada.');
@@ -250,6 +255,8 @@ export async function atualizarArte(
               corId: entrada.corId ?? atual.corId,
               pdfId,
               imagemId,
+              clienteFinal:
+                entrada.clienteFinal === undefined ? atual.clienteFinal : entrada.clienteFinal,
               atualizadoPor: entrada.usuarioId,
               atualizadoEm: sql`now()`,
             })

@@ -3,7 +3,9 @@ import {
   type Arte,
   detectarTipo,
   LIMITES,
+  limparClienteFinal,
   type TipoArquivo,
+  validarClienteFinal,
   validarNovaArte,
 } from '@plataforma/contratos';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
@@ -32,6 +34,8 @@ export type CamposArte = {
   removerImagem: boolean;
   pdf?: ArquivoRecebido;
   imagem?: ArquivoRecebido;
+  // Cliente final de revenda (ADR 0017), como veio; `limparClienteFinal` trata (vazio = sem cliente final).
+  clienteFinal?: string;
 };
 
 const NOMES_TEXTO = new Set([
@@ -41,6 +45,7 @@ const NOMES_TEXTO = new Set([
   'maquinaIds',
   'removerPdf',
   'removerImagem',
+  'clienteFinal',
 ]);
 const LIMITE_POR_TIPO: Record<TipoArquivo, number> = {
   pdf: LIMITES.pdfBytes,
@@ -78,6 +83,9 @@ export async function lerCampos(request: FastifyRequest): Promise<CamposArte> {
           break;
         case 'removerImagem':
           campos.removerImagem = valor === 'true';
+          break;
+        case 'clienteFinal':
+          campos.clienteFinal = valor;
           break;
         default:
           // O nome é guardado como veio (só `nomeOuPadrao` o trata); ids em branco valem como ausentes.
@@ -140,6 +148,7 @@ export function conferirNovaArte(campos: CamposArte, produtoId: string): void {
     maquinaIds: campos.maquinaIds ?? [],
     pdf: campos.pdf && { tamanho: campos.pdf.conteudo.length, tipo: 'pdf' },
     imagem: campos.imagem && { tamanho: campos.imagem.conteudo.length, tipo: 'imagem' },
+    clienteFinal: campos.clienteFinal,
   });
   const primeiroErro = Object.values(erros)[0];
   if (primeiroErro) throw new ErroApi(422, 'validacao', primeiroErro);
@@ -199,6 +208,7 @@ export function rotasArtes(
             maquinaIds: campos.maquinaIds ?? [],
             pdf: campos.pdf,
             imagem: campos.imagem,
+            clienteFinal: limparClienteFinal(campos.clienteFinal),
           },
           armazenamento(request),
         );
@@ -254,11 +264,22 @@ export function rotasArtes(
         const { id } = request.params as { id: string };
         if (!ehUuid(id)) throw arteNaoEncontrada();
 
-        const campos = await lerCampos(request);
+        const { clienteFinal, ...campos } = await lerCampos(request);
         exigirIds(campos);
+        const erroClienteFinal = validarClienteFinal(clienteFinal);
+        if (erroClienteFinal) throw new ErroApi(422, 'validacao', erroClienteFinal);
         const arte = await atualizarArte(
           db,
-          { empresaId, arteId: id, usuarioId: usuarioDe(request).usuarioId, ...campos },
+          {
+            empresaId,
+            arteId: id,
+            usuarioId: usuarioDe(request).usuarioId,
+            ...campos,
+            // Campo ausente: fica como está; enviado vazio: tira o cliente final.
+            ...(clienteFinal === undefined
+              ? {}
+              : { clienteFinal: limparClienteFinal(clienteFinal) }),
+          },
           armazenamento(request),
         );
         if (!arte) throw arteNaoEncontrada();

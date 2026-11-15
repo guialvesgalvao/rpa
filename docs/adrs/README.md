@@ -20,5 +20,6 @@ Registros das decisões de arquitetura do projeto. Cada ADR traz contexto, decis
 | [0014](0014-paginacao-numerada-e-visualizar-arte.md) | Paginação numerada das listas e visualização da arte         | aceito                                                                    | 2026-11-12 |
 | [0015](0015-insumo-pelo-codigo-com-letra.md)         | Insumo pelo código com letra                                 | aceito                                                                    | 2026-11-13 |
 | [0016](0016-formato-e-processo-da-op.md)             | "Formato" e passos do processo na OP                         | aceito                                                                    | 2026-11-13 |
+| [0017](0017-cliente-final-de-revenda.md)             | Cliente final de revenda nas tarefas e nas artes             | proposto                                                                  | 2026-11-15 |
 
 Uma decisão nova ganha o próximo número. Para mudar uma decisão aceita, crie um ADR novo e marque o antigo como substituído.

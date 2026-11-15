@@ -15,7 +15,7 @@ import type { PedidoAberto } from './pedidos.js';
 // Pedidos com data a partir deste dia ("AAAA-MM-DD", o do deploy) separam as tarefas também pelo cliente final
 // de revenda (ADR 0017). Os anteriores seguem a regra antiga (cliente × produto): as artes já feitas não têm
 // cliente final gravado, e a regra nova recriaria de uma vez as tarefas delas.
-export const CLIENTE_FINAL_DESDE = '2026-11-16';
+export const CLIENTE_FINAL_DESDE = '2026-11-15';
 
 export type ResultadoTarefasPedidos = {
   criadas: number;
